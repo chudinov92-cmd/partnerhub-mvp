@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  useMapEvents,
-} from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
 
 type Profile = {
   id: string;
@@ -33,44 +27,13 @@ type LocationRow = {
   city: string | null;
 };
 
-const PERM_CENTER: LatLngExpression = [58.01, 56.25];
-
-function LocationPicker({
-  value,
-  onChange,
-}: {
-  value: { lat: number; lng: number } | null;
-  onChange: (coords: { lat: number; lng: number }) => void;
-}) {
-  const center: LatLngExpression = value
-    ? [value.lat, value.lng]
-    : PERM_CENTER;
-
-  function ClickHandler() {
-    useMapEvents({
-      click(e) {
-        onChange({ lat: e.latlng.lat, lng: e.latlng.lng });
-      },
-    });
-    return null;
-  }
-
-  return (
-    <div className="h-64 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-      <MapContainer
-        center={center}
-        zoom={12}
-        scrollWheelZoom
-        style={{ height: "100%", width: "100%" }}
-        attributionControl={false}
-      >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <ClickHandler />
-        {value && <Marker position={[value.lat, value.lng]} />}
-      </MapContainer>
-    </div>
-  );
-}
+const LocationPicker = dynamic(
+  () =>
+    import("@/components/ProfileLocationPicker").then(
+      (m) => m.ProfileLocationPicker,
+    ),
+  { ssr: false },
+);
 
 export default function ProfilePage() {
   const router = useRouter();

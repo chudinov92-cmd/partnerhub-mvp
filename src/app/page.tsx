@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
-import { PartnerMap } from "@/components/PartnerMap";
+
+const PartnerMap = dynamic(
+  () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
+  { ssr: false },
+);
 
 type Post = {
   id: string;
