@@ -79,7 +79,28 @@ export function PartnerMap() {
         .limit(200);
 
       if (!error && data) {
-        setPoints(data as LocationPoint[]);
+        // Supabase возвращает связанные записи как массив, нормализуем в один профиль
+        const normalized: LocationPoint[] = (data as any[]).map((row) => {
+          const profileArray = row.profiles as any[] | null | undefined;
+          const profile = profileArray && profileArray.length > 0
+            ? profileArray[0]
+            : null;
+
+          return {
+            id: row.id,
+            lat: row.lat,
+            lng: row.lng,
+            city: row.city ?? null,
+            profiles: profile
+              ? {
+                  full_name: profile.full_name ?? null,
+                  user_specialties: profile.user_specialties ?? [],
+                }
+              : null,
+          };
+        });
+
+        setPoints(normalized);
       }
     };
 
