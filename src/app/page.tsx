@@ -11,12 +11,31 @@ const PartnerMap = dynamic(
 
 type Post = {
   id: string;
-  title: string;
   body: string | null;
   city: string | null;
   created_at: string;
   specialty_id: string | null;
   author_id: string;
+  author:
+    | {
+        full_name: string | null;
+        user_specialties?: {
+          is_primary: boolean | null;
+          specialties: {
+            name: string;
+          } | null;
+        }[];
+      }
+    | Array<{
+        full_name: string | null;
+        user_specialties?: {
+          is_primary: boolean | null;
+          specialties: {
+            name: string;
+          } | null;
+        }[];
+      }>
+    | null;
 };
 
 type Profile = {
@@ -72,7 +91,9 @@ export default function Home() {
         ] = await Promise.all([
           supabase
             .from("posts")
-            .select("id, title, body, city, created_at, specialty_id, author_id")
+            .select(
+              "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+            )
             .order("created_at", { ascending: false })
             .limit(20),
           supabase
@@ -183,11 +204,13 @@ export default function Home() {
         .from("posts")
         .insert({
           author_id: currentUser.profileId,
-          title: "Сообщение в общем чате",
+          title: "Общий чат",
           body,
           city: currentUser.city,
         })
-        .select("id, title, body, city, created_at, specialty_id, author_id")
+        .select(
+          "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+        )
         .single();
 
       if (error) throw error;
@@ -205,10 +228,10 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <main className="flex w-full flex-col gap-4 py-3 md:flex-row md:gap-3 lg:gap-4">
+    <div className="flex h-[calc(100vh-3rem)] bg-slate-50">
+      <main className="flex h-full w-full flex-col gap-4 py-3 md:flex-row md:gap-3 lg:gap-4">
         {/* Левая колонка: лента запросов, как список чата */}
-        <section className="w-full rounded-2xl bg-white p-4 shadow-sm md:w-[320px] md:flex-shrink-0 md:p-5">
+        <section className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[320px] md:flex-shrink-0 md:p-5">
           <header className="mb-3 flex items-center justify-between gap-2">
             <h1 className="text-base font-semibold text-slate-900">
               Общий чат
@@ -270,7 +293,7 @@ export default function Home() {
           )}
 
           {/* Список постов с прокруткой */}
-          <div className="mb-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
+          <div className="mb-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
             <ul className="space-y-2">
               {visiblePosts.map((post) => {
                 const isExpanded = expandedPosts.has(post.id);
@@ -282,6 +305,18 @@ export default function Home() {
                   ? body.slice(0, 200) + "…"
                   : body;
 
+                const authorObj = Array.isArray(post.author)
+                  ? post.author[0]
+                  : post.author;
+                const authorName = authorObj?.full_name || "Аноним";
+                const specs = authorObj?.user_specialties ?? [];
+                const spec =
+                  specs.length > 0
+                    ? (specs.find((s) => s.is_primary && s.specialties?.name) ||
+                        specs.find((s) => s.specialties?.name))?.specialties
+                        ?.name
+                    : null;
+
                 return (
                   <li
                     key={post.id}
@@ -289,7 +324,12 @@ export default function Home() {
                   >
                     <div className="mb-1 flex items-center justify-between">
                       <h2 className="text-sm font-semibold text-slate-900">
-                        {post.title}
+                        {authorName}
+                        {spec ? (
+                          <span className="ml-1 text-xs font-normal text-slate-500">
+                            — {spec}
+                          </span>
+                        ) : null}
                       </h2>
                       {post.city && (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
@@ -349,20 +389,20 @@ export default function Home() {
         </section>
 
         {/* Центр: карта во всю высоту */}
-        <section className="order-last flex-1 md:order-none md:px-1 lg:px-2 flex flex-col">
+        <section className="order-last flex h-full flex-1 flex-col md:order-none md:px-1 lg:px-2">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">
               Специалисты на карте
             </h2>
             <span className="text-[11px] text-slate-500">Пермь</span>
           </div>
-          <div className="flex-1">
+          <div className="min-h-0 flex-1">
             <PartnerMap />
           </div>
         </section>
 
         {/* Правая колонка: список чатов / специалистов */}
-        <aside className="w-full rounded-2xl bg-white p-4 shadow-sm md:w-[260px] md:flex-shrink-0 md:p-5">
+        <aside className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[260px] md:flex-shrink-0 md:p-5">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">
             Мои чаты
           </h2>
@@ -374,30 +414,34 @@ export default function Home() {
             </p>
           )}
 
-          <ul className="space-y-2">
-            {profiles.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900">
-                    {p.full_name || "Без имени"}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {p.city || "Город не указан"}
-                  </p>
-                </div>
-                {p.rating_count && p.rating_count > 0 ? (
-                  <span className="text-xs font-medium text-amber-500">
-                    ★ {p.rating_avg?.toFixed(1)}
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-slate-400">нет оценок</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <ul className="space-y-2">
+              {profiles.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      {p.full_name || "Без имени"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {p.city || "Город не указан"}
+                    </p>
+                  </div>
+                  {p.rating_count && p.rating_count > 0 ? (
+                    <span className="text-xs font-medium text-amber-500">
+                      ★ {p.rating_avg?.toFixed(1)}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      нет оценок
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </aside>
       </main>
     </div>
