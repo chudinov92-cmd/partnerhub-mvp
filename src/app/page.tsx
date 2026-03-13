@@ -16,26 +16,9 @@ type Post = {
   created_at: string;
   specialty_id: string | null;
   author_id: string;
-  author:
-    | {
-        full_name: string | null;
-        user_specialties?: {
-          is_primary: boolean | null;
-          specialties: {
-            name: string;
-          } | null;
-        }[];
-      }
-    | Array<{
-        full_name: string | null;
-        user_specialties?: {
-          is_primary: boolean | null;
-          specialties: {
-            name: string;
-          } | null;
-        }[];
-      }>
-    | null;
+  // Структура автора приходит из Supabase как вложенный объект/массив,
+  // для простоты типизируем как any и обрабатываем на уровне рендера.
+  author: any;
 };
 
 type Profile = {
@@ -312,9 +295,12 @@ export default function Home() {
                 const specs = authorObj?.user_specialties ?? [];
                 const spec =
                   specs.length > 0
-                    ? (specs.find((s) => s.is_primary && s.specialties?.name) ||
-                        specs.find((s) => s.specialties?.name))?.specialties
-                        ?.name
+                    ? (
+                        specs.find(
+                          (s: any) => s.is_primary && s.specialties?.name,
+                        ) ||
+                        specs.find((s: any) => s.specialties?.name)
+                      )?.specialties?.name
                     : null;
 
                 return (
