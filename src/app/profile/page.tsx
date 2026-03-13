@@ -10,6 +10,9 @@ type Profile = {
   full_name: string | null;
   country: string | null;
   city: string | null;
+  industry: string | null;
+  industry_other: string | null;
+  subindustry: string | null;
   role_title: string | null;
   domain: string | null;
   experience_years: number | null;
@@ -67,7 +70,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -85,7 +88,7 @@ export default function ProfilePage() {
               auth_user_id: user.id,
             })
             .select(
-              "id, full_name, country, city, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
+              "id, full_name, country, city, industry, industry_other, subindustry, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
             )
             .single();
 
@@ -137,6 +140,20 @@ export default function ProfilePage() {
           full_name: profile.full_name,
           country: profile.country,
           city: profile.city,
+          industry: profile.industry,
+          industry_other:
+            profile.industry === "Другое" ? profile.industry_other : null,
+          subindustry:
+            profile.industry === "Природные ресурсы" ||
+            profile.industry === "Промышленность" ||
+            profile.industry === "Строительство и инфраструктура" ||
+            profile.industry === "Торговля" ||
+            profile.industry === "Транспорт и логистика" ||
+            profile.industry === "Финансы" ||
+            profile.industry === "Недвижимость" ||
+            profile.industry === "Государственный сектор"
+              ? profile.subindustry
+              : null,
           role_title: profile.role_title,
           domain: profile.domain,
           experience_years: profile.experience_years,
@@ -260,6 +277,198 @@ export default function ProfilePage() {
             />
           </div>
         </div>
+
+        {/* Отрасль */}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Отрасль
+          </label>
+          <select
+            value={profile.industry ?? ""}
+            onChange={(e) =>
+              setProfile({
+                ...profile,
+                industry: e.target.value || null,
+                industry_other: e.target.value === "Другое" ? profile.industry_other : null,
+              })
+            }
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+          >
+            <option value="">Выберите отрасль</option>
+            <option value="Природные ресурсы">Природные ресурсы</option>
+            <option value="Промышленность">Промышленность</option>
+            <option value="Строительство и инфраструктура">
+              Строительство и инфраструктура
+            </option>
+            <option value="Торговля">Торговля</option>
+            <option value="Транспорт и логистика">Транспорт и логистика</option>
+            <option value="Финансы">Финансы</option>
+            <option value="Недвижимость">Недвижимость</option>
+            <option value="Государственный сектор">Государственный сектор</option>
+            <option value="Другое">Другое</option>
+          </select>
+        </div>
+
+        {profile.industry === "Другое" && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Другая отрасль (введите вручную)
+            </label>
+            <input
+              type="text"
+              value={profile.industry_other ?? ""}
+              onChange={(e) =>
+                setProfile({ ...profile, industry_other: e.target.value })
+              }
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Это значение сохранится только в вашем профиле и не появится в списке отраслей у других пользователей.
+            </p>
+          </div>
+        )}
+
+        {(profile.industry === "Природные ресурсы" ||
+          profile.industry === "Промышленность" ||
+          profile.industry === "Строительство и инфраструктура" ||
+          profile.industry === "Торговля" ||
+          profile.industry === "Транспорт и логистика" ||
+          profile.industry === "Финансы" ||
+          profile.industry === "Недвижимость" ||
+          profile.industry === "Государственный сектор") && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Подотрасль
+            </label>
+            <select
+              value={profile.subindustry ?? ""}
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  subindustry: e.target.value || null,
+                })
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            >
+              <option value="">Выберите подотрасль</option>
+              {profile.industry === "Природные ресурсы" && (
+                <>
+                  <option value="Сельское хозяйство">Сельское хозяйство</option>
+                  <option value="Лесное хозяйство">Лесное хозяйство</option>
+                  <option value="Рыболовство">Рыболовство</option>
+                  <option value="Охота">Охота</option>
+                  <option value="Горнодобывающая промышленность">
+                    Горнодобывающая промышленность
+                  </option>
+                  <option value="Нефть и газ">Нефть и газ</option>
+                  <option value="Энергетика">Энергетика</option>
+                  <option value="Водные ресурсы">Водные ресурсы</option>
+                </>
+              )}
+              {profile.industry === "Промышленность" && (
+                <>
+                  <option value="Производство">Производство</option>
+                  <option value="Машиностроение">Машиностроение</option>
+                  <option value="Химическая промышленность">
+                    Химическая промышленность
+                  </option>
+                  <option value="Металлургия">Металлургия</option>
+                  <option value="Электроника">Электроника</option>
+                  <option value="Авиационная промышленность">
+                    Авиационная промышленность
+                  </option>
+                  <option value="Космическая промышленность">
+                    Космическая промышленность
+                  </option>
+                  <option value="Оборонная промышленность">
+                    Оборонная промышленность
+                  </option>
+                  <option value="Биотехнологии">Биотехнологии</option>
+                  <option value="Фармацевтика">Фармацевтика</option>
+                  <option value="Робототехника">Робототехника</option>
+                </>
+              )}
+              {profile.industry === "Строительство и инфраструктура" && (
+                <>
+                  <option value="Строительство">Строительство</option>
+                  <option value="Архитектура">Архитектура</option>
+                  <option value="Девелопмент">Девелопмент</option>
+                  <option value="Инженерия">Инженерия</option>
+                  <option value="Урбанистика">Урбанистика</option>
+                  <option value="Дорожное строительство">
+                    Дорожное строительство
+                  </option>
+                  <option value="ЖКХ">ЖКХ</option>
+                </>
+              )}
+              {profile.industry === "Торговля" && (
+                <>
+                  <option value="Оптовая торговля">Оптовая торговля</option>
+                  <option value="Розничная торговля">Розничная торговля</option>
+                  <option value="Ecommerce">Ecommerce</option>
+                  <option value="Маркетплейсы">Маркетплейсы</option>
+                  <option value="Dropshipping">Dropshipping</option>
+                  <option value="Импорт / экспорт">Импорт / экспорт</option>
+                </>
+              )}
+              {profile.industry === "Транспорт и логистика" && (
+                <>
+                  <option value="Авиация">Авиация</option>
+                  <option value="Морские перевозки">Морские перевозки</option>
+                  <option value="Железные дороги">Железные дороги</option>
+                  <option value="Автотранспорт">Автотранспорт</option>
+                  <option value="Логистика">Логистика</option>
+                  <option value="Supply chain">Supply chain</option>
+                  <option value="Складирование">Складирование</option>
+                  <option value="Delivery-сервисы">Delivery-сервисы</option>
+                </>
+              )}
+              {profile.industry === "Финансы" && (
+                <>
+                  <option value="Банки">Банки</option>
+                  <option value="Инвестиции">Инвестиции</option>
+                  <option value="Страхование">Страхование</option>
+                  <option value="FinTech">FinTech</option>
+                  <option value="Криптоиндустрия">Криптоиндустрия</option>
+                  <option value="Venture capital">Venture capital</option>
+                  <option value="Private equity">Private equity</option>
+                  <option value="Hedge funds">Hedge funds</option>
+                  <option value="Трейдинг">Трейдинг</option>
+                </>
+              )}
+              {profile.industry === "Недвижимость" && (
+                <>
+                  <option value="Real estate">Real estate</option>
+                  <option value="PropTech">PropTech</option>
+                  <option value="Управление недвижимостью">
+                    Управление недвижимостью
+                  </option>
+                  <option value="Аренда">Аренда</option>
+                  <option value="Коммерческая недвижимость">
+                    Коммерческая недвижимость
+                  </option>
+                  <option value="Жилая недвижимость">
+                    Жилая недвижимость
+                  </option>
+                </>
+              )}
+              {profile.industry === "Государственный сектор" && (
+                <>
+                  <option value="Государственное управление">
+                    Государственное управление
+                  </option>
+                  <option value="Муниципальное управление">
+                    Муниципальное управление
+                  </option>
+                  <option value="Вооружённые силы">Вооружённые силы</option>
+                  <option value="Госуслуги">Госуслуги</option>
+                  <option value="Регулирование">Регулирование</option>
+                  <option value="Налоговые службы">Налоговые службы</option>
+                </>
+              )}
+            </select>
+          </div>
+        )}
 
         {/* Кем работаешь / сфера */}
         <div className="grid gap-3 md:grid-cols-2">

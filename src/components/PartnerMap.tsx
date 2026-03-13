@@ -24,14 +24,6 @@ type LocationPoint = {
 
 const PERM_CENTER: LatLngExpression = [58.01, 56.25];
 
-function jitterCoordinate(lat: number, lng: number) {
-  // ~150 м в градусах широты (~0.00135)
-  const maxOffset = 0.00135;
-  const dLat = (Math.random() * 2 - 1) * maxOffset;
-  const dLng = (Math.random() * 2 - 1) * maxOffset;
-  return [lat + dLat, lng + dLng] as [number, number];
-}
-
 const SPECIALTY_COLORS: Record<string, string> = {
   // гуманитарии
   marketing: "#22c55e", // зелёный
@@ -121,13 +113,12 @@ export function PartnerMap() {
         />
 
         {points.map((p) => {
-          const [jLat, jLng] = jitterCoordinate(p.lat, p.lng);
           const color = getMarkerColor(p);
 
           return (
             <CircleMarker
               key={p.id}
-              center={[jLat, jLng]}
+              center={[p.lat, p.lng]}
               radius={8}
               pathOptions={{
                 color,

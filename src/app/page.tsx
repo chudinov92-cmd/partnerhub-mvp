@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -27,6 +27,7 @@ type Profile = {
   city: string | null;
   rating_avg: number | null;
   rating_count: number | null;
+  user_specialties?: any;
 };
 
 type Specialty = {
@@ -38,6 +39,13 @@ type CurrentUser = {
   profileId: string;
   fullName: string | null;
   city: string | null;
+};
+
+type ChatMessage = {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
 };
 
 export default function Home() {
@@ -55,6 +63,15 @@ export default function Home() {
   const [newPostBody, setNewPostBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [activeChatUser, setActiveChatUser] = useState<Profile | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatSending, setChatSending] = useState(false);
+  const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -81,7 +98,9 @@ export default function Home() {
             .limit(20),
           supabase
             .from("profiles")
-            .select("id, full_name, city, rating_avg, rating_count")
+            .select(
+              "id, full_name, city, rating_avg, rating_count, user_specialties(is_primary, specialties(name))",
+            )
             .limit(20),
           supabase
             .from("specialties")
@@ -140,6 +159,79 @@ export default function Home() {
 
     load();
   }, []);
+
+  // Периодически подтягиваем новые сообщения для общего чата,
+  // чтобы поведение было ближе к мессенджеру.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(
+          "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+        )
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (!error && data) {
+        setPosts(data as Post[]);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Реальное время для личных сообщений
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const channel = supabase
+      .channel("messages-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        async (payload) => {
+          const msg = payload.new as ChatMessage & { chat_id: string };
+
+          // Игнорируем свои же сообщения (мы их уже добавили локально)
+          if (msg.sender_id === currentUser.profileId) return;
+
+          try {
+            // Проверяем, что текущий пользователь участник этого чата
+            const { data: members, error } = await supabase
+              .from("chat_members")
+              .select("user_id")
+              .eq("chat_id", (msg as any).chat_id);
+
+            if (error || !members) return;
+
+            const memberIds = members.map((m) => m.user_id as string);
+            if (!memberIds.includes(currentUser.profileId)) return;
+
+            const otherId =
+              memberIds.find((id) => id !== currentUser.profileId) ??
+              currentUser.profileId;
+
+            // Если этот чат сейчас открыт — просто добавляем сообщение в окно
+            if (activeChatId === (msg as any).chat_id) {
+              setChatMessages((prev) => [...prev, msg]);
+            } else {
+              // Иначе увеличиваем счётчик непрочитанных для собеседника
+              setUnreadByUser((prev) => ({
+                ...prev,
+                [otherId]: (prev[otherId] || 0) + 1,
+              }));
+            }
+          } catch {
+            // тихо игнорируем ошибки realtime-обработчика
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, activeChatId]);
 
   const filteredPosts = useMemo(() => {
     if (!feedSpecialtyIds.length) return posts;
@@ -209,6 +301,128 @@ export default function Home() {
       setCreating(false);
     }
   };
+
+  const openChatWithProfile = async (profile: Profile) => {
+    if (!currentUser) {
+      setChatError("Нужно войти, чтобы отправлять сообщения.");
+      return;
+    }
+
+    setActiveChatUser(profile);
+    setChatError(null);
+    setChatLoading(true);
+
+    try {
+      // Ищем существующий личный чат с этим пользователем
+      const { data: chatsData, error: chatsError } = await supabase
+        .from("chats")
+        .select("id, is_group, chat_members(user_id)")
+        .eq("is_group", false);
+
+      if (chatsError) throw chatsError;
+
+      let chatId: string | null = null;
+
+      if (chatsData) {
+        for (const chat of chatsData as any[]) {
+          const members = chat.chat_members as { user_id: string }[];
+          const memberIds = members.map((m) => m.user_id);
+          if (
+            memberIds.includes(currentUser.profileId) &&
+            memberIds.includes(profile.id)
+          ) {
+            chatId = chat.id as string;
+            break;
+          }
+        }
+      }
+
+      // Если чата нет — создаём
+      if (!chatId) {
+        const { data: newChat, error: createChatError } = await supabase
+          .from("chats")
+          .insert({
+            is_group: false,
+            title: null,
+            created_by: currentUser.profileId,
+          })
+          .select("id")
+          .single();
+
+        if (createChatError) throw createChatError;
+
+        chatId = (newChat as any).id as string;
+
+        const { error: membersError } = await supabase
+          .from("chat_members")
+          .insert([
+            { chat_id: chatId, user_id: currentUser.profileId },
+            { chat_id: chatId, user_id: profile.id },
+          ]);
+
+        if (membersError) throw membersError;
+      }
+
+      setActiveChatId(chatId);
+
+      // Загружаем последние 5 сообщений
+      const { data: msgsData, error: msgsError } = await supabase
+        .from("messages")
+        .select("id, content, sender_id, created_at")
+        .eq("chat_id", chatId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (msgsError) throw msgsError;
+
+      const normalized = (msgsData ?? []).reverse() as ChatMessage[];
+      setChatMessages(normalized);
+      setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
+    } catch (err: any) {
+      setChatError(err.message ?? "Не удалось открыть диалог.");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !activeChatId || !chatInput.trim()) return;
+
+    setChatSending(true);
+    setChatError(null);
+
+    try {
+      const content = chatInput.trim().slice(0, 1000);
+
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          chat_id: activeChatId,
+          sender_id: currentUser.profileId,
+          content,
+        })
+        .select("id, content, sender_id, created_at")
+        .single();
+
+      if (error) throw error;
+
+      setChatMessages((prev) => [...prev, data as ChatMessage]);
+      setChatInput("");
+    } catch (err: any) {
+      setChatError(err.message ?? "Не удалось отправить сообщение.");
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  // автоскролл к последнему сообщению при изменении списка
+  useEffect(() => {
+    if (!activeChatUser) return;
+    const el = chatScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [chatMessages, activeChatUser]);
 
   return (
     <div className="flex h-[calc(100vh-3rem)] bg-slate-50">
@@ -405,7 +619,8 @@ export default function Home() {
               {profiles.map((p) => (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2"
+                  onClick={() => openChatWithProfile(p)}
+                  className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 transition hover:border-sky-200 hover:bg-sky-50/60"
                 >
                   <div>
                     <p className="text-sm font-medium text-slate-900">
@@ -415,20 +630,135 @@ export default function Home() {
                       {p.city || "Город не указан"}
                     </p>
                   </div>
-                  {p.rating_count && p.rating_count > 0 ? (
-                    <span className="text-xs font-medium text-amber-500">
-                      ★ {p.rating_avg?.toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-slate-400">
-                      нет оценок
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {unreadByUser[p.id] && unreadByUser[p.id] > 0 && (
+                      <span className="inline-flex min-w-[18px] justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold text-white">
+                        +{unreadByUser[p.id]}
+                      </span>
+                    )}
+                    {p.rating_count && p.rating_count > 0 ? (
+                      <span className="text-xs font-medium text-amber-500">
+                        ★ {p.rating_avg?.toFixed(1)}
+                      </span>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
         </aside>
+
+        {/* Окно диалога поверх карты и списка чатов */}
+        {activeChatUser && (
+          <div className="pointer-events-auto fixed top-16 right-3 z-[1000] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]">
+            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  {activeChatUser.full_name || "Без имени"}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {(() => {
+                    const specs = (activeChatUser.user_specialties ??
+                      []) as any[];
+                    if (!specs.length) {
+                      return activeChatUser.city || "Город не указан";
+                    }
+                    const spec =
+                      specs.find(
+                        (s: any) => s.is_primary && s.specialties?.name,
+                      ) ||
+                      specs.find((s: any) => s.specialties?.name);
+                    return spec?.specialties?.name || "Специализация не указана";
+                  })()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveChatUser(null);
+                  setActiveChatId(null);
+                  setChatMessages([]);
+                  setChatError(null);
+                }}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-1 flex-col overflow-hidden px-3 py-2">
+              <div
+                ref={chatScrollRef}
+                className="mb-2 flex-1 overflow-y-auto space-y-2"
+              >
+                {chatLoading ? (
+                  <p className="text-xs text-slate-500">
+                    Загружаем сообщения...
+                  </p>
+                ) : (
+                  <>
+                    {chatMessages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-xs ${
+                          m.sender_id === currentUser?.profileId
+                            ? "ml-auto bg-sky-600 text-white"
+                            : "mr-auto bg-slate-50/70 text-slate-900"
+                        }`}
+                      >
+                        <p>{m.content}</p>
+                      </div>
+                    ))}
+                    {chatMessages.length === 0 && !chatLoading && (
+                      <p className="text-xs text-slate-400">
+                        Пока нет сообщений. Напишите что‑нибудь первым.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {chatError && (
+                <p className="mb-1 text-[11px] text-red-600">{chatError}</p>
+              )}
+
+              <form
+                onSubmit={handleSendChatMessage}
+                className="mt-1 space-y-1 border-t border-slate-200 pt-2"
+              >
+                <textarea
+                  value={chatInput}
+                  onChange={(e) =>
+                    setChatInput(e.target.value.slice(0, 1000))
+                  }
+                  rows={4}
+                  placeholder="Напишите сообщение…"
+                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!chatSending && chatInput.trim()) {
+                        handleSendChatMessage(e as any);
+                      }
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">
+                    {chatInput.length}/1000
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={chatSending || !chatInput.trim()}
+                    className="inline-flex items-center rounded-lg bg-sky-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+                  >
+                    {chatSending ? "Отправляем..." : "Отправить"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

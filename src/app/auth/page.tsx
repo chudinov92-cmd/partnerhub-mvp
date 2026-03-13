@@ -13,6 +13,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+   const [info, setInfo] = useState<string | null>(null);
   const router = useRouter();
 
   // если уже залогинен, сразу на главную
@@ -31,6 +32,7 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
 
     try {
@@ -45,7 +47,9 @@ export default function AuthPage() {
           },
         });
         if (error) throw error;
-        router.push("/");
+        setInfo(
+          "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
+        );
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -139,6 +143,12 @@ export default function AuthPage() {
           {error && (
             <p className="text-sm text-red-600">
               {error}
+            </p>
+          )}
+
+          {info && (
+            <p className="text-sm text-emerald-600">
+              {info}
             </p>
           )}
 
