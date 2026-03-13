@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -27,6 +28,9 @@ type Profile = {
   city: string | null;
   rating_avg: number | null;
   rating_count: number | null;
+  industry?: string | null;
+  subindustry?: string | null;
+  role_title?: string | null;
   user_specialties?: any;
 };
 
@@ -72,6 +76,11 @@ export default function Home() {
   const [chatSending, setChatSending] = useState(false);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  const [activeProfileCard, setActiveProfileCard] = useState<{
+    profile: Profile;
+    top: number;
+  } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -99,9 +108,9 @@ export default function Home() {
           supabase
             .from("profiles")
             .select(
-              "id, full_name, city, rating_avg, rating_count, user_specialties(is_primary, specialties(name))",
+              "id, full_name, city, industry, subindustry, role_title, rating_avg, rating_count, user_specialties(is_primary, specialties(name))",
             )
-            .limit(20),
+            .limit(50),
           supabase
             .from("specialties")
             .select("id, name")
@@ -159,6 +168,19 @@ export default function Home() {
 
     load();
   }, []);
+
+  // Автооткрытие чата, если пришли с параметром ?chat=profileId
+  useEffect(() => {
+    if (!currentUser || !profiles.length) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const chatProfileId = params.get("chat");
+    if (!chatProfileId) return;
+    const p = profiles.find((pr) => pr.id === chatProfileId);
+    if (p) {
+      openChatWithProfile(p);
+    }
+  }, [currentUser, profiles]);
 
   // Периодически подтягиваем новые сообщения для общего чата,
   // чтобы поведение было ближе к мессенджеру.
@@ -424,6 +446,57 @@ export default function Home() {
     el.scrollTop = el.scrollHeight;
   }, [chatMessages, activeChatUser]);
 
+  // закрытие окна чата по клику вне и по Esc
+  useEffect(() => {
+    if (!activeChatUser) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (!chatWindowRef.current) return;
+      if (!chatWindowRef.current.contains(event.target as Node)) {
+        setActiveChatUser(null);
+        setActiveChatId(null);
+        setChatMessages([]);
+        setChatError(null);
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveChatUser(null);
+        setActiveChatId(null);
+        setChatMessages([]);
+        setChatError(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [activeChatUser]);
+
+  // закрытие карточки профиля (из общего чата) по клику вне и Esc
+  useEffect(() => {
+    if (!activeProfileCard) return;
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("[data-profile-card]")) return;
+      setActiveProfileCard(null);
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveProfileCard(null);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [activeProfileCard]);
+
   return (
     <div className="flex h-[calc(100vh-3rem)] bg-slate-50">
       <main className="flex h-full w-full flex-col gap-4 py-3 md:flex-row md:gap-3 lg:gap-4">
@@ -517,23 +590,41 @@ export default function Home() {
                       )?.specialties?.name
                     : null;
 
+                const roleTitle = authorObj?.role_title as string | null;
+
                 return (
                   <li
                     key={post.id}
                     className="cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-sky-100 hover:bg-sky-50/40"
                   >
                     <div className="mb-1 flex items-center justify-between">
-                      <h2 className="text-sm font-semibold text-slate-900">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const p = profiles.find(
+                            (pr) => pr.id === post.author_id,
+                          );
+                          if (p) {
+                            const rect = (
+                              e.currentTarget as HTMLElement
+                            ).getBoundingClientRect();
+                            const top = rect.top + window.scrollY;
+                            setActiveProfileCard({ profile: p, top });
+                          }
+                        }}
+                        className="text-left text-sm font-semibold text-slate-900 hover:text-sky-700"
+                      >
                         {authorName}
                         {spec ? (
                           <span className="ml-1 text-xs font-normal text-slate-500">
                             — {spec}
                           </span>
                         ) : null}
-                      </h2>
-                      {post.city && (
+                      </button>
+                      {roleTitle && (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                          {post.city}
+                          {roleTitle}
                         </span>
                       )}
                     </div>
@@ -569,6 +660,14 @@ export default function Home() {
                   : "Войди, чтобы написать сообщение…"
               }
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!creating && newPostBody.trim()) {
+                    handleCreatePost(e as any);
+                  }
+                }
+              }}
             />
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-slate-400">
@@ -586,6 +685,66 @@ export default function Home() {
               <p className="text-[11px] text-red-600">{createError}</p>
             )}
           </form>
+
+          {activeProfileCard && (
+            <div
+              data-profile-card
+              className="fixed z-[900] w-[260px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+              style={{
+                top: activeProfileCard.top,
+                left: 340,
+              }}
+            >
+              <div className="mb-2 flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {activeProfileCard.profile.full_name || "Пользователь"}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {activeProfileCard.profile.city || "Город не указан"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveProfileCard(null)}
+                  className="ml-2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                {activeProfileCard.profile.industry || "Отрасль не указана"}
+              </p>
+              {activeProfileCard.profile.subindustry && (
+                <p className="text-[11px] text-slate-600">
+                  {activeProfileCard.profile.subindustry}
+                </p>
+              )}
+              {activeProfileCard.profile.role_title && (
+                <p className="text-[11px] text-slate-600">
+                  {activeProfileCard.profile.role_title}
+                </p>
+              )}
+              <div className="mt-2 flex gap-2">
+                <a
+                  href={`/profiles/${activeProfileCard.profile.id}`}
+                  className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Профиль
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openChatWithProfile(activeProfileCard.profile);
+                    setActiveProfileCard(null);
+                  }}
+                  className="inline-flex flex-1 items-center justify-center rounded-full bg-sky-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
+                >
+                  Написать
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Центр: карта во всю высоту */}
@@ -597,7 +756,15 @@ export default function Home() {
             <span className="text-[11px] text-slate-500">Пермь</span>
           </div>
           <div className="min-h-0 flex-1">
-            <PartnerMap />
+            <PartnerMap
+              profiles={profiles}
+              onOpenChat={(profileId) => {
+                const p = profiles.find((pr) => pr.id === profileId);
+                if (p) {
+                  openChatWithProfile(p);
+                }
+              }}
+            />
           </div>
         </section>
 
@@ -631,11 +798,15 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    {unreadByUser[p.id] && unreadByUser[p.id] > 0 && (
+                    {(() => {
+                      const unread = unreadByUser[p.id] ?? 0;
+                      if (unread <= 0) return null;
+                      return (
                       <span className="inline-flex min-w-[18px] justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold text-white">
-                        +{unreadByUser[p.id]}
+                          +{unread}
                       </span>
-                    )}
+                      );
+                    })()}
                     {p.rating_count && p.rating_count > 0 ? (
                       <span className="text-xs font-medium text-amber-500">
                         ★ {p.rating_avg?.toFixed(1)}
@@ -650,12 +821,18 @@ export default function Home() {
 
         {/* Окно диалога поверх карты и списка чатов */}
         {activeChatUser && (
-          <div className="pointer-events-auto fixed top-16 right-3 z-[1000] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]">
+          <div
+            ref={chatWindowRef}
+            className="pointer-events-auto fixed top-16 right-3 z-[1000] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]"
+          >
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
               <div>
-                <p className="text-sm font-semibold text-slate-900">
+                <Link
+                  href={`/profiles/${activeChatUser.id}`}
+                  className="text-sm font-semibold text-slate-900 hover:text-sky-700"
+                >
                   {activeChatUser.full_name || "Без имени"}
-                </p>
+                </Link>
                 <p className="text-[11px] text-slate-500">
                   {(() => {
                     const specs = (activeChatUser.user_specialties ??
