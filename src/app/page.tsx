@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import type { PartnerMapProps } from "@/components/PartnerMap";
 import { supabase } from "@/lib/supabaseClient";
 
-const PartnerMap = dynamic(
+const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
   { ssr: false },
 );

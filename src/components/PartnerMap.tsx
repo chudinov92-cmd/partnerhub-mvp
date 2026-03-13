@@ -1,25 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { supabase } from "@/lib/supabaseClient";
 
 type LocationPoint = {
   id: string;
+  user_id: string;
   lat: number;
   lng: number;
   city: string | null;
-  profiles: {
-    full_name: string | null;
-    user_specialties?: {
-      is_primary: boolean | null;
-      specialties: {
-        slug: string;
-        name: string;
-      } | null;
-    }[];
-  } | null;
 };
 
 const PERM_CENTER: LatLngExpression = [58.01, 56.25];
@@ -38,59 +30,59 @@ const SPECIALTY_COLORS: Record<string, string> = {
   legal: "#a855f7",
 };
 
-function getMarkerColor(point: LocationPoint) {
-  const specialties = point.profiles?.user_specialties;
-  if (!specialties || specialties.length === 0) {
-    return "#0ea5e9"; // дефолтный голубой
-  }
-
-  // сначала пробуем primary
-  const primary = specialties.find((s) => s.is_primary && s.specialties?.slug);
-  const slug =
-    primary?.specialties?.slug ||
-    specialties.find((s) => s.specialties?.slug)?.specialties?.slug;
-
+function getMarkerColor(slug?: string | null) {
   if (slug && SPECIALTY_COLORS[slug]) {
     return SPECIALTY_COLORS[slug];
   }
-
   return "#0ea5e9";
 }
 
-export function PartnerMap() {
+export type PartnerMapProps = {
+  onOpenChat?: (profileId: string) => void;
+  profiles: {
+    id: string;
+    full_name: string | null;
+    city: string | null;
+    industry?: string | null;
+    subindustry?: string | null;
+    role_title?: string | null;
+    user_specialties?: {
+      is_primary: boolean | null;
+      specialties: {
+        slug?: string;
+        name?: string;
+      } | null;
+    }[];
+  }[];
+};
+
+export function PartnerMap({ onOpenChat, profiles }: PartnerMapProps) {
   const [points, setPoints] = useState<LocationPoint[]>([]);
+
+  const profileById = useMemo(() => {
+    const map: Record<string, PartnerMapProps["profiles"][number]> = {};
+    for (const p of profiles) {
+      map[p.id] = p;
+    }
+    return map;
+  }, [profiles]);
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("locations")
-        .select(
-          "id, lat, lng, city, profiles(full_name, user_specialties(is_primary, specialties(slug, name)))",
-        )
+        .select("id, user_id, lat, lng, city")
         .eq("is_active", true)
         .limit(200);
 
       if (!error && data) {
-        // Supabase возвращает связанные записи как массив, нормализуем в один профиль
-        const normalized: LocationPoint[] = (data as any[]).map((row) => {
-          const profileArray = row.profiles as any[] | null | undefined;
-          const profile = profileArray && profileArray.length > 0
-            ? profileArray[0]
-            : null;
-
-          return {
-            id: row.id,
-            lat: row.lat,
-            lng: row.lng,
-            city: row.city ?? null,
-            profiles: profile
-              ? {
-                  full_name: profile.full_name ?? null,
-                  user_specialties: profile.user_specialties ?? [],
-                }
-              : null,
-          };
-        });
+        const normalized: LocationPoint[] = (data as any[]).map((row) => ({
+          id: row.id,
+          user_id: row.user_id,
+          lat: row.lat,
+          lng: row.lng,
+          city: row.city ?? null,
+        }));
 
         setPoints(normalized);
       }
@@ -113,7 +105,15 @@ export function PartnerMap() {
         />
 
         {points.map((p) => {
-          const color = getMarkerColor(p);
+          const profile = profileById[p.user_id];
+          const specialties = profile?.user_specialties ?? [];
+          const primary = specialties.find(
+            (s) => s.is_primary && s.specialties?.slug,
+          );
+          const slug =
+            primary?.specialties?.slug ||
+            specialties.find((s) => s.specialties?.slug)?.specialties?.slug;
+          const color = getMarkerColor(slug);
 
           return (
             <CircleMarker
@@ -125,15 +125,57 @@ export function PartnerMap() {
                 fillColor: color,
                 fillOpacity: 0.8,
               }}
+              eventHandlers={{
+                // даём Leaflet открыть popup на первый клик
+                click: () => {},
+              }}
             >
               <Tooltip direction="top" offset={[0, -4]} opacity={1}>
                 <div className="text-xs">
                   <div className="font-semibold">
-                    {p.profiles?.full_name || "Специалист"}
+                    {profile?.full_name || "Специалист"}
                   </div>
-                  {p.city && <div className="text-slate-500">{p.city}</div>}
+                  {profile?.role_title && (
+                    <div className="text-slate-500">{profile.role_title}</div>
+                  )}
                 </div>
               </Tooltip>
+
+              <Popup>
+                <div className="space-y-1 text-xs">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {profile?.full_name || "Специалист"}
+                  </p>
+                  <p className="text-[11px] text-slate-600">
+                    {profile?.industry || "Отрасль не указана"}
+                  </p>
+                  {profile?.subindustry && (
+                    <p className="text-[11px] text-slate-600">
+                      {profile.subindustry}
+                    </p>
+                  )}
+                  {profile?.role_title && (
+                    <p className="text-[11px] text-slate-600">
+                      {profile.role_title}
+                    </p>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <Link
+                      href={`/profiles/${p.user_id}`}
+                      className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Профиль
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => onOpenChat?.(p.user_id)}
+                      className="inline-flex items-center rounded-full bg-sky-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
+                    >
+                      Написать
+                    </button>
+                  </div>
+                </div>
+              </Popup>
             </CircleMarker>
           );
         })}
