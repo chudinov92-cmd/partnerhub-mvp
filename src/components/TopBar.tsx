@@ -66,7 +66,7 @@ export function TopBar() {
     };
   }, []);
 
-  // Закрытие меню по клику вне и по Esc
+  // Закрытие меню профиля по клику вне и по Esc
   useEffect(() => {
     if (!menuOpen) return;
 

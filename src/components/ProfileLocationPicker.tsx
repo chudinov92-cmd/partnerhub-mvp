@@ -3,7 +3,7 @@
 import {
   MapContainer,
   TileLayer,
-  Marker,
+  CircleMarker,
   useMapEvents,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
@@ -40,7 +40,18 @@ export function ProfileLocationPicker({ value, onChange }: Props) {
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <ClickHandler onChange={onChange} />
-        {value && <Marker position={[value.lat, value.lng]} />}
+        {value && (
+          <CircleMarker
+            center={[value.lat, value.lng]}
+            radius={10}
+            pathOptions={{
+              color: "#ef4444",
+              fillColor: "#ef4444",
+              fillOpacity: 0.35,
+              weight: 2,
+            }}
+          />
+        )}
       </MapContainer>
     </div>
   );

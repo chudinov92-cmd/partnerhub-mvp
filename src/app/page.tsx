@@ -5,6 +5,22 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { PartnerMapProps } from "@/components/PartnerMap";
 import { supabase } from "@/lib/supabaseClient";
+import { maskProfanity } from "@/lib/profanity";
+import {
+  getProfessionLabelsForSelect,
+  loadProfessionCatalog,
+  type ProfessionCatalogRow,
+} from "@/lib/professionCatalog";
+import { DropdownSelect } from "@/components/DropdownSelect";
+import {
+  getIndustryLabelsForSelect,
+  getSubindustryLabelsForSelect,
+  loadIndustryCatalog,
+  loadSubindustryCatalog,
+  type IndustryCatalogRow,
+  type SubindustryCatalogRow,
+} from "@/lib/industryCatalog";
+import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -16,7 +32,6 @@ type Post = {
   body: string | null;
   city: string | null;
   created_at: string;
-  specialty_id: string | null;
   author_id: string;
   // Структура автора приходит из Supabase как вложенный объект/массив,
   // для простоты типизируем как any и обрабатываем на уровне рендера.
@@ -32,12 +47,177 @@ type Profile = {
   industry?: string | null;
   subindustry?: string | null;
   role_title?: string | null;
-  user_specialties?: any;
+  experience_years?: number | null;
 };
 
-type Specialty = {
-  id: string;
-  name: string;
+type ChatListItem = {
+  chatId: string;
+  profile: Profile;
+  lastMessageAt: string | null;
+};
+
+const INDUSTRY_OPTIONS = [
+  "Природные ресурсы",
+  "Промышленность",
+  "Строительство и инфраструктура",
+  "Торговля",
+  "Транспорт и логистика",
+  "Финансы",
+  "Информационные технологии",
+  "Телекоммуникации и связь",
+  "Недвижимость",
+  "Государственный сектор",
+  "Event-индустрия",
+  "Искусство",
+  "Медиапроизводство и съёмка",
+  "Другое",
+] as const;
+
+type Industry = (typeof INDUSTRY_OPTIONS)[number];
+
+function sortRuAsc(a: string, b: string) {
+  return a.localeCompare(b, "ru");
+}
+
+function sortWithOtherLast(items: readonly string[]) {
+  const other = "Другое";
+  const rest = items.filter((x) => x !== other).slice().sort(sortRuAsc);
+  return items.includes(other) ? [...rest, other] : rest;
+}
+
+const SORTED_INDUSTRY_OPTIONS = sortWithOtherLast(INDUSTRY_OPTIONS);
+
+const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
+  "Природные ресурсы": [
+    "Сельское хозяйство",
+    "Лесное хозяйство",
+    "Рыболовство",
+    "Охота",
+    "Горнодобывающая промышленность",
+    "Нефть и газ",
+    "Энергетика",
+    "Водные ресурсы",
+  ],
+  Промышленность: [
+    "Производство",
+    "Машиностроение",
+    "Химическая промышленность",
+    "Металлургия",
+    "Электроника",
+    "Авиационная промышленность",
+    "Космическая промышленность",
+    "Оборонная промышленность",
+    "Биотехнологии",
+    "Фармацевтика",
+    "Робототехника",
+  ],
+  "Строительство и инфраструктура": [
+    "Строительство",
+    "Архитектура",
+    "Девелопмент",
+    "Инженерия",
+    "Урбанистика",
+    "Дорожное строительство",
+    "ЖКХ",
+  ],
+  Торговля: [
+    "Оптовая торговля",
+    "Розничная торговля",
+    "Ecommerce",
+    "Маркетплейсы",
+    "Dropshipping",
+    "Импорт / экспорт",
+  ],
+  "Транспорт и логистика": [
+    "Авиация",
+    "Морские перевозки",
+    "Железные дороги",
+    "Автотранспорт",
+    "Логистика",
+    "Supply chain",
+    "Складирование",
+    "Delivery-сервисы",
+  ],
+  Финансы: [
+    "Банки",
+    "Инвестиции",
+    "Страхование",
+    "FinTech",
+    "Криптоиндустрия",
+    "Venture capital",
+    "Private equity",
+    "Hedge funds",
+    "Трейдинг",
+  ],
+  "Информационные технологии": [
+    "Разработка программного обеспечения",
+    "Данные и Искусственный Интеллект (Data & AI)",
+    "Инфраструктура и Администрирование",
+    "Информационная безопасность (InfoSec)",
+    "Бизнес-аналитика и Управление проектами",
+    "Веб-технологии и Дизайн",
+  ],
+  "Телекоммуникации и связь": [
+    "Мобильная связь",
+    "Интернет-провайдеры",
+    "Сетевое оборудование",
+    "Спутниковая связь",
+    "5G и новые стандарты",
+    "VoIP и унифицированные коммуникации",
+    "Радиосвязь",
+    "Дата-центры и инфраструктура связи",
+  ],
+  Недвижимость: [
+    "Real estate",
+    "PropTech",
+    "Управление недвижимостью",
+    "Аренда",
+    "Коммерческая недвижимость",
+    "Жилая недвижимость",
+  ],
+  "Государственный сектор": [
+    "Государственное управление",
+    "Муниципальное управление",
+    "Вооружённые силы",
+    "Госуслуги",
+    "Регулирование",
+    "Налоговые службы",
+  ],
+  "Event-индустрия": [
+    "Организация и управление мероприятиями",
+    "Event-маркетинг и коммуникации",
+    "Режиссура и креативное проектирование",
+    "Технический продакшн",
+    "Ивент-дизайн и оформление",
+  ],
+  Искусство: [
+    "Изобразительное искусство",
+    "Цифровое искусство и новые медиа",
+    "Сценография и театр",
+    "Реставрация и консервация",
+    "Арт-менеджмент и кураторство",
+    "Прикладное творчество и ремесла",
+  ],
+  "Медиапроизводство и съёмка": [
+    "Видеосъёмка",
+    "Фотосъёмка",
+    "Монтаж и постпродакшн",
+    "Звук и саунд-дизайн",
+    "Операторское мастерство",
+    "Продюсирование и организация съёмок",
+  ],
+};
+
+type FeedFilters = {
+  profession: string | null;
+  industry: string | null;
+  subindustry: string | null;
+};
+
+const DEFAULT_FEED_FILTERS: FeedFilters = {
+  profession: null,
+  industry: null,
+  subindustry: null,
 };
 
 type CurrentUser = {
@@ -53,17 +233,93 @@ type ChatMessage = {
   created_at: string;
 };
 
+import { RUSSIA_LABEL, SORTED_CITY_OPTIONS } from "@/data/cities";
+
+type CityViewConfig = {
+  center: [number, number];
+  zoom: number;
+};
+
+const CITY_VIEWS: Record<string, CityViewConfig> = {
+  Россия: {
+    center: [61, 90],
+    zoom: 3,
+  },
+  Москва: {
+    center: [55.7558, 37.6176],
+    zoom: 10,
+  },
+  "Санкт-Петербург": {
+    center: [59.9311, 30.3609],
+    zoom: 10,
+  },
+  Новосибирск: {
+    center: [55.0084, 82.9357],
+    zoom: 10,
+  },
+  Екатеринбург: {
+    center: [56.8389, 60.6057],
+    zoom: 10,
+  },
+  Казань: {
+    center: [55.7963, 49.1088],
+    zoom: 10,
+  },
+  "Нижний Новгород": {
+    center: [56.2965, 43.9361],
+    zoom: 10,
+  },
+  Челябинск: {
+    center: [55.1644, 61.4368],
+    zoom: 10,
+  },
+  Самара: {
+    center: [53.1959, 50.1008],
+    zoom: 10,
+  },
+  Омск: {
+    center: [54.9885, 73.3242],
+    zoom: 10,
+  },
+  "Ростов-на-Дону": {
+    center: [47.2357, 39.7015],
+    zoom: 10,
+  },
+  Уфа: {
+    center: [54.7388, 55.9721],
+    zoom: 10,
+  },
+  Красноярск: {
+    center: [56.0153, 92.8932],
+    zoom: 10,
+  },
+  Пермь: {
+    center: [58.01, 56.25],
+    zoom: 12,
+  },
+  Волгоград: {
+    center: [48.708, 44.5133],
+    zoom: 10,
+  },
+  Воронеж: {
+    center: [51.6608, 39.2003],
+    zoom: 10,
+  },
+};
+
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [feedSpecialtyIds, setFeedSpecialtyIds] = useState<string[]>([]);
+  const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [feedOpen, setFeedOpen] = useState(false);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
+  );
+  const [feedFiltersOpen, setFeedFiltersOpen] = useState(false);
+  const [feedFilters, setFeedFilters] = useState<FeedFilters>(
+    () => DEFAULT_FEED_FILTERS,
   );
   const [newPostBody, setNewPostBody] = useState("");
   const [creating, setCreating] = useState(false);
@@ -82,6 +338,53 @@ export default function Home() {
     profile: Profile;
     top: number;
   } | null>(null);
+  const [experienceSumByKey, setExperienceSumByKey] = useState<
+    Record<string, number>
+  >({});
+  const [cityMenuOpen, setCityMenuOpen] = useState(false);
+  const [citySearch, setCitySearch] = useState("");
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const cityMenuRef = useRef<HTMLDivElement | null>(null);
+  const feedFiltersRef = useRef<HTMLDivElement | null>(null);
+
+  const timeZone = useMemo(() => {
+    const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
+    return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
+  }, [currentUser?.city]);
+
+  const getTotalExperienceYears = (profileId: string, roleTitle: string | null | undefined) => {
+    if (!profileId || !roleTitle) return null;
+    const key = `${profileId}::${roleTitle}`;
+    const v = experienceSumByKey[key];
+    return typeof v === "number" ? v : null;
+  };
+
+  // загружаем выбранный город из localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("selected_city");
+    if (saved) {
+      setSelectedCity(saved);
+    } else {
+      setSelectedCity("Пермь");
+    }
+  }, []);
+
+  // подгружаем сохранённые фильтры ленты
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("feed_filters");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as FeedFilters;
+      setFeedFilters({
+        ...DEFAULT_FEED_FILTERS,
+        ...parsed,
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -96,26 +399,21 @@ export default function Home() {
         const [
           { data: postsData, error: postsError },
           { data: profilesData, error: profilesError },
-          { data: specsData, error: specsError },
           currentProfileResult,
         ] = await Promise.all([
           supabase
             .from("posts")
             .select(
-              "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, experience_years, industry, subindustry)",
             )
             .order("created_at", { ascending: false })
             .limit(20),
           supabase
             .from("profiles")
             .select(
-              "id, full_name, city, industry, subindustry, role_title, rating_avg, rating_count, user_specialties(is_primary, specialties(name))",
+              "id, full_name, city, industry, subindustry, role_title, experience_years, rating_avg, rating_count",
             )
             .limit(50),
-          supabase
-            .from("specialties")
-            .select("id, name")
-            .order("name", { ascending: true }),
           user
             ? supabase
                 .from("profiles")
@@ -127,11 +425,53 @@ export default function Home() {
 
         if (postsError) throw postsError;
         if (profilesError) throw profilesError;
-        if (specsError) throw specsError;
 
         setPosts(postsData ?? []);
-        setProfiles(profilesData ?? []);
-        setSpecialties(specsData ?? []);
+        const allProfiles = (profilesData ?? []) as Profile[];
+        setProfiles(allProfiles);
+
+        // Суммарный стаж по одной и той же профессии (role_title) с учётом разных отраслей/подотраслей.
+        // Берём base из profiles.experience_years и дополняем из public.profile_work.
+        const expMap = new Map<string, number>();
+        const addExp = (
+          profileId: string,
+          roleTitle: string | null | undefined,
+          exp: number | null | undefined,
+        ) => {
+          if (!profileId || !roleTitle) return;
+          if (exp == null) return;
+          const key = `${profileId}::${roleTitle}`;
+          expMap.set(key, (expMap.get(key) ?? 0) + exp);
+        };
+
+        // Считаем стаж ТОЛЬКО один раз по профилям (profilesData),
+        // а затем дополняем его из profile_work.
+        const profileIds = new Set<string>();
+        for (const p of allProfiles) {
+          profileIds.add(p.id);
+          addExp(p.id, p.role_title, p.experience_years);
+        }
+
+        if (profileIds.size > 0) {
+          try {
+            const { data: workRows, error: workErr } = await supabase
+              .from("profile_work")
+              .select("profile_id, role_title, experience_years")
+              .in("profile_id", Array.from(profileIds));
+            if (workErr) throw workErr;
+
+            for (const row of workRows ?? []) {
+              const r = row as any;
+              addExp(r.profile_id, r.role_title, r.experience_years);
+            }
+          } catch {
+            // в случае ошибок оставляем базовую сумму из profiles/posts
+          }
+        }
+
+        const expObj: Record<string, number> = {};
+        for (const [k, v] of expMap.entries()) expObj[k] = v;
+        setExperienceSumByKey(expObj);
 
         if (user && !currentProfileResult.error && currentProfileResult.data) {
           const p = currentProfileResult.data as {
@@ -144,22 +484,94 @@ export default function Home() {
             fullName: p.full_name,
             city: p.city,
           });
+
+          // загружаем только те профили, с кем у текущего пользователя есть чаты
+          const { data: memberRows, error: memberErr } = await supabase
+            .from("chat_members")
+            .select("chat_id")
+            .eq("user_id", p.id);
+
+          if (!memberErr && memberRows && memberRows.length > 0) {
+            const chatIds = Array.from(
+              new Set(memberRows.map((m: any) => m.chat_id as string)),
+            );
+
+            const { data: otherRows, error: otherErr } = await supabase
+              .from("chat_members")
+              .select(
+                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, rating_avg, rating_count)",
+              )
+              .in("chat_id", chatIds)
+              .neq("user_id", p.id);
+
+            if (!otherErr && otherRows) {
+              const map = new Map<string, { chatId: string; profile: Profile }>();
+              (otherRows as any[]).forEach((row) => {
+                const prof = row.profiles as any;
+                if (!prof) return;
+                map.set(prof.id as string, {
+                  chatId: row.chat_id as string,
+                  profile: {
+                    id: prof.id,
+                    full_name: prof.full_name,
+                    city: prof.city,
+                    industry: prof.industry,
+                    subindustry: prof.subindustry,
+                    role_title: prof.role_title,
+                    rating_avg: prof.rating_avg,
+                    rating_count: prof.rating_count,
+                  },
+                });
+              });
+
+              const baseItems: ChatListItem[] = Array.from(map.values()).map(
+                (v) => ({
+                  chatId: v.chatId,
+                  profile: v.profile,
+                  lastMessageAt: null,
+                }),
+              );
+
+              // подтягиваем время последнего сообщения для сортировки
+              const lastByChat = new Map<string, string>();
+              await Promise.all(
+                Array.from(new Set(baseItems.map((i) => i.chatId))).map(
+                  async (chatId) => {
+                    const { data: msg } = await supabase
+                      .from("messages")
+                      .select("created_at")
+                      .eq("chat_id", chatId)
+                      .order("created_at", { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+                    if (msg?.created_at) lastByChat.set(chatId, msg.created_at);
+                  },
+                ),
+              );
+
+              const withLast = baseItems
+                .map((i) => ({
+                  ...i,
+                  lastMessageAt: lastByChat.get(i.chatId) ?? null,
+                }))
+                .sort((a, b) => {
+                  const at = a.lastMessageAt ?? "";
+                  const bt = b.lastMessageAt ?? "";
+                  return bt.localeCompare(at);
+                });
+
+              setChatList(withLast);
+            } else {
+              setChatList([]);
+            }
+          } else {
+            setChatList([]);
+          }
         } else {
           setCurrentUser(null);
+          setChatList([]);
         }
 
-        // подгружаем сохранённые фильтры из localStorage
-        if (typeof window !== "undefined") {
-          const raw = window.localStorage.getItem("feed_specialties");
-          if (raw) {
-            try {
-              const parsed = JSON.parse(raw) as string[];
-              setFeedSpecialtyIds(parsed);
-            } catch {
-              // ignore
-            }
-          }
-        }
       } catch (err: any) {
         setError(err.message ?? "Не удалось загрузить данные");
       } finally {
@@ -190,7 +602,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, industry, subindustry)",
         )
         .order("created_at", { ascending: false })
         .limit(20);
@@ -244,6 +656,17 @@ export default function Home() {
                 [otherId]: (prev[otherId] || 0) + 1,
               }));
             }
+
+            // Поднимаем чат вверх в списке и обновляем lastMessageAt
+            setChatList((prev) => {
+              const chatId = (msg as any).chat_id as string;
+              const idx = prev.findIndex((x) => x.chatId === chatId);
+              if (idx < 0) return prev;
+              const next = [...prev];
+              const item = { ...next[idx], lastMessageAt: msg.created_at };
+              next.splice(idx, 1);
+              return [item, ...next];
+            });
           } catch {
             // тихо игнорируем ошибки realtime-обработчика
           }
@@ -256,14 +679,128 @@ export default function Home() {
     };
   }, [currentUser, activeChatId]);
 
-  const filteredPosts = useMemo(() => {
-    if (!feedSpecialtyIds.length) return posts;
-    return posts.filter((p) =>
-      p.specialty_id ? feedSpecialtyIds.includes(p.specialty_id) : false,
-    );
-  }, [posts, feedSpecialtyIds]);
+  const visiblePosts = useMemo(() => {
+    const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
 
-  const visiblePosts = filteredPosts;
+    return posts.filter((post) => {
+      const a = normalizedAuthor(post.author);
+      if (!a) return true;
+
+      if (feedFilters.profession) {
+        if ((a.role_title ?? null) !== feedFilters.profession) return false;
+      }
+      if (feedFilters.industry) {
+        if ((a.industry ?? null) !== feedFilters.industry) return false;
+      }
+      if (feedFilters.subindustry) {
+        if ((a.subindustry ?? null) !== feedFilters.subindustry) return false;
+      }
+      return true;
+    });
+  }, [posts, feedFilters]);
+
+  const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
+    [],
+  );
+  const [industryCatalog, setIndustryCatalog] = useState<IndustryCatalogRow[]>([]);
+  const [subindustryCatalog, setSubindustryCatalog] = useState<
+    SubindustryCatalogRow[]
+  >([]);
+
+  useEffect(() => {
+    let alive = true;
+    loadProfessionCatalog()
+      .then((rows) => {
+        if (!alive) return;
+        setProfessionCatalog(rows);
+      })
+      .catch(() => {
+        // best-effort: keep UI functional even if catalog table isn't set up yet
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    loadIndustryCatalog()
+      .then((rows) => {
+        if (!alive) return;
+        setIndustryCatalog(rows);
+      })
+      .catch((e) => {
+        console.error("Failed to load industry_catalog", e);
+      });
+    loadSubindustryCatalog()
+      .then((rows) => {
+        if (!alive) return;
+        setSubindustryCatalog(rows);
+      })
+      .catch((e) => {
+        console.error("Failed to load subindustry_catalog", e);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const selectedProfessionRow = useMemo(() => {
+    if (!feedFilters.profession) return null;
+    return (
+      professionCatalog.find((p) => p.label === feedFilters.profession) ?? null
+    );
+  }, [feedFilters.profession, professionCatalog]);
+
+
+  const subindustryOptionsForFilters = useMemo(() => {
+    const ind = feedFilters.industry ?? null;
+    if (!ind) return [];
+    if (industryCatalog.length > 0) {
+      return getSubindustryLabelsForSelect(subindustryCatalog, ind).filter(
+        (x) => x !== "Другое",
+      );
+    }
+    return (SUBINDUSTRY_OPTIONS[ind as Industry] ?? []).slice().sort(sortRuAsc);
+  }, [feedFilters.industry, industryCatalog.length, subindustryCatalog]);
+
+  const filteredProfilesForMap = useMemo(() => {
+    return profiles.filter((p) => {
+      if (feedFilters.profession) {
+        if ((p.role_title ?? null) !== feedFilters.profession) return false;
+      }
+      if (feedFilters.industry) {
+        if ((p.industry ?? null) !== feedFilters.industry) return false;
+      }
+      if (feedFilters.subindustry) {
+        if ((p.subindustry ?? null) !== feedFilters.subindustry) return false;
+      }
+      return true;
+    });
+  }, [profiles, feedFilters]);
+
+  // Закрытие поп-апа фильтров по клику вне и по Esc
+  useEffect(() => {
+    if (!feedFiltersOpen) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (!feedFiltersRef.current) return;
+      if (!feedFiltersRef.current.contains(event.target as Node)) {
+        setFeedFiltersOpen(false);
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFeedFiltersOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [feedFiltersOpen]);
 
   const handleTogglePost = (id: string) => {
     setExpandedPosts((prev) => {
@@ -274,12 +811,17 @@ export default function Home() {
     });
   };
 
-  const handleSaveFeed = (ids: string[]) => {
-    setFeedSpecialtyIds(ids);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("feed_specialties", JSON.stringify(ids));
-    }
-    setFeedOpen(false);
+  const formatDateTime = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone,
+    }).format(d);
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -297,7 +839,8 @@ export default function Home() {
     setCreateError(null);
 
     try {
-      const body = newPostBody.trim().slice(0, 1000);
+      const maskedBody = maskProfanity(newPostBody.trim()) ?? "";
+      const body = maskedBody.slice(0, 1000);
       const { data, error } = await supabase
         .from("posts")
         .insert({
@@ -307,7 +850,7 @@ export default function Home() {
           city: currentUser.city,
         })
         .select(
-          "id, body, city, created_at, specialty_id, author_id, author:profiles(full_name, user_specialties(is_primary, specialties(name)))",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title)",
         )
         .single();
 
@@ -408,6 +951,19 @@ export default function Home() {
     }
   };
 
+  const openChatFromList = async (item: ChatListItem) => {
+    await openChatWithProfile(item.profile);
+    setUnreadByUser((prev) => ({ ...prev, [item.profile.id]: 0 }));
+    setChatList((prev) => {
+      const idx = prev.findIndex((x) => x.chatId === item.chatId);
+      if (idx < 0) return prev;
+      const next = [...prev];
+      const moved = next[idx];
+      next.splice(idx, 1);
+      return [moved, ...next];
+    });
+  };
+
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !activeChatId || !chatInput.trim()) return;
@@ -416,6 +972,7 @@ export default function Home() {
     setChatError(null);
 
     try {
+      // Personal messages: do not mask profanity (per product rule)
       const content = chatInput.trim().slice(0, 1000);
 
       const { data, error } = await supabase
@@ -432,6 +989,17 @@ export default function Home() {
 
       setChatMessages((prev) => [...prev, data as ChatMessage]);
       setChatInput("");
+
+      // Поднимаем чат вверх в списке по отправке
+      setChatList((prev) => {
+        if (!activeChatId) return prev;
+        const idx = prev.findIndex((x) => x.chatId === activeChatId);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        const item = { ...next[idx], lastMessageAt: (data as any).created_at };
+        next.splice(idx, 1);
+        return [item, ...next];
+      });
     } catch (err: any) {
       setChatError(err.message ?? "Не удалось отправить сообщение.");
     } finally {
@@ -498,22 +1066,50 @@ export default function Home() {
     };
   }, [activeProfileCard]);
 
+  // Закрытие меню выбора города по клику вне и по Esc
+  useEffect(() => {
+    if (!cityMenuOpen) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (!cityMenuRef.current) return;
+      if (!cityMenuRef.current.contains(event.target as Node)) {
+        setCityMenuOpen(false);
+        setCitySearch("");
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCityMenuOpen(false);
+        setCitySearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [cityMenuOpen]);
+
+  const visibleCities = SORTED_CITY_OPTIONS.filter((city) =>
+    city.toLowerCase().includes(citySearch.toLowerCase()),
+  );
+
+  const currentCityKey = selectedCity || "Пермь";
+  const mapConfig = CITY_VIEWS[currentCityKey] ?? CITY_VIEWS["Пермь"];
+
   return (
     <div className="flex h-[calc(100vh-3rem)] bg-slate-50">
       <main className="flex h-full w-full flex-col gap-4 py-3 md:flex-row md:gap-3 lg:gap-4">
         {/* Левая колонка: лента запросов, как список чата */}
         <section className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[320px] md:flex-shrink-0 md:p-5">
-          <header className="mb-3 flex items-center justify-between gap-2">
+          <header className="relative mb-3 flex items-center justify-between gap-2">
             <h1 className="text-base font-semibold text-slate-900">
               Общий чат
             </h1>
-            <button
-              type="button"
-              onClick={() => setFeedOpen((v) => !v)}
-              className="rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-sky-300 hover:text-sky-700"
-            >
-              Настроить ленту
-            </button>
           </header>
 
           {loading && <p className="text-sm text-slate-500">Загрузка...</p>}
@@ -523,44 +1119,6 @@ export default function Home() {
             <p className="text-sm text-slate-500">
               Пока нет запросов. Создай первый пост позже — мы добавим форму.
             </p>
-          )}
-
-          {/* Настройка ленты */}
-          {feedOpen && (
-            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p className="mb-2 text-xs font-medium text-slate-700">
-                Показать посты специалистов из выбранных сфер:
-              </p>
-              <div className="mb-2 max-h-32 space-y-1 overflow-y-auto pr-1">
-                {specialties.map((s) => {
-                  const checked = feedSpecialtyIds.includes(s.id);
-                  return (
-                    <label
-                      key={s.id}
-                      className="flex items-center gap-2 text-xs text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-3 w-3 rounded border-slate-300 text-sky-600"
-                        checked={checked}
-                        onChange={(e) => {
-                          const next = new Set(feedSpecialtyIds);
-                          if (e.target.checked) next.add(s.id);
-                          else next.delete(s.id);
-                          handleSaveFeed(Array.from(next));
-                        }}
-                      />
-                      <span>{s.name}</span>
-                    </label>
-                  );
-                })}
-                {!specialties.length && (
-                  <p className="text-xs text-slate-400">
-                    Категории ещё не настроены.
-                  </p>
-                )}
-              </div>
-            </div>
           )}
 
           {/* Список постов с прокруткой */}
@@ -580,18 +1138,8 @@ export default function Home() {
                   ? post.author[0]
                   : post.author;
                 const authorName = authorObj?.full_name || "Аноним";
-                const specs = authorObj?.user_specialties ?? [];
-                const spec =
-                  specs.length > 0
-                    ? (
-                        specs.find(
-                          (s: any) => s.is_primary && s.specialties?.name,
-                        ) ||
-                        specs.find((s: any) => s.specialties?.name)
-                      )?.specialties?.name
-                    : null;
-
-                const roleTitle = authorObj?.role_title as string | null;
+                const prof = (authorObj?.role_title as string | null) ?? null;
+                const totalExpYears = getTotalExperienceYears(post.author_id, prof);
 
                 return (
                   <li
@@ -617,17 +1165,17 @@ export default function Home() {
                         className="text-left text-sm font-semibold text-slate-900 hover:text-sky-700"
                       >
                         {authorName}
-                        {spec ? (
+                        {prof ? (
                           <span className="ml-1 text-xs font-normal text-slate-500">
-                            — {spec}
+                            — {prof}
                           </span>
                         ) : null}
                       </button>
-                      {roleTitle && (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                          {roleTitle}
-                        </span>
-                      )}
+                    </div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">
+                        {post.created_at ? formatDateTime(post.created_at) : ""}
+                      </span>
                     </div>
                     {body && (
                       <p className="text-xs text-slate-600">{text}</p>
@@ -726,6 +1274,19 @@ export default function Home() {
                   {activeProfileCard.profile.role_title}
                 </p>
               )}
+              {activeProfileCard.profile.role_title && (
+                (() => {
+                  const expYears = getTotalExperienceYears(
+                    activeProfileCard.profile.id,
+                    activeProfileCard.profile.role_title,
+                  );
+                  return expYears != null ? (
+                    <p className="text-[11px] text-slate-600">
+                      Стаж: {expYears} лет
+                    </p>
+                  ) : null;
+                })()
+              )}
               <div className="mt-2 flex gap-2">
                 <a
                   href={`/profiles/${activeProfileCard.profile.id}`}
@@ -750,15 +1311,254 @@ export default function Home() {
 
         {/* Центр: карта во всю высоту */}
         <section className="order-last flex h-full flex-1 flex-col md:order-none md:px-1 lg:px-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
-              Специалисты на карте
-            </h2>
-            <span className="text-[11px] text-slate-500">Пермь</span>
+          <div className="relative z-[1100] mb-3 flex items-center justify-between gap-2">
+            <div className="relative flex items-center gap-2" ref={feedFiltersRef}>
+              <button
+                type="button"
+                onClick={() => setFeedFiltersOpen((v) => !v)}
+                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:border-sky-300 hover:text-sky-700"
+                aria-label="Настройки поиска"
+                title="Настройки"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" />
+                  <path d="M19.4 15a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1L15 2h-6l-.3 2.4a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 12a7.9 7.9 0 0 0-.1 1 7.9 7.9 0 0 0 .1 1l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1L9 22h6l.3-2.4a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6z" />
+                </svg>
+              </button>
+              <h2 className="text-sm font-semibold text-slate-900">
+                Специалисты на карте
+              </h2>
+
+              {feedFiltersOpen && (
+                <div
+                  className="pointer-events-auto absolute left-0 top-10 z-[1200] w-[300px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Поиск по специалистам
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setFeedFiltersOpen(false)}
+                      className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      aria-label="Закрыть"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Профессия
+                      </label>
+                      <DropdownSelect
+                        value={feedFilters.profession}
+                        placeholder="Любая"
+                        options={getProfessionLabelsForSelect(professionCatalog).map(
+                          (label) => ({
+                            value: label,
+                            label,
+                          }),
+                        )}
+                        onChange={(v) => {
+                          const next: FeedFilters = {
+                            ...feedFilters,
+                            profession: v || null,
+                          };
+                          setFeedFilters(next);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(next),
+                            );
+                          }
+                        }}
+                        menuClassName="text-[11px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Отрасль
+                      </label>
+                      <DropdownSelect
+                        value={feedFilters.industry}
+                        placeholder="Любая"
+                        options={(industryCatalog.length > 0
+                          ? getIndustryLabelsForSelect(industryCatalog)
+                          : SORTED_INDUSTRY_OPTIONS
+                        ).map((ind) => ({
+                          value: ind,
+                          label: ind,
+                        }))}
+                        onChange={(v) => {
+                          const next: FeedFilters = {
+                            ...feedFilters,
+                            industry: v || null,
+                            subindustry: null,
+                          };
+                          setFeedFilters(next);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(next),
+                            );
+                          }
+                        }}
+                        menuClassName="text-[11px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Подотрасль
+                      </label>
+                      <DropdownSelect
+                        value={feedFilters.subindustry}
+                        disabled={!feedFilters.industry}
+                        placeholder={
+                          feedFilters.industry ? "Любая" : "Сначала выберите отрасль"
+                        }
+                        options={subindustryOptionsForFilters.map((s) => ({
+                          value: s,
+                          label: s,
+                        }))}
+                        onChange={(v) => {
+                          const next: FeedFilters = {
+                            ...feedFilters,
+                            subindustry: v || null,
+                          };
+                          setFeedFilters(next);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(next),
+                            );
+                          }
+                        }}
+                        menuClassName="text-[11px]"
+                      />
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFeedFilters(DEFAULT_FEED_FILTERS);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(DEFAULT_FEED_FILTERS),
+                            );
+                          }
+                        }}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Сбросить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFeedFiltersOpen(false)}
+                        className="rounded-full bg-sky-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-700"
+                      >
+                        Поиск
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="relative w-48" ref={cityMenuRef}>
+              <button
+                type="button"
+                onClick={() => setCityMenuOpen((v) => !v)}
+                className="flex w-full items-center justify-between rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700 shadow-sm hover:border-sky-300 hover:text-sky-800"
+              >
+                <span className="truncate">
+                  {selectedCity ? selectedCity : "Выберите город"}
+                </span>
+                <span className="ml-2 text-[10px] text-slate-400">
+                  {cityMenuOpen ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {cityMenuOpen && (
+                <div className="absolute right-0 top-9 z-[1200] w-56 rounded-xl border border-slate-200 bg-white py-1 text-xs shadow-lg">
+                  <div className="px-2 pb-1">
+                    <input
+                      autoFocus
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      placeholder="Найти город"
+                      className="h-7 w-full rounded-full border border-slate-200 px-2 text-[11px] text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"
+                    />
+                  </div>
+                  <div className="max-h-[560px] overflow-y-auto px-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCity(RUSSIA_LABEL);
+                        if (typeof window !== "undefined") {
+                          window.localStorage.setItem(
+                            "selected_city",
+                            RUSSIA_LABEL,
+                          );
+                        }
+                        setCityMenuOpen(false);
+                        setCitySearch("");
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-[11px] font-medium text-slate-800 hover:bg-slate-50"
+                    >
+                      <span>{RUSSIA_LABEL}</span>
+                    </button>
+                    <div className="my-1 h-px bg-slate-100" />
+                    {visibleCities.length === 0 ? (
+                      <p className="px-2 py-1 text-[11px] text-slate-400">
+                        Ничего не найдено
+                      </p>
+                    ) : (
+                      visibleCities.map((city) => (
+                        <button
+                          key={city}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCity(city);
+                            if (typeof window !== "undefined") {
+                              window.localStorage.setItem(
+                                "selected_city",
+                                city,
+                              );
+                            }
+                            setCityMenuOpen(false);
+                            setCitySearch("");
+                          }}
+                          className="flex w-full items-center rounded-lg px-2 py-1 text-left text-[11px] text-slate-700 hover:bg-slate-50"
+                        >
+                          {city}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="min-h-0 flex-1">
             <PartnerMap
-              profiles={profiles}
+              profiles={filteredProfilesForMap}
+              center={mapConfig.center}
+              zoom={mapConfig.zoom}
               onOpenChat={(profileId) => {
                 const p = profiles.find((pr) => pr.id === profileId);
                 if (p) {
@@ -775,32 +1575,35 @@ export default function Home() {
             Мои чаты
           </h2>
 
-          {!loading && profiles.length === 0 && (
+          {!loading && chatList.length === 0 && (
             <p className="text-sm text-slate-500">
-              Профилей ещё нет. Зарегистрируйся под разными аккаунтами, и мы
-              позже добавим редактирование профиля и карту.
+              У вас пока нет личных диалогов. Начните переписку, чтобы чат
+              появился в списке.
             </p>
           )}
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <ul className="space-y-2">
-              {profiles.map((p) => (
+              {chatList.map((item) => (
                 <li
-                  key={p.id}
-                  onClick={() => openChatWithProfile(p)}
+                  key={item.profile.id}
+                  onClick={() => openChatFromList(item)}
                   className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 transition hover:border-sky-200 hover:bg-sky-50/60"
                 >
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      {p.full_name || "Без имени"}
+                      {item.profile.full_name || "Без имени"}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {p.city || "Город не указан"}
+                      {item.profile.role_title || "Профессия не указана"}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {item.profile.city || "Город не указан"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
                     {(() => {
-                      const unread = unreadByUser[p.id] ?? 0;
+                      const unread = unreadByUser[item.profile.id] ?? 0;
                       if (unread <= 0) return null;
                       return (
                       <span className="inline-flex min-w-[18px] justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold text-white">
@@ -808,9 +1611,9 @@ export default function Home() {
                       </span>
                       );
                     })()}
-                    {p.rating_count && p.rating_count > 0 ? (
+                    {item.profile.rating_count && item.profile.rating_count > 0 ? (
                       <span className="text-xs font-medium text-amber-500">
-                        ★ {p.rating_avg?.toFixed(1)}
+                        ★ {item.profile.rating_avg?.toFixed(1)}
                       </span>
                     ) : null}
                   </div>
@@ -835,19 +1638,9 @@ export default function Home() {
                   {activeChatUser.full_name || "Без имени"}
                 </Link>
                 <p className="text-[11px] text-slate-500">
-                  {(() => {
-                    const specs = (activeChatUser.user_specialties ??
-                      []) as any[];
-                    if (!specs.length) {
-                      return activeChatUser.city || "Город не указан";
-                    }
-                    const spec =
-                      specs.find(
-                        (s: any) => s.is_primary && s.specialties?.name,
-                      ) ||
-                      specs.find((s: any) => s.specialties?.name);
-                    return spec?.specialties?.name || "Специализация не указана";
-                  })()}
+                  {activeChatUser.role_title ||
+                    activeChatUser.city ||
+                    "Профессия не указана"}
                 </p>
               </div>
               <button
@@ -885,6 +1678,15 @@ export default function Home() {
                         }`}
                       >
                         <p>{m.content}</p>
+                        <p
+                          className={`mt-1 text-[10px] ${
+                            m.sender_id === currentUser?.profileId
+                              ? "text-white/80"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {m.created_at ? formatDateTime(m.created_at) : ""}
+                        </p>
                       </div>
                     ))}
                     {chatMessages.length === 0 && !chatLoading && (

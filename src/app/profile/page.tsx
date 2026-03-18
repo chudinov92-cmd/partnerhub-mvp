@@ -4,6 +4,172 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  OTHER_PROFESSION_LABEL,
+  loadProfessionCatalog,
+  upsertProfession,
+  type ProfessionCatalogRow,
+} from "@/lib/professionCatalog";
+import { DropdownSelect } from "@/components/DropdownSelect";
+import { CityDropdown } from "@/components/CityDropdown";
+import { ProfessionDropdown } from "@/components/ProfessionDropdown";
+import { maskProfanity } from "@/lib/profanity";
+import {
+  getIndustryLabelsForSelect,
+  getSubindustryLabelsForSelect,
+  loadIndustryCatalog,
+  loadSubindustryCatalog,
+  upsertIndustry,
+  upsertSubindustry,
+  type IndustryCatalogRow,
+  type SubindustryCatalogRow,
+} from "@/lib/industryCatalog";
+
+const INDUSTRY_OPTIONS = [
+  "Природные ресурсы",
+  "Промышленность",
+  "Строительство и инфраструктура",
+  "Торговля",
+  "Транспорт и логистика",
+  "Финансы",
+  "Информационные технологии",
+  "Телекоммуникации и связь",
+  "Недвижимость",
+  "Государственный сектор",
+  "Event-индустрия",
+  "Искусство",
+  "Медиапроизводство и съёмка",
+  "Другое",
+] as const;
+
+type Industry = (typeof INDUSTRY_OPTIONS)[number];
+
+const SORTED_INDUSTRY_OPTIONS: Industry[] = [...INDUSTRY_OPTIONS].sort((a, b) => {
+  if (a === "Другое") return 1;
+  if (b === "Другое") return -1;
+  return a.localeCompare(b, "ru");
+});
+
+const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
+  "Природные ресурсы": [
+    "Сельское хозяйство",
+    "Лесное хозяйство",
+    "Рыболовство",
+    "Охота",
+    "Горнодобывающая промышленность",
+    "Нефть и газ",
+    "Энергетика",
+    "Водные ресурсы",
+  ],
+  Промышленность: [
+    "Производство",
+    "Машиностроение",
+    "Химическая промышленность",
+    "Металлургия",
+    "Электроника",
+    "Авиационная промышленность",
+    "Космическая промышленность",
+    "Оборонная промышленность",
+    "Биотехнологии",
+    "Фармацевтика",
+    "Робототехника",
+  ],
+  "Строительство и инфраструктура": [
+    "Строительство",
+    "Архитектура",
+    "Девелопмент",
+    "Инженерия",
+    "Урбанистика",
+    "Дорожное строительство",
+    "ЖКХ",
+  ],
+  Торговля: [
+    "Оптовая торговля",
+    "Розничная торговля",
+    "Ecommerce",
+    "Маркетплейсы",
+    "Dropshipping",
+    "Импорт / экспорт",
+  ],
+  "Транспорт и логистика": [
+    "Авиация",
+    "Морские перевозки",
+    "Железные дороги",
+    "Автотранспорт",
+    "Логистика",
+    "Supply chain",
+    "Складирование",
+    "Delivery-сервисы",
+  ],
+  Финансы: [
+    "Банки",
+    "Инвестиции",
+    "Страхование",
+    "FinTech",
+    "Криптоиндустрия",
+    "Venture capital",
+    "Private equity",
+    "Hedge funds",
+    "Трейдинг",
+  ],
+  "Информационные технологии": [
+    "Разработка программного обеспечения",
+    "Данные и Искусственный Интеллект (Data & AI)",
+    "Инфраструктура и Администрирование",
+    "Информационная безопасность (InfoSec)",
+    "Бизнес-аналитика и Управление проектами",
+    "Веб-технологии и Дизайн",
+  ],
+  "Телекоммуникации и связь": [
+    "Мобильная связь",
+    "Интернет-провайдеры",
+    "Сетевое оборудование",
+    "Спутниковая связь",
+    "5G и новые стандарты",
+    "VoIP и унифицированные коммуникации",
+    "Радиосвязь",
+    "Дата-центры и инфраструктура связи",
+  ],
+  Недвижимость: [
+    "Real estate",
+    "PropTech",
+    "Управление недвижимостью",
+    "Аренда",
+    "Коммерческая недвижимость",
+    "Жилая недвижимость",
+  ],
+  "Государственный сектор": [
+    "Государственное управление",
+    "Муниципальное управление",
+    "Вооружённые силы",
+    "Госуслуги",
+    "Регулирование",
+    "Налоговые службы",
+  ],
+  "Event-индустрия": [
+    "Организация и управление мероприятиями",
+    "Event-маркетинг и коммуникации",
+    "Режиссура и креативное проектирование",
+    "Технический продакшн",
+    "Ивент-дизайн и оформление",
+  ],
+  Искусство: [
+    "Изобразительное искусство",
+    "Цифровое искусство и новые медиа",
+    "Сценография и театр",
+    "Реставрация и консервация",
+    "Арт-менеджмент и кураторство",
+    "Прикладное творчество и ремесла",
+  ],
+  "Медиапроизводство и съёмка": [
+    "Видеосъёмка",
+    "Фотосъёмка",
+    "Монтаж и постпродакшн",
+    "Звук и саунд-дизайн",
+    "Операторское мастерство",
+    "Продюсирование и организация съёмок",
+  ],
+};
 
 type Profile = {
   id: string;
@@ -14,12 +180,20 @@ type Profile = {
   industry_other: string | null;
   subindustry: string | null;
   role_title: string | null;
-  domain: string | null;
   experience_years: number | null;
   skills: string | null;
   looking_for: string | null;
   can_help_with: string | null;
   interested_in: string | null;
+};
+
+type WorkBlock = {
+  id?: string;
+  role_title: string | null;
+  industry: string | null;
+  industry_other: string | null;
+  subindustry: string | null;
+  experience_years: number | null;
 };
 
 type LocationRow = {
@@ -40,11 +214,22 @@ const LocationPicker = dynamic(
 
 export default function ProfilePage() {
   const router = useRouter();
+  const MAX_GROUP2_BLOCKS = 5; // primary (profiles.*) + up to 4 additional blocks
   const [profile, setProfile] = useState<Profile | null>(null);
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
   );
+  const [professionIsOther, setProfessionIsOther] = useState(false);
+  const [subindustryIsOther, setSubindustryIsOther] = useState(false);
+  const [workBlocks, setWorkBlocks] = useState<WorkBlock[]>([]);
+  const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
+    [],
+  );
+  const [industryCatalog, setIndustryCatalog] = useState<IndustryCatalogRow[]>([]);
+  const [subindustryCatalog, setSubindustryCatalog] = useState<
+    SubindustryCatalogRow[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +255,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -88,7 +273,7 @@ export default function ProfilePage() {
               auth_user_id: user.id,
             })
             .select(
-              "id, full_name, country, city, industry, industry_other, subindustry, role_title, domain, experience_years, skills, looking_for, can_help_with, interested_in",
+              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in",
             )
             .single();
 
@@ -102,6 +287,57 @@ export default function ProfilePage() {
 
         const prof = profData as Profile;
         setProfile(prof);
+        // Load profession catalog (best-effort; UI still allows free input via "Другое")
+        let rows: ProfessionCatalogRow[] = [];
+        try {
+          rows = await loadProfessionCatalog();
+        } catch {
+          rows = [];
+        }
+        setProfessionCatalog(rows);
+
+        const labels = rows.map((r) => r.label);
+        setProfessionIsOther(!!(prof.role_title && !labels.includes(prof.role_title)));
+
+        // Load extra work blocks (Group 2 repeats)
+        try {
+          const { data: wbRows, error: wbErr } = await supabase
+            .from("profile_work")
+            .select("id, role_title, industry, industry_other, subindustry, experience_years")
+            .eq("profile_id", prof.id)
+            .order("created_at", { ascending: true });
+          if (wbErr) throw wbErr;
+          const rows = (wbRows ?? []) as any[];
+          setWorkBlocks(
+            rows.map((r) => ({
+              id: r.id,
+              role_title: r.role_title ?? null,
+              industry: r.industry ?? null,
+              industry_other: r.industry_other ?? null,
+              subindustry: r.subindustry ?? null,
+              experience_years:
+                typeof r.experience_years === "number" ? r.experience_years : null,
+            })),
+          );
+        } catch {
+          setWorkBlocks([]);
+        }
+
+        // Load industry/subindustry catalogs (best-effort).
+        try {
+          const inds = await loadIndustryCatalog();
+          setIndustryCatalog(inds);
+        } catch (e) {
+          console.error("Failed to load industry_catalog", e);
+          setIndustryCatalog([]);
+        }
+        try {
+          const subs = await loadSubindustryCatalog();
+          setSubindustryCatalog(subs);
+        } catch (e) {
+          console.error("Failed to load subindustry_catalog", e);
+          setSubindustryCatalog([]);
+        }
 
         if (prof) {
           const { data: locData, error: lErr } = await supabase
@@ -133,38 +369,141 @@ export default function ProfilePage() {
     setSuccess(null);
 
     try {
+      // If user entered a custom profession ("Другое"), persist it in catalog.
+      if (professionIsOther) {
+        const v = (profile.role_title ?? "").trim();
+        if (v) {
+          try {
+            await upsertProfession(v, []);
+          } catch {
+            // best-effort: should not block saving profile
+          }
+        }
+      }
+
+      // If user entered a custom industry ("Другое"), persist it in catalog.
+      if ((profile.industry ?? null) === "Другое") {
+        const v = (profile.industry_other ?? "").trim();
+        if (v) {
+          try {
+            await upsertIndustry(v);
+          } catch {}
+        }
+      }
+
+      // If user entered a custom subindustry ("Другое"), persist it in catalog.
+      if (subindustryIsOther) {
+        const ind =
+          (profile.industry ?? null) === "Другое"
+            ? (profile.industry_other ?? "").trim()
+            : (profile.industry ?? "").trim();
+        const v = (profile.subindustry ?? "").trim();
+        if (ind && v) {
+          try {
+            await upsertSubindustry(ind, v);
+          } catch {}
+        }
+      }
+
+      // Sync custom values from additional Group 2 blocks to catalogs as well.
+      // This ensures values typed after clicking "Другое" appear in dropdowns after next refresh (and after 04:00 rule).
+      for (const wb of workBlocks) {
+        const roleRaw = (wb.role_title ?? "").trim();
+        const role = maskProfanity(roleRaw);
+        if (role && role !== OTHER_PROFESSION_LABEL) {
+          const exists = professionCatalog.some((p) => p.label === role);
+          if (!exists) {
+            try {
+              await upsertProfession(role, []);
+            } catch {}
+          }
+        }
+
+        if ((wb.industry ?? null) === "Другое") {
+          const indOtherRaw = (wb.industry_other ?? "").trim();
+          const indOther = maskProfanity(indOtherRaw);
+          if (indOther) {
+            try {
+              await upsertIndustry(indOther);
+            } catch {}
+          }
+        }
+
+        const subRaw = (wb.subindustry ?? "").trim();
+        const sub = maskProfanity(subRaw);
+        if (sub) {
+          const indLabel =
+            (wb.industry ?? null) === "Другое"
+              ? (wb.industry_other ?? "").trim()
+              : (wb.industry ?? "").trim();
+          const indLabelMasked = maskProfanity(indLabel);
+          if (indLabel) {
+            const exists =
+              subindustryCatalog.length > 0
+                ? subindustryCatalog.some(
+                    (r) =>
+                      r.industry_label === indLabelMasked && r.label === sub,
+                  )
+                : false;
+            if (!exists) {
+              try {
+                await upsertSubindustry(indLabelMasked ?? indLabel, sub);
+              } catch {}
+            }
+          }
+        }
+      }
+
       // обновляем профиль
       const { error: updateError } = await supabase
         .from("profiles")
         .update({
-          full_name: profile.full_name,
+          full_name: maskProfanity(profile.full_name),
           country: profile.country,
           city: profile.city,
           industry: profile.industry,
           industry_other:
-            profile.industry === "Другое" ? profile.industry_other : null,
-          subindustry:
-            profile.industry === "Природные ресурсы" ||
-            profile.industry === "Промышленность" ||
-            profile.industry === "Строительство и инфраструктура" ||
-            profile.industry === "Торговля" ||
-            profile.industry === "Транспорт и логистика" ||
-            profile.industry === "Финансы" ||
-            profile.industry === "Недвижимость" ||
-            profile.industry === "Государственный сектор"
-              ? profile.subindustry
+            profile.industry === "Другое"
+              ? maskProfanity(profile.industry_other)
               : null,
-          role_title: profile.role_title,
-          domain: profile.domain,
+          subindustry: profile.subindustry,
+          role_title: maskProfanity(profile.role_title),
           experience_years: profile.experience_years,
-          skills: profile.skills,
-          looking_for: profile.looking_for,
-          can_help_with: profile.can_help_with,
-          interested_in: profile.interested_in,
+          skills: maskProfanity(profile.skills),
+          looking_for: maskProfanity(profile.looking_for),
+          can_help_with: maskProfanity(profile.can_help_with),
+          interested_in: maskProfanity(profile.interested_in),
         })
         .eq("id", profile.id);
 
       if (updateError) throw updateError;
+
+      // Sync repeating work blocks to DB (replace-all strategy)
+      try {
+        await supabase.from("profile_work").delete().eq("profile_id", profile.id);
+        const payload = workBlocks
+          .filter((b) => {
+            const hasRole = (b.role_title ?? "").trim().length > 0;
+            const hasIndustry = (b.industry ?? "").trim().length > 0;
+            const hasSub = (b.subindustry ?? "").trim().length > 0;
+            const hasExp = b.experience_years != null;
+            return hasRole || hasIndustry || hasSub || hasExp;
+          })
+          .map((b) => ({
+            profile_id: profile.id,
+            role_title: maskProfanity(b.role_title),
+            industry: b.industry,
+            industry_other:
+              b.industry === "Другое" ? maskProfanity(b.industry_other) : null,
+            subindustry: maskProfanity(b.subindustry),
+            experience_years: b.experience_years,
+          }));
+        if (payload.length > 0) {
+          await supabase.from("profile_work").insert(payload);
+        }
+      } catch {
+        // best-effort: do not block profile save
+      }
 
       // обновляем / создаём локацию
       if (coords) {
@@ -222,6 +561,21 @@ export default function ProfilePage() {
     );
   }
 
+  const professionLabels = professionCatalog.map((p) => p.label);
+  const professionRow = professionCatalog.find((p) => p.label === profile.role_title);
+  void professionRow;
+
+  const subindustryOptions = (
+    industryCatalog.length > 0
+      ? getSubindustryLabelsForSelect(subindustryCatalog, profile.industry)
+      : (
+          (SUBINDUSTRY_OPTIONS[(profile.industry ?? null) as Industry] ?? []) as string[]
+        )
+          .slice()
+          .sort((a, b) => a.localeCompare(b, "ru"))
+          .concat("Другое")
+  );
+
   return (
     <div className="flex min-h-screen justify-center bg-slate-50 px-3 py-6">
       <form
@@ -233,352 +587,379 @@ export default function ProfilePage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-emerald-600">{success}</p>}
 
-        {/* Имя */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Имя
-          </label>
-          <input
-            type="text"
-            value={profile.full_name ?? ""}
-            onChange={(e) =>
-              setProfile({ ...profile, full_name: e.target.value })
-            }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        {/* Страна / город */}
-        <div className="grid gap-3 md:grid-cols-2">
+        {/* Группа 1: Имя / Страна / Город */}
+        <div className="space-y-4 rounded-2xl border-2 border-slate-200 p-4">
+          {/* Имя */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Страна
+              Имя
             </label>
             <input
               type="text"
-              value={profile.country ?? ""}
+              value={profile.full_name ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, country: e.target.value })
+                setProfile({ ...profile, full_name: e.target.value })
               }
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Город
-            </label>
-            <input
-              type="text"
-              value={profile.city ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, city: e.target.value })
-              }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
+
+          {/* Страна / город */}
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Страна
+              </label>
+              <input
+                type="text"
+                value={profile.country ?? ""}
+                onChange={(e) =>
+                  setProfile({ ...profile, country: e.target.value })
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Город
+              </label>
+              <CityDropdown
+                value={profile.city}
+                onChange={(city) => setProfile({ ...profile, city })}
+                includeRussia={false}
+                placeholder="Выберите город"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Отрасль */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Отрасль
-          </label>
-          <select
-            value={profile.industry ?? ""}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                industry: e.target.value || null,
-                industry_other: e.target.value === "Другое" ? profile.industry_other : null,
-              })
-            }
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          >
-            <option value="">Выберите отрасль</option>
-            <option value="Природные ресурсы">Природные ресурсы</option>
-            <option value="Промышленность">Промышленность</option>
-            <option value="Строительство и инфраструктура">
-              Строительство и инфраструктура
-            </option>
-            <option value="Торговля">Торговля</option>
-            <option value="Транспорт и логистика">Транспорт и логистика</option>
-            <option value="Финансы">Финансы</option>
-            <option value="Недвижимость">Недвижимость</option>
-            <option value="Государственный сектор">Государственный сектор</option>
-            <option value="Другое">Другое</option>
-          </select>
-        </div>
-
-        {profile.industry === "Другое" && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Другая отрасль (введите вручную)
-            </label>
-            <input
-              type="text"
-              value={profile.industry_other ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, industry_other: e.target.value })
-              }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Это значение сохранится только в вашем профиле и не появится в списке отраслей у других пользователей.
-            </p>
-          </div>
-        )}
-
-        {(profile.industry === "Природные ресурсы" ||
-          profile.industry === "Промышленность" ||
-          profile.industry === "Строительство и инфраструктура" ||
-          profile.industry === "Торговля" ||
-          profile.industry === "Транспорт и логистика" ||
-          profile.industry === "Финансы" ||
-          profile.industry === "Недвижимость" ||
-          profile.industry === "Государственный сектор") && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Подотрасль
-            </label>
-            <select
-              value={profile.subindustry ?? ""}
-              onChange={(e) =>
+        {/* Группа 2: Профессия / Отрасль / Подотрасль / Стаж (повторяемая) */}
+        <div className="space-y-3">
+          {[
+            // Первая группа 2 — источником истины остаётся profiles.*
+            {
+              key: "primary",
+              get: () => ({
+                role_title: profile.role_title,
+                industry: profile.industry,
+                industry_other: profile.industry_other,
+                subindustry: profile.subindustry,
+                experience_years: profile.experience_years,
+              }),
+              set: (next: WorkBlock) => {
                 setProfile({
                   ...profile,
-                  subindustry: e.target.value || null,
-                })
-              }
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            >
-              <option value="">Выберите подотрасль</option>
-              {profile.industry === "Природные ресурсы" && (
-                <>
-                  <option value="Сельское хозяйство">Сельское хозяйство</option>
-                  <option value="Лесное хозяйство">Лесное хозяйство</option>
-                  <option value="Рыболовство">Рыболовство</option>
-                  <option value="Охота">Охота</option>
-                  <option value="Горнодобывающая промышленность">
-                    Горнодобывающая промышленность
-                  </option>
-                  <option value="Нефть и газ">Нефть и газ</option>
-                  <option value="Энергетика">Энергетика</option>
-                  <option value="Водные ресурсы">Водные ресурсы</option>
-                </>
-              )}
-              {profile.industry === "Промышленность" && (
-                <>
-                  <option value="Производство">Производство</option>
-                  <option value="Машиностроение">Машиностроение</option>
-                  <option value="Химическая промышленность">
-                    Химическая промышленность
-                  </option>
-                  <option value="Металлургия">Металлургия</option>
-                  <option value="Электроника">Электроника</option>
-                  <option value="Авиационная промышленность">
-                    Авиационная промышленность
-                  </option>
-                  <option value="Космическая промышленность">
-                    Космическая промышленность
-                  </option>
-                  <option value="Оборонная промышленность">
-                    Оборонная промышленность
-                  </option>
-                  <option value="Биотехнологии">Биотехнологии</option>
-                  <option value="Фармацевтика">Фармацевтика</option>
-                  <option value="Робототехника">Робототехника</option>
-                </>
-              )}
-              {profile.industry === "Строительство и инфраструктура" && (
-                <>
-                  <option value="Строительство">Строительство</option>
-                  <option value="Архитектура">Архитектура</option>
-                  <option value="Девелопмент">Девелопмент</option>
-                  <option value="Инженерия">Инженерия</option>
-                  <option value="Урбанистика">Урбанистика</option>
-                  <option value="Дорожное строительство">
-                    Дорожное строительство
-                  </option>
-                  <option value="ЖКХ">ЖКХ</option>
-                </>
-              )}
-              {profile.industry === "Торговля" && (
-                <>
-                  <option value="Оптовая торговля">Оптовая торговля</option>
-                  <option value="Розничная торговля">Розничная торговля</option>
-                  <option value="Ecommerce">Ecommerce</option>
-                  <option value="Маркетплейсы">Маркетплейсы</option>
-                  <option value="Dropshipping">Dropshipping</option>
-                  <option value="Импорт / экспорт">Импорт / экспорт</option>
-                </>
-              )}
-              {profile.industry === "Транспорт и логистика" && (
-                <>
-                  <option value="Авиация">Авиация</option>
-                  <option value="Морские перевозки">Морские перевозки</option>
-                  <option value="Железные дороги">Железные дороги</option>
-                  <option value="Автотранспорт">Автотранспорт</option>
-                  <option value="Логистика">Логистика</option>
-                  <option value="Supply chain">Supply chain</option>
-                  <option value="Складирование">Складирование</option>
-                  <option value="Delivery-сервисы">Delivery-сервисы</option>
-                </>
-              )}
-              {profile.industry === "Финансы" && (
-                <>
-                  <option value="Банки">Банки</option>
-                  <option value="Инвестиции">Инвестиции</option>
-                  <option value="Страхование">Страхование</option>
-                  <option value="FinTech">FinTech</option>
-                  <option value="Криптоиндустрия">Криптоиндустрия</option>
-                  <option value="Venture capital">Venture capital</option>
-                  <option value="Private equity">Private equity</option>
-                  <option value="Hedge funds">Hedge funds</option>
-                  <option value="Трейдинг">Трейдинг</option>
-                </>
-              )}
-              {profile.industry === "Недвижимость" && (
-                <>
-                  <option value="Real estate">Real estate</option>
-                  <option value="PropTech">PropTech</option>
-                  <option value="Управление недвижимостью">
-                    Управление недвижимостью
-                  </option>
-                  <option value="Аренда">Аренда</option>
-                  <option value="Коммерческая недвижимость">
-                    Коммерческая недвижимость
-                  </option>
-                  <option value="Жилая недвижимость">
-                    Жилая недвижимость
-                  </option>
-                </>
-              )}
-              {profile.industry === "Государственный сектор" && (
-                <>
-                  <option value="Государственное управление">
-                    Государственное управление
-                  </option>
-                  <option value="Муниципальное управление">
-                    Муниципальное управление
-                  </option>
-                  <option value="Вооружённые силы">Вооружённые силы</option>
-                  <option value="Госуслуги">Госуслуги</option>
-                  <option value="Регулирование">Регулирование</option>
-                  <option value="Налоговые службы">Налоговые службы</option>
-                </>
-              )}
-            </select>
-          </div>
-        )}
+                  role_title: next.role_title,
+                  industry: next.industry,
+                  industry_other: next.industry_other,
+                  subindustry: next.subindustry,
+                  experience_years: next.experience_years,
+                });
+              },
+              isOtherProfession: professionIsOther,
+              setOtherProfession: setProfessionIsOther,
+              isOtherSubindustry: subindustryIsOther,
+              setOtherSubindustry: setSubindustryIsOther,
+            },
+            // Дополнительные блоки
+            ...workBlocks.map((b, idx) => ({
+              key: `extra-${b.id ?? idx}`,
+              get: () => b,
+              set: (next: WorkBlock) =>
+                setWorkBlocks((prev) =>
+                  prev.map((x, i) => (i === idx ? { ...x, ...next } : x)),
+                ),
+              isOtherProfession: false,
+              setOtherProfession: (_: boolean) => {},
+              isOtherSubindustry: false,
+              setOtherSubindustry: (_: boolean) => {},
+            })),
+          ].map((ctx, blockIndex) => {
+            const b = ctx.get();
 
-        {/* Кем работаешь / сфера */}
-        <div className="grid gap-3 md:grid-cols-2">
+            const professionLabelsLocal = professionLabels;
+            const isPrimaryBlock = blockIndex === 0;
+            const isProfessionOther = isPrimaryBlock
+              ? professionIsOther ||
+                (!!b.role_title &&
+                  !professionLabelsLocal.includes(b.role_title) &&
+                  b.role_title !== OTHER_PROFESSION_LABEL)
+              : b.role_title === OTHER_PROFESSION_LABEL ||
+                (!!b.role_title &&
+                  !professionLabelsLocal.includes(b.role_title) &&
+                  b.role_title !== OTHER_PROFESSION_LABEL);
+
+            const industryValue =
+              (b.industry ?? null) === "Другое"
+                ? ((b.industry_other ?? "").trim() ? "Другое" : "Другое")
+                : b.industry;
+
+            const subOptions =
+              industryCatalog.length > 0
+                ? getSubindustryLabelsForSelect(subindustryCatalog, b.industry)
+                : (
+                    (SUBINDUSTRY_OPTIONS[(b.industry ?? null) as Industry] ?? []) as string[]
+                  )
+                    .slice()
+                    .sort((a, c) => a.localeCompare(c, "ru"))
+                    .concat("Другое");
+
+            const isSubOther =
+              ctx.isOtherSubindustry || ((b.subindustry ?? null) === "");
+
+            return (
+              <div
+                key={ctx.key}
+                className="space-y-4 rounded-2xl border-2 border-slate-200 p-4"
+              >
+                {/* Профессия */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Профессия
+                  </label>
+                  <ProfessionDropdown
+                    value={
+                      isPrimaryBlock
+                        ? professionIsOther
+                          ? OTHER_PROFESSION_LABEL
+                          : b.role_title
+                        : b.role_title === OTHER_PROFESSION_LABEL
+                          ? OTHER_PROFESSION_LABEL
+                          : b.role_title
+                    }
+                    placeholder="Выберите профессию"
+                    catalog={professionCatalog}
+                    onChange={(v) => {
+                      const isOther = v === OTHER_PROFESSION_LABEL;
+                      if (isPrimaryBlock) {
+                        ctx.setOtherProfession(isOther);
+                        ctx.set({
+                          ...b,
+                          role_title: isOther ? "" : v,
+                        });
+                      } else {
+                        // Для доп. блоков: "Другое" хранится как sentinel, а ввод — в role_title
+                        ctx.set({
+                          ...b,
+                          role_title: isOther ? OTHER_PROFESSION_LABEL : v,
+                        });
+                      }
+                    }}
+                  />
+                  {isProfessionOther && (
+                    <div className="mt-2">
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Укажите профессию (если выбрано «Другое»)
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          b.role_title === OTHER_PROFESSION_LABEL
+                            ? ""
+                            : b.role_title ?? ""
+                        }
+                        onChange={(e) =>
+                          ctx.set({ ...b, role_title: e.target.value })
+                        }
+                        placeholder="Введите название"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Отрасль */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Отрасль
+                  </label>
+                  <DropdownSelect
+                    value={industryValue}
+                    placeholder="Выберите отрасль"
+                    options={(industryCatalog.length > 0
+                      ? getIndustryLabelsForSelect(industryCatalog)
+                      : SORTED_INDUSTRY_OPTIONS
+                    ).map((ind) => ({
+                      value: ind,
+                      label: ind,
+                    }))}
+                    onChange={(v) => {
+                      // reset dependent when industry changes
+                      ctx.setOtherSubindustry(false);
+                      ctx.set({
+                        ...b,
+                        industry: v || null,
+                        subindustry: null,
+                        industry_other: v === "Другое" ? (b.industry_other ?? "") : null,
+                      });
+                    }}
+                  />
+                </div>
+
+                {(b.industry ?? null) === "Другое" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Другая отрасль (введите вручную)
+                    </label>
+                    <input
+                      type="text"
+                      value={b.industry_other ?? ""}
+                      onChange={(e) =>
+                        ctx.set({ ...b, industry_other: e.target.value })
+                      }
+                      placeholder="Введите название"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                )}
+
+                {/* Подотрасль */}
+                {subOptions.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Подотрасль
+                    </label>
+                    <DropdownSelect
+                      value={isSubOther ? "Другое" : b.subindustry}
+                      placeholder="Выберите подотрасль"
+                      options={subOptions.map((s) => ({ value: s, label: s }))}
+                      onChange={(v) => {
+                        const isOther = v === "Другое";
+                        ctx.setOtherSubindustry(isOther);
+                        ctx.set({
+                          ...b,
+                          subindustry: isOther ? "" : v || null,
+                        });
+                      }}
+                    />
+                    {isSubOther && (
+                      <div className="mt-2">
+                        <label className="mb-1 block text-xs text-slate-500">
+                          Укажите подотрасль (если выбрано «Другое»)
+                        </label>
+                        <input
+                          type="text"
+                          value={b.subindustry ?? ""}
+                          onChange={(e) =>
+                            ctx.set({ ...b, subindustry: e.target.value })
+                          }
+                          placeholder="Введите название"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Стаж */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Стаж (в годах)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={b.experience_years ?? ""}
+                    onChange={(e) =>
+                      ctx.set({
+                        ...b,
+                        experience_years: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    className="w-full max-w-[160px] rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+
+              </div>
+            );
+          })}
+          <div className="pt-1 text-right">
+            {workBlocks.length < MAX_GROUP2_BLOCKS - 1 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setWorkBlocks((prev) => [
+                    ...prev,
+                    {
+                      role_title: null,
+                      industry: null,
+                      industry_other: null,
+                      subindustry: null,
+                      experience_years: null,
+                    },
+                  ])
+                }
+                className="text-sm font-medium text-sky-700 hover:text-sky-800"
+              >
+                Добавить
+              </button>
+            ) : (
+              <p className="text-xs text-slate-500">Лимит: 5 блоков</p>
+            )}
+          </div>
+        </div>
+
+        {/* Группа 3: Описания */}
+        <div className="space-y-4 rounded-2xl border-2 border-slate-200 p-4">
+          {/* Что умеешь */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Кем работаешь
+              Что умеешь
             </label>
-            <input
-              type="text"
-              value={profile.role_title ?? ""}
+            <textarea
+              value={profile.skills ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, role_title: e.target.value })
+                setProfile({ ...profile, skills: e.target.value })
               }
+              rows={3}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
           </div>
+
+          {/* Что хочешь найти */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              В какой сфере работаешь
+              Что хочешь найти на платформе
             </label>
-            <input
-              type="text"
-              value={profile.domain ?? ""}
+            <textarea
+              value={profile.looking_for ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, domain: e.target.value })
+                setProfile({ ...profile, looking_for: e.target.value })
               }
+              rows={2}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
           </div>
-        </div>
+          
+          {/* Чем можешь помочь */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Чем можешь помочь другим
+            </label>
+            <textarea
+              value={profile.can_help_with ?? ""}
+              onChange={(e) =>
+                setProfile({ ...profile, can_help_with: e.target.value })
+              }
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            />
+          </div>
 
-        {/* Стаж */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Стаж (в годах)
-          </label>
-          <input
-            type="number"
-            min={0}
-            value={profile.experience_years ?? ""}
-            onChange={(e) =>
-              setProfile({
-                ...profile,
-                experience_years: e.target.value
-                  ? Number(e.target.value)
-                  : null,
-              })
-            }
-            className="w-full max-w-[160px] rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        {/* Что умеешь */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Что умеешь
-          </label>
-          <textarea
-            value={profile.skills ?? ""}
-            onChange={(e) =>
-              setProfile({ ...profile, skills: e.target.value })
-            }
-            rows={3}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        {/* Что хочешь найти */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Что хочешь найти на платформе
-          </label>
-          <textarea
-            value={profile.looking_for ?? ""}
-            onChange={(e) =>
-              setProfile({ ...profile, looking_for: e.target.value })
-            }
-            rows={2}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        {/* Чем можешь помочь */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Чем можешь помочь другим
-          </label>
-          <textarea
-            value={profile.can_help_with ?? ""}
-            onChange={(e) =>
-              setProfile({ ...profile, can_help_with: e.target.value })
-            }
-            rows={2}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
-
-        {/* Кто интересует */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Какие специалисты и из каких сфер интересуют
-          </label>
-          <textarea
-            value={profile.interested_in ?? ""}
-            onChange={(e) =>
-              setProfile({ ...profile, interested_in: e.target.value })
-            }
-            rows={2}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-          />
+          {/* Кто интересует */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Какие специалисты и из каких сфер интересуют
+            </label>
+            <textarea
+              value={profile.interested_in ?? ""}
+              onChange={(e) =>
+                setProfile({ ...profile, interested_in: e.target.value })
+              }
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+            />
+          </div>
         </div>
 
         {/* Локация на карте */}
