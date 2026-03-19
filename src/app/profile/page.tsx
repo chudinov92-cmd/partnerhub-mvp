@@ -39,6 +39,7 @@ const INDUSTRY_OPTIONS = [
   "Event-индустрия",
   "Искусство",
   "Медиапроизводство и съёмка",
+  "Услуги",
   "Другое",
 ] as const;
 
@@ -169,7 +170,29 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
     "Операторское мастерство",
     "Продюсирование и организация съёмок",
   ],
+  Услуги: [
+    "Строительство и ремонт",
+    "Туризм и путешествия",
+    "Транспортные услуги",
+    "Образование",
+    "Медицина и здоровье",
+    "Спорт и фитнес",
+    "Beauty-индустрия",
+  ],
 };
+
+const CURRENT_STATUS_OPTIONS = [
+  "Учащийся",
+  "Сотрудник в компании",
+  "Предприниматель",
+  "Фрилансер",
+] as const;
+
+type CurrentStatusOption = (typeof CURRENT_STATUS_OPTIONS)[number];
+
+const SORTED_CURRENT_STATUS_OPTIONS: CurrentStatusOption[] = [
+  ...CURRENT_STATUS_OPTIONS,
+].sort((a, b) => a.localeCompare(b, "ru"));
 
 type Profile = {
   id: string;
@@ -181,6 +204,7 @@ type Profile = {
   subindustry: string | null;
   role_title: string | null;
   experience_years: number | null;
+  current_status: string | null;
   skills: string | null;
   looking_for: string | null;
   can_help_with: string | null;
@@ -255,7 +279,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, can_help_with, interested_in",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -273,7 +297,7 @@ export default function ProfilePage() {
               auth_user_id: user.id,
             })
             .select(
-              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in",
+              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, can_help_with, interested_in",
             )
             .single();
 
@@ -469,6 +493,9 @@ export default function ProfilePage() {
           subindustry: profile.subindustry,
           role_title: maskProfanity(profile.role_title),
           experience_years: profile.experience_years,
+          current_status: profile.current_status
+            ? maskProfanity(profile.current_status)
+            : null,
           skills: maskProfanity(profile.skills),
           looking_for: maskProfanity(profile.looking_for),
           can_help_with: maskProfanity(profile.can_help_with),
@@ -712,6 +739,28 @@ export default function ProfilePage() {
                 key={ctx.key}
                 className="space-y-4 rounded-2xl border-2 border-slate-200 p-4"
               >
+                {isPrimaryBlock && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Текущий статус
+                    </label>
+                    <DropdownSelect
+                      value={profile.current_status ?? null}
+                      placeholder="Выберите статус"
+                      options={SORTED_CURRENT_STATUS_OPTIONS.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
+                      onChange={(v) => {
+                        setProfile({
+                          ...profile,
+                          current_status: v || null,
+                        });
+                      }}
+                      menuClassName="text-[11px]"
+                    />
+                  </div>
+                )}
                 {/* Профессия */}
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">

@@ -8,10 +8,10 @@ function sortRuAsc(a: string, b: string) {
   return a.localeCompare(b, "ru");
 }
 
-const LS_INDUSTRY_KEY = "industry_catalog_v1";
-const LS_INDUSTRY_FETCHED_AT_KEY = "industry_catalog_fetched_at_v1";
-const LS_SUBINDUSTRY_KEY = "subindustry_catalog_v1";
-const LS_SUBINDUSTRY_FETCHED_AT_KEY = "subindustry_catalog_fetched_at_v1";
+const LS_INDUSTRY_KEY = "industry_catalog_v2";
+const LS_INDUSTRY_FETCHED_AT_KEY = "industry_catalog_fetched_at_v2";
+const LS_SUBINDUSTRY_KEY = "subindustry_catalog_v2";
+const LS_SUBINDUSTRY_FETCHED_AT_KEY = "subindustry_catalog_fetched_at_v2";
 
 function msNow() {
   return Date.now();
@@ -42,27 +42,23 @@ function shouldRefreshAt4amMsk(lastFetchedUtcMs: number | null, nowUtcMs: number
 export type IndustryCatalogRow = { label: string };
 export type SubindustryCatalogRow = { industry_label: string; label: string };
 
-async function seedIndustryIfEmptyAuthenticated() {
+async function seedIndustryCatalogAuthenticated() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  const { count, error: countErr } = await supabase
-    .from("industry_catalog")
-    .select("*", { count: "exact", head: true });
-  if (countErr) return;
-  if ((count ?? 0) > 0) return;
-
+  // Best-effort seeding:
+  // if insert is denied / table is missing, we don't want to break UI.
   const { error: indErr } = await supabase
     .from("industry_catalog")
     .upsert(INDUSTRY_SEED.map((label) => ({ label })), { onConflict: "label" });
-  if (indErr) throw indErr;
+  if (indErr) return;
 
   const { error: subErr } = await supabase
     .from("subindustry_catalog")
     .upsert(SUBINDUSTRY_SEED, { onConflict: "industry_label,label" });
-  if (subErr) throw subErr;
+  if (subErr) return;
 }
 
 export async function fetchIndustryCatalogFromDb(): Promise<IndustryCatalogRow[]> {
@@ -97,8 +93,19 @@ export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
     }
   }
 
-  await seedIndustryIfEmptyAuthenticated();
-  const fresh = await fetchIndustryCatalogFromDb();
+  try {
+    await seedIndustryCatalogAuthenticated();
+  } catch (e) {
+    // ignore seeding failures (permissions/tables/etc.)
+  }
+
+  let fresh: IndustryCatalogRow[] = [];
+  try {
+    fresh = await fetchIndustryCatalogFromDb();
+  } catch (e) {
+    // If DB read fails, UI will fall back to hardcoded lists.
+    return [];
+  }
   if (typeof window !== "undefined") {
     window.localStorage.setItem(LS_INDUSTRY_KEY, JSON.stringify(fresh));
     window.localStorage.setItem(LS_INDUSTRY_FETCHED_AT_KEY, String(nowUtc));
@@ -120,8 +127,19 @@ export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]>
     }
   }
 
-  await seedIndustryIfEmptyAuthenticated();
-  const fresh = await fetchSubindustryCatalogFromDb();
+  try {
+    await seedIndustryCatalogAuthenticated();
+  } catch (e) {
+    // ignore seeding failures (permissions/tables/etc.)
+  }
+
+  let fresh: SubindustryCatalogRow[] = [];
+  try {
+    fresh = await fetchSubindustryCatalogFromDb();
+  } catch (e) {
+    // If DB read fails, UI will fall back to hardcoded lists.
+    return [];
+  }
   if (typeof window !== "undefined") {
     window.localStorage.setItem(LS_SUBINDUSTRY_KEY, JSON.stringify(fresh));
     window.localStorage.setItem(LS_SUBINDUSTRY_FETCHED_AT_KEY, String(nowUtc));

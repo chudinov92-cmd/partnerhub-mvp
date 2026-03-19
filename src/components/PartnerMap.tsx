@@ -37,6 +37,8 @@ function getMarkerColorByProfession(profession?: string | null) {
 
 export type PartnerMapProps = {
   onOpenChat?: (profileId: string) => void;
+  onToggleContact?: (profileId: string) => void;
+  contactProfileIds?: string[];
   center?: LatLngExpression;
   zoom?: number;
   profiles: {
@@ -46,6 +48,7 @@ export type PartnerMapProps = {
     industry?: string | null;
     subindustry?: string | null;
     role_title?: string | null;
+    rating_count?: number | null;
   }[];
 };
 
@@ -61,6 +64,8 @@ function MapView({ center, zoom }: { center: LatLngExpression; zoom: number }) {
 
 export function PartnerMap({
   onOpenChat,
+  onToggleContact,
+  contactProfileIds,
   profiles,
   center,
   zoom,
@@ -101,6 +106,10 @@ export function PartnerMap({
 
   const effectiveCenter = center ?? PERM_CENTER;
   const effectiveZoom = zoom ?? DEFAULT_ZOOM;
+  const contactSet = useMemo(
+    () => new Set(contactProfileIds ?? []),
+    [contactProfileIds],
+  );
 
   return (
     <div className="h-full min-h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
@@ -153,6 +162,11 @@ export function PartnerMap({
                   <p className="text-sm font-semibold text-slate-900">
                     {profile?.full_name || "Специалист"}
                   </p>
+                  {profile?.rating_count != null && (
+                    <p className="text-[11px] font-medium text-slate-700">
+                      Рейтинг {profile.rating_count}
+                    </p>
+                  )}
                   <p className="text-[11px] text-slate-600">
                     {/* Берём из "первого блока" (profiles.*), доп. блоки хранятся отдельно */}
                     {profile?.industry || "Отрасль не указана"}
@@ -181,6 +195,17 @@ export function PartnerMap({
                     >
                       Написать
                     </button>
+                    {onToggleContact ? (
+                      <button
+                        type="button"
+                        onClick={() => onToggleContact(p.user_id)}
+                        className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {contactSet.has(p.user_id)
+                          ? "Удалить"
+                          : "Добавить в контакты"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </Popup>

@@ -8,8 +8,8 @@ export type ProfessionCatalogRow = {
 
 export const OTHER_PROFESSION_LABEL = "Другое";
 
-const LS_KEY = "profession_catalog_v1";
-const LS_FETCHED_AT_KEY = "profession_catalog_fetched_at_v1";
+const LS_KEY = "profession_catalog_v2";
+const LS_FETCHED_AT_KEY = "profession_catalog_fetched_at_v2";
 
 function sortRuAsc(a: string, b: string) {
   return a.localeCompare(b, "ru");

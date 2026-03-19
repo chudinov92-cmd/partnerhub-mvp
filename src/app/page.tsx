@@ -48,6 +48,7 @@ type Profile = {
   subindustry?: string | null;
   role_title?: string | null;
   experience_years?: number | null;
+  current_status?: string | null;
 };
 
 type ChatListItem = {
@@ -70,6 +71,7 @@ const INDUSTRY_OPTIONS = [
   "Event-индустрия",
   "Искусство",
   "Медиапроизводство и съёмка",
+  "Услуги",
   "Другое",
 ] as const;
 
@@ -86,6 +88,13 @@ function sortWithOtherLast(items: readonly string[]) {
 }
 
 const SORTED_INDUSTRY_OPTIONS = sortWithOtherLast(INDUSTRY_OPTIONS);
+
+const CURRENT_STATUS_OPTIONS = [
+  "Учащийся",
+  "Сотрудник в компании",
+  "Предприниматель",
+  "Фрилансер",
+].slice().sort(sortRuAsc);
 
 const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
   "Природные ресурсы": [
@@ -206,18 +215,29 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
     "Операторское мастерство",
     "Продюсирование и организация съёмок",
   ],
+  Услуги: [
+    "Строительство и ремонт",
+    "Туризм и путешествия",
+    "Транспортные услуги",
+    "Образование",
+    "Медицина и здоровье",
+    "Спорт и фитнес",
+    "Beauty-индустрия",
+  ],
 };
 
 type FeedFilters = {
   profession: string | null;
   industry: string | null;
   subindustry: string | null;
+  current_status: string | null;
 };
 
 const DEFAULT_FEED_FILTERS: FeedFilters = {
   profession: null,
   industry: null,
   subindustry: null,
+  current_status: null,
 };
 
 type CurrentUser = {
@@ -337,6 +357,7 @@ export default function Home() {
   const [activeProfileCard, setActiveProfileCard] = useState<{
     profile: Profile;
     top: number;
+    left?: number;
   } | null>(null);
   const [experienceSumByKey, setExperienceSumByKey] = useState<
     Record<string, number>
@@ -346,6 +367,9 @@ export default function Home() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const cityMenuRef = useRef<HTMLDivElement | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
+  const [contactsOnlyMode, setContactsOnlyMode] = useState(false);
 
   const timeZone = useMemo(() => {
     const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
@@ -370,6 +394,51 @@ export default function Home() {
     }
   }, []);
 
+  // режим "Контакты" включаем через query-param ?contacts=1
+  // (Next router меняет URL через history.pushState, поэтому слушаем изменения location.search)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const read = () => {
+      const params = new URLSearchParams(window.location.search);
+      setContactsOnlyMode(params.get("contacts") === "1");
+    };
+
+    read();
+
+    const onLocationChange = () => read();
+
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    history.pushState = function (
+      this: History,
+      ...args: Parameters<History["pushState"]>
+    ) {
+      const ret = origPush.apply(this, args as any);
+      window.dispatchEvent(new Event("locationchange"));
+      return ret;
+    } as any;
+    history.replaceState = function (
+      this: History,
+      ...args: Parameters<History["replaceState"]>
+    ) {
+      const ret = origReplace.apply(this, args as any);
+      window.dispatchEvent(new Event("locationchange"));
+      return ret;
+    } as any;
+
+    window.addEventListener("popstate", onLocationChange);
+    window.addEventListener("locationchange", onLocationChange);
+
+    return () => {
+      history.pushState = origPush;
+      history.replaceState = origReplace;
+      window.removeEventListener("popstate", onLocationChange);
+      window.removeEventListener("locationchange", onLocationChange);
+    };
+  }, []);
+
   // подгружаем сохранённые фильтры ленты
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -385,6 +454,33 @@ export default function Home() {
       // ignore
     }
   }, []);
+
+  // загрузка контактов текущего пользователя
+  useEffect(() => {
+    if (!currentUser?.profileId) {
+      setContactProfileIds([]);
+      return;
+    }
+    let alive = true;
+    supabase
+      .from("profile_contacts")
+      .select("contact_profile_id")
+      .eq("owner_id", currentUser.profileId)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          console.error("Failed to load contacts", error);
+          setContactProfileIds([]);
+          return;
+        }
+        const ids =
+          (data as any[] | null)?.map((r) => r.contact_profile_id) ?? [];
+        setContactProfileIds(ids);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [currentUser?.profileId]);
 
   useEffect(() => {
     const load = async () => {
@@ -404,14 +500,14 @@ export default function Home() {
           supabase
             .from("posts")
             .select(
-              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, experience_years, industry, subindustry)",
+              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, experience_years, industry, subindustry)",
             )
             .order("created_at", { ascending: false })
             .limit(20),
           supabase
             .from("profiles")
             .select(
-              "id, full_name, city, industry, subindustry, role_title, experience_years, rating_avg, rating_count",
+              "id, full_name, city, industry, subindustry, role_title, current_status, experience_years, rating_avg, rating_count",
             )
             .limit(50),
           user
@@ -602,7 +698,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, industry, subindustry)",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, industry, subindustry)",
         )
         .order("created_at", { ascending: false })
         .limit(20);
@@ -695,6 +791,10 @@ export default function Home() {
       if (feedFilters.subindustry) {
         if ((a.subindustry ?? null) !== feedFilters.subindustry) return false;
       }
+      if (feedFilters.current_status) {
+        if ((a.current_status ?? null) !== feedFilters.current_status)
+          return false;
+      }
       return true;
     });
   }, [posts, feedFilters]);
@@ -766,6 +866,9 @@ export default function Home() {
 
   const filteredProfilesForMap = useMemo(() => {
     return profiles.filter((p) => {
+      if (contactsOnlyMode) {
+        if (!contactProfileIds.includes(p.id)) return false;
+      }
       if (feedFilters.profession) {
         if ((p.role_title ?? null) !== feedFilters.profession) return false;
       }
@@ -775,9 +878,58 @@ export default function Home() {
       if (feedFilters.subindustry) {
         if ((p.subindustry ?? null) !== feedFilters.subindustry) return false;
       }
+      if (feedFilters.current_status) {
+        if ((p.current_status ?? null) !== feedFilters.current_status)
+          return false;
+      }
       return true;
     });
-  }, [profiles, feedFilters]);
+  }, [profiles, feedFilters, contactsOnlyMode, contactProfileIds]);
+
+  const filteredChatList = useMemo(() => {
+    if (!contactsOnlyMode) return chatList;
+    return chatList.filter((item) => contactProfileIds.includes(item.profile.id));
+  }, [chatList, contactsOnlyMode, contactProfileIds]);
+
+  const resetContactsMode = () => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("contacts");
+    window.history.replaceState({}, "", url.toString());
+    window.dispatchEvent(new Event("locationchange"));
+  };
+
+  const toggleContact = async (profileId: string) => {
+    if (!currentUser?.profileId) return;
+    if (profileId === currentUser.profileId) return;
+
+    const isIn = contactProfileIds.includes(profileId);
+    setContactProfileIds((prev) =>
+      isIn ? prev.filter((x) => x !== profileId) : [...prev, profileId],
+    );
+
+    try {
+      if (isIn) {
+        const { error } = await supabase
+          .from("profile_contacts")
+          .delete()
+          .eq("owner_id", currentUser.profileId)
+          .eq("contact_profile_id", profileId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("profile_contacts").insert({
+          owner_id: currentUser.profileId,
+          contact_profile_id: profileId,
+        });
+        if (error) throw error;
+      }
+    } catch (e) {
+      console.error("Failed to toggle contact", e);
+      setContactProfileIds((prev) =>
+        isIn ? [...prev, profileId] : prev.filter((x) => x !== profileId),
+      );
+    }
+  };
 
   // Закрытие поп-апа фильтров по клику вне и по Esc
   useEffect(() => {
@@ -850,7 +1002,7 @@ export default function Home() {
           city: currentUser.city,
         })
         .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title)",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, industry, subindustry)",
         )
         .single();
 
@@ -1238,10 +1390,10 @@ export default function Home() {
           {activeProfileCard && (
             <div
               data-profile-card
-              className="fixed z-[900] w-[260px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+              className="fixed z-[1300] w-[260px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
               style={{
                 top: activeProfileCard.top,
-                left: 340,
+                left: activeProfileCard.left ?? 340,
               }}
             >
               <div className="mb-2 flex items-start justify-between">
@@ -1274,6 +1426,11 @@ export default function Home() {
                   {activeProfileCard.profile.role_title}
                 </p>
               )}
+              {activeProfileCard.profile.rating_count != null && (
+                <p className="text-[11px] font-medium text-slate-700">
+                  Рейтинг {activeProfileCard.profile.rating_count}
+                </p>
+              )}
               {activeProfileCard.profile.role_title && (
                 (() => {
                   const expYears = getTotalExperienceYears(
@@ -1304,6 +1461,18 @@ export default function Home() {
                 >
                   Написать
                 </button>
+                {currentUser?.profileId &&
+                currentUser.profileId !== activeProfileCard.profile.id ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleContact(activeProfileCard.profile.id)}
+                    className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {contactProfileIds.includes(activeProfileCard.profile.id)
+                      ? "Удалить"
+                      : "Добавить в контакты"}
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -1451,6 +1620,34 @@ export default function Home() {
                       />
                     </div>
 
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Текущий статус
+                      </label>
+                      <DropdownSelect
+                        value={feedFilters.current_status}
+                        placeholder="Любой"
+                        options={CURRENT_STATUS_OPTIONS.map((s) => ({
+                          value: s,
+                          label: s,
+                        }))}
+                        onChange={(v) => {
+                          const next: FeedFilters = {
+                            ...feedFilters,
+                            current_status: v || null,
+                          };
+                          setFeedFilters(next);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(next),
+                            );
+                          }
+                        }}
+                        menuClassName="text-[11px]"
+                      />
+                    </div>
+
                     <div className="mt-2 flex items-center justify-between">
                       <button
                         type="button"
@@ -1554,9 +1751,10 @@ export default function Home() {
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1">
+          <div ref={mapContainerRef} className="min-h-0 flex-1">
             <PartnerMap
               profiles={filteredProfilesForMap}
+              contactProfileIds={contactProfileIds}
               center={mapConfig.center}
               zoom={mapConfig.zoom}
               onOpenChat={(profileId) => {
@@ -1565,17 +1763,29 @@ export default function Home() {
                   openChatWithProfile(p);
                 }
               }}
+              onToggleContact={(profileId) => {
+                toggleContact(profileId);
+              }}
             />
           </div>
         </section>
 
         {/* Правая колонка: список чатов / специалистов */}
         <aside className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[260px] md:flex-shrink-0 md:p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">
-            Мои чаты
-          </h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-900">Мои чаты</h2>
+            {contactsOnlyMode ? (
+              <button
+                type="button"
+                onClick={resetContactsMode}
+                className="text-xs font-medium text-slate-600 hover:text-sky-700 hover:underline"
+              >
+                Сбросить
+              </button>
+            ) : null}
+          </div>
 
-          {!loading && chatList.length === 0 && (
+          {!loading && filteredChatList.length === 0 && (
             <p className="text-sm text-slate-500">
               У вас пока нет личных диалогов. Начните переписку, чтобы чат
               появился в списке.
@@ -1584,16 +1794,31 @@ export default function Home() {
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <ul className="space-y-2">
-              {chatList.map((item) => (
+              {filteredChatList.map((item) => (
                 <li
                   key={item.profile.id}
                   onClick={() => openChatFromList(item)}
                   className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 transition hover:border-sky-200 hover:bg-sky-50/60"
                 >
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const top = rect.top + window.scrollY;
+                      const popupWidth = 260;
+                      const gap = 8;
+                      const mapRect = mapContainerRef.current?.getBoundingClientRect();
+                      const left = mapRect
+                        ? Math.max(8, mapRect.right - popupWidth - gap)
+                        : 340;
+                      setActiveProfileCard({ profile: item.profile, top, left });
+                      }}
+                      className="text-left text-sm font-medium text-slate-900 hover:text-sky-700"
+                    >
                       {item.profile.full_name || "Без имени"}
-                    </p>
+                    </button>
                     <p className="text-xs text-slate-500">
                       {item.profile.role_title || "Профессия не указана"}
                     </p>
@@ -1611,9 +1836,9 @@ export default function Home() {
                       </span>
                       );
                     })()}
-                    {item.profile.rating_count && item.profile.rating_count > 0 ? (
-                      <span className="text-xs font-medium text-amber-500">
-                        ★ {item.profile.rating_avg?.toFixed(1)}
+                    {item.profile.rating_count != null ? (
+                      <span className="text-xs font-medium text-slate-600">
+                        Рейтинг {item.profile.rating_count}
                       </span>
                     ) : null}
                   </div>
@@ -1627,16 +1852,30 @@ export default function Home() {
         {activeChatUser && (
           <div
             ref={chatWindowRef}
-            className="pointer-events-auto fixed top-16 right-3 z-[1000] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]"
+            className="pointer-events-auto fixed top-16 right-3 z-[1600] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]"
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
               <div>
-                <Link
-                  href={`/profiles/${activeChatUser.id}`}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const rect = (
+                      e.currentTarget as HTMLElement
+                    ).getBoundingClientRect();
+                    const top = rect.top + window.scrollY;
+                  const popupWidth = 260;
+                  const gap = 8;
+                  const mapRect = mapContainerRef.current?.getBoundingClientRect();
+                  const left = mapRect
+                    ? Math.max(8, mapRect.right - popupWidth - gap)
+                    : 340;
+                  setActiveProfileCard({ profile: activeChatUser, top, left });
+                  }}
                   className="text-sm font-semibold text-slate-900 hover:text-sky-700"
                 >
                   {activeChatUser.full_name || "Без имени"}
-                </Link>
+                </button>
                 <p className="text-[11px] text-slate-500">
                   {activeChatUser.role_title ||
                     activeChatUser.city ||

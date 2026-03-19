@@ -19,6 +19,7 @@ type PublicProfile = {
   looking_for: string | null;
   can_help_with: string | null;
   interested_in: string | null;
+  rating_count: number | null;
 };
 
 export default function PublicProfilePage() {
@@ -28,6 +29,9 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
+  const [isContact, setIsContact] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
 
   useEffect(() => {
     if (!profileId) return;
@@ -36,10 +40,26 @@ export default function PublicProfilePage() {
       setLoading(true);
       setError(null);
       try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: me } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("auth_user_id", user.id)
+            .maybeSingle();
+          const myId = (me as any)?.id ?? null;
+          setCurrentProfileId(myId);
+        } else {
+          setCurrentProfileId(null);
+        }
+
         const { data, error } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in, rating_count",
           )
           .eq("id", profileId)
           .maybeSingle();
@@ -55,6 +75,36 @@ export default function PublicProfilePage() {
 
     load();
   }, [profileId]);
+
+  useEffect(() => {
+    if (!profileId || !currentProfileId) {
+      setIsContact(false);
+      return;
+    }
+    if (profileId === currentProfileId) {
+      setIsContact(false);
+      return;
+    }
+    let alive = true;
+    supabase
+      .from("profile_contacts")
+      .select("contact_profile_id")
+      .eq("owner_id", currentProfileId)
+      .eq("contact_profile_id", profileId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error && (error as any).code !== "PGRST116") {
+          console.error("Failed to check contact", error);
+          setIsContact(false);
+          return;
+        }
+        setIsContact(!!data);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [profileId, currentProfileId]);
 
   if (loading) {
     return (
@@ -96,6 +146,43 @@ export default function PublicProfilePage() {
             >
               Назад
             </Link>
+            {currentProfileId && currentProfileId !== profile.id ? (
+              <button
+                type="button"
+                disabled={contactLoading}
+                onClick={async () => {
+                  if (!currentProfileId) return;
+                  setContactLoading(true);
+                  try {
+                    if (isContact) {
+                      const { error } = await supabase
+                        .from("profile_contacts")
+                        .delete()
+                        .eq("owner_id", currentProfileId)
+                        .eq("contact_profile_id", profile.id);
+                      if (error) throw error;
+                      setIsContact(false);
+                    } else {
+                      const { error } = await supabase
+                        .from("profile_contacts")
+                        .insert({
+                          owner_id: currentProfileId,
+                          contact_profile_id: profile.id,
+                        });
+                      if (error) throw error;
+                      setIsContact(true);
+                    }
+                  } catch (e) {
+                    console.error("Failed to toggle contact", e);
+                  } finally {
+                    setContactLoading(false);
+                  }
+                }}
+                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {isContact ? "Удалить" : "Добавить в контакты"}
+              </button>
+            ) : null}
             <Link
               href={`/?chat=${profile.id}`}
               className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
@@ -106,6 +193,14 @@ export default function PublicProfilePage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Рейтинг
+            </p>
+            <p className="text-sm text-slate-900">
+              {profile.rating_count != null ? profile.rating_count : 0}
+            </p>
+          </div>
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Отрасль

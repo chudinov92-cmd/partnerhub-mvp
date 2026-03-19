@@ -12,6 +12,7 @@ export const INDUSTRY_SEED: string[] = [
   "Event-индустрия",
   "Искусство",
   "Медиапроизводство и съёмка",
+  "Услуги",
 ];
 
 export const SUBINDUSTRY_SEED: Array<{ industry_label: string; label: string }> = [
@@ -132,5 +133,14 @@ export const SUBINDUSTRY_SEED: Array<{ industry_label: string; label: string }> 
   { industry_label: "Медиапроизводство и съёмка", label: "Звук и саунд-дизайн" },
   { industry_label: "Медиапроизводство и съёмка", label: "Операторское мастерство" },
   { industry_label: "Медиапроизводство и съёмка", label: "Продюсирование и организация съёмок" },
+
+  // Услуги
+  { industry_label: "Услуги", label: "Строительство и ремонт" },
+  { industry_label: "Услуги", label: "Туризм и путешествия" },
+  { industry_label: "Услуги", label: "Транспортные услуги" },
+  { industry_label: "Услуги", label: "Образование" },
+  { industry_label: "Услуги", label: "Медицина и здоровье" },
+  { industry_label: "Услуги", label: "Спорт и фитнес" },
+  { industry_label: "Услуги", label: "Beauty-индустрия" },
 ];
 
