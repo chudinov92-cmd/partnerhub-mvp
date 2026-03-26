@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 export function TopBar() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [fullName, setFullName] = useState<string | null>(null);
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
@@ -24,6 +25,7 @@ export function TopBar() {
         if (!user) {
           setIsAuthed(false);
           setFullName(null);
+          setMyProfileId(null);
           return;
         }
 
@@ -31,13 +33,14 @@ export function TopBar() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name")
+          .select("id, full_name")
           .eq("auth_user_id", user.id)
           .maybeSingle();
 
-        const name =
-          (profile as { full_name: string | null } | null)?.full_name ?? null;
+        const p = profile as { id: string; full_name: string | null } | null;
+        const name = p?.full_name ?? null;
         setFullName(name);
+        setMyProfileId(p?.id ?? null);
       } finally {
         setLoading(false);
       }
@@ -65,6 +68,44 @@ export function TopBar() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Heartbeat for "online" status: update last_seen_at while user is active.
+  useEffect(() => {
+    if (!myProfileId) return;
+
+    let alive = true;
+
+    const ping = async () => {
+      if (!alive) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible")
+        return;
+      try {
+        await supabase
+          .from("profiles")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", myProfileId);
+      } catch {
+        // best-effort; do not surface to UI
+      }
+    };
+
+    // Ping immediately and then periodically.
+    ping();
+    const interval = setInterval(ping, 30000);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") ping();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", ping);
+
+    return () => {
+      alive = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", ping);
+    };
+  }, [myProfileId]);
 
   // Закрытие меню профиля по клику вне и по Esc
   useEffect(() => {
@@ -95,7 +136,7 @@ export function TopBar() {
   return (
     <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-3 md:px-4">
       <Link href="/" className="text-sm font-semibold text-slate-900">
-        PartnerHub
+        Zeip
       </Link>
 
       <div className="relative" ref={menuRef}>

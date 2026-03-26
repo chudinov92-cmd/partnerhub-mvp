@@ -44,12 +44,24 @@ type Profile = {
   city: string | null;
   rating_avg: number | null;
   rating_count: number | null;
+  last_seen_at?: string | null;
+  skills?: string | null;
+  resources?: string | null;
   industry?: string | null;
   subindustry?: string | null;
   role_title?: string | null;
   experience_years?: number | null;
   current_status?: string | null;
 };
+
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+
+function isOnline(lastSeenAt?: string | null) {
+  if (!lastSeenAt) return false;
+  const t = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= ONLINE_WINDOW_MS;
+}
 
 type ChatListItem = {
   chatId: string;
@@ -244,6 +256,7 @@ type CurrentUser = {
   profileId: string;
   fullName: string | null;
   city: string | null;
+  isBlocked: boolean;
 };
 
 type ChatMessage = {
@@ -500,20 +513,20 @@ export default function Home() {
           supabase
             .from("posts")
             .select(
-              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, experience_years, industry, subindustry)",
+              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, experience_years, industry, subindustry)",
             )
             .order("created_at", { ascending: false })
             .limit(20),
           supabase
             .from("profiles")
             .select(
-              "id, full_name, city, industry, subindustry, role_title, current_status, experience_years, rating_avg, rating_count",
+              "id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, rating_avg, rating_count",
             )
             .limit(50),
           user
             ? supabase
                 .from("profiles")
-                .select("id, full_name, city")
+                .select("id, full_name, city, is_blocked")
                 .eq("auth_user_id", user.id)
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
@@ -574,11 +587,13 @@ export default function Home() {
             id: string;
             full_name: string | null;
             city: string | null;
+            is_blocked: boolean | null;
           };
           setCurrentUser({
             profileId: p.id,
             fullName: p.full_name,
             city: p.city,
+            isBlocked: !!p.is_blocked,
           });
 
           // загружаем только те профили, с кем у текущего пользователя есть чаты
@@ -595,7 +610,7 @@ export default function Home() {
             const { data: otherRows, error: otherErr } = await supabase
               .from("chat_members")
               .select(
-                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, rating_avg, rating_count)",
+                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, rating_avg, rating_count)",
               )
               .in("chat_id", chatIds)
               .neq("user_id", p.id);
@@ -614,6 +629,9 @@ export default function Home() {
                     industry: prof.industry,
                     subindustry: prof.subindustry,
                     role_title: prof.role_title,
+                    last_seen_at: prof.last_seen_at ?? null,
+                    skills: prof.skills ?? null,
+                    resources: prof.resources ?? null,
                     rating_avg: prof.rating_avg,
                     rating_count: prof.rating_count,
                   },
@@ -698,7 +716,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, industry, subindustry)",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
         )
         .order("created_at", { ascending: false })
         .limit(20);
@@ -893,6 +911,8 @@ export default function Home() {
 
   const resetContactsMode = () => {
     if (typeof window === "undefined") return;
+    // Update UI immediately; URL listener will confirm via next event.
+    setContactsOnlyMode(false);
     const url = new URL(window.location.href);
     url.searchParams.delete("contacts");
     window.history.replaceState({}, "", url.toString());
@@ -982,6 +1002,10 @@ export default function Home() {
       setCreateError("Нужно войти, чтобы написать пост.");
       return;
     }
+    if (currentUser.isBlocked) {
+      setCreateError("Ваш аккаунт заблокирован. Публикация недоступна.");
+      return;
+    }
     if (!newPostBody.trim()) {
       setCreateError("Напишите текст сообщения.");
       return;
@@ -1002,7 +1026,7 @@ export default function Home() {
           city: currentUser.city,
         })
         .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, current_status, industry, subindustry)",
+          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
         )
         .single();
 
@@ -1119,6 +1143,10 @@ export default function Home() {
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !activeChatId || !chatInput.trim()) return;
+    if (currentUser.isBlocked) {
+      setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
+      return;
+    }
 
     setChatSending(true);
     setChatError(null);
@@ -1290,6 +1318,7 @@ export default function Home() {
                   ? post.author[0]
                   : post.author;
                 const authorName = authorObj?.full_name || "Аноним";
+                const authorOnline = isOnline(authorObj?.last_seen_at ?? null);
                 const prof = (authorObj?.role_title as string | null) ?? null;
                 const totalExpYears = getTotalExperienceYears(post.author_id, prof);
 
@@ -1316,7 +1345,15 @@ export default function Home() {
                         }}
                         className="text-left text-sm font-semibold text-slate-900 hover:text-sky-700"
                       >
-                        {authorName}
+                        <span className="inline-flex items-center gap-2">
+                          <span>{authorName}</span>
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              authorOnline ? "bg-emerald-500" : "bg-slate-400"
+                            }`}
+                            title={authorOnline ? "Онлайн" : "Оффлайн"}
+                          />
+                        </span>
                         {prof ? (
                           <span className="ml-1 text-xs font-normal text-slate-500">
                             — {prof}
@@ -1399,7 +1436,26 @@ export default function Home() {
               <div className="mb-2 flex items-start justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    {activeProfileCard.profile.full_name || "Пользователь"}
+                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span>
+                        {activeProfileCard.profile.full_name || "Пользователь"}
+                      </span>
+                      {activeProfileCard.profile.role_title ? (
+                        <span>{activeProfileCard.profile.role_title}</span>
+                      ) : null}
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          isOnline(activeProfileCard.profile.last_seen_at ?? null)
+                            ? "bg-emerald-500"
+                            : "bg-slate-400"
+                        }`}
+                        title={
+                          isOnline(activeProfileCard.profile.last_seen_at ?? null)
+                            ? "Онлайн"
+                            : "Оффлайн"
+                        }
+                      />
+                    </span>
                   </p>
                   <p className="text-[11px] text-slate-500">
                     {activeProfileCard.profile.city || "Город не указан"}
@@ -1414,36 +1470,29 @@ export default function Home() {
                 </button>
               </div>
               <p className="text-[11px] text-slate-600">
-                {activeProfileCard.profile.industry || "Отрасль не указана"}
+                <span className="font-medium text-slate-700">Отрасль:</span>{" "}
+                {activeProfileCard.profile.industry || "Не указана"}
               </p>
-              {activeProfileCard.profile.subindustry && (
-                <p className="text-[11px] text-slate-600">
-                  {activeProfileCard.profile.subindustry}
-                </p>
-              )}
-              {activeProfileCard.profile.role_title && (
-                <p className="text-[11px] text-slate-600">
-                  {activeProfileCard.profile.role_title}
-                </p>
-              )}
-              {activeProfileCard.profile.rating_count != null && (
-                <p className="text-[11px] font-medium text-slate-700">
-                  Рейтинг {activeProfileCard.profile.rating_count}
-                </p>
-              )}
-              {activeProfileCard.profile.role_title && (
-                (() => {
-                  const expYears = getTotalExperienceYears(
-                    activeProfileCard.profile.id,
-                    activeProfileCard.profile.role_title,
-                  );
-                  return expYears != null ? (
-                    <p className="text-[11px] text-slate-600">
-                      Стаж: {expYears} лет
-                    </p>
-                  ) : null;
-                })()
-              )}
+              <p className="text-[11px] text-slate-600">
+                <span className="font-medium text-slate-700">Подотрасль:</span>{" "}
+                {activeProfileCard.profile.subindustry || "Не указана"}
+              </p>
+
+              <p className="text-[11px] text-slate-600 whitespace-pre-line">
+                <span className="block font-medium text-slate-700">О себе:</span>{" "}
+                {activeProfileCard.profile.skills
+                  ? activeProfileCard.profile.skills.slice(0, 220) +
+                    (activeProfileCard.profile.skills.length > 220 ? "…" : "")
+                  : "Не указано"}
+              </p>
+
+              <p className="text-[11px] text-slate-600 whitespace-pre-line">
+                <span className="block font-medium text-slate-700">Ресурсы:</span>{" "}
+                {activeProfileCard.profile.resources
+                  ? activeProfileCard.profile.resources.slice(0, 220) +
+                    (activeProfileCard.profile.resources.length > 220 ? "…" : "")
+                  : "Не указано"}
+              </p>
               <div className="mt-2 flex gap-2">
                 <a
                   href={`/profiles/${activeProfileCard.profile.id}`}
@@ -1489,19 +1538,11 @@ export default function Home() {
                 aria-label="Настройки поиска"
                 title="Настройки"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" />
-                  <path d="M19.4 15a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1L15 2h-6l-.3 2.4a8 8 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 12a7.9 7.9 0 0 0-.1 1 7.9 7.9 0 0 0 .1 1l-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1L9 22h6l.3-2.4a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6z" />
-                </svg>
+                <img
+                  src="/Icons/Sliders.svg"
+                  alt="Настройки"
+                  className="h-4 w-4"
+                />
               </button>
               <h2 className="text-sm font-semibold text-slate-900">
                 Специалисты на карте
@@ -1534,12 +1575,15 @@ export default function Home() {
                       <DropdownSelect
                         value={feedFilters.profession}
                         placeholder="Любая"
-                        options={getProfessionLabelsForSelect(professionCatalog).map(
-                          (label) => ({
-                            value: label,
-                            label,
-                          }),
-                        )}
+                        options={[
+                          { value: "", label: "Любая" },
+                          ...getProfessionLabelsForSelect(professionCatalog).map(
+                            (label) => ({
+                              value: label,
+                              label,
+                            }),
+                          ),
+                        ]}
                         onChange={(v) => {
                           const next: FeedFilters = {
                             ...feedFilters,
@@ -1564,13 +1608,17 @@ export default function Home() {
                       <DropdownSelect
                         value={feedFilters.industry}
                         placeholder="Любая"
-                        options={(industryCatalog.length > 0
-                          ? getIndustryLabelsForSelect(industryCatalog)
-                          : SORTED_INDUSTRY_OPTIONS
-                        ).map((ind) => ({
-                          value: ind,
-                          label: ind,
-                        }))}
+                        options={[
+                          { value: "", label: "Любая" },
+                          ...(
+                            industryCatalog.length > 0
+                              ? getIndustryLabelsForSelect(industryCatalog)
+                              : SORTED_INDUSTRY_OPTIONS
+                          ).map((ind) => ({
+                            value: ind,
+                            label: ind,
+                          })),
+                        ]}
                         onChange={(v) => {
                           const next: FeedFilters = {
                             ...feedFilters,
@@ -1599,10 +1647,13 @@ export default function Home() {
                         placeholder={
                           feedFilters.industry ? "Любая" : "Сначала выберите отрасль"
                         }
-                        options={subindustryOptionsForFilters.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
+                        options={[
+                          { value: "", label: "Любая" },
+                          ...subindustryOptionsForFilters.map((s) => ({
+                            value: s,
+                            label: s,
+                          })),
+                        ]}
                         onChange={(v) => {
                           const next: FeedFilters = {
                             ...feedFilters,
@@ -1627,10 +1678,13 @@ export default function Home() {
                       <DropdownSelect
                         value={feedFilters.current_status}
                         placeholder="Любой"
-                        options={CURRENT_STATUS_OPTIONS.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
+                        options={[
+                          { value: "", label: "Любая" },
+                          ...CURRENT_STATUS_OPTIONS.map((s) => ({
+                            value: s,
+                            label: s,
+                          })),
+                        ]}
                         onChange={(v) => {
                           const next: FeedFilters = {
                             ...feedFilters,
@@ -1773,12 +1827,14 @@ export default function Home() {
         {/* Правая колонка: список чатов / специалистов */}
         <aside className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[260px] md:flex-shrink-0 md:p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Мои чаты</h2>
+            <h2 className="text-sm font-semibold text-slate-900">
+              {contactsOnlyMode ? "Контакты" : "Мои чаты"}
+            </h2>
             {contactsOnlyMode ? (
               <button
                 type="button"
                 onClick={resetContactsMode}
-                className="text-xs font-medium text-slate-600 hover:text-sky-700 hover:underline"
+                className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 hover:text-sky-700"
               >
                 Сбросить
               </button>
@@ -1787,8 +1843,9 @@ export default function Home() {
 
           {!loading && filteredChatList.length === 0 && (
             <p className="text-sm text-slate-500">
-              У вас пока нет личных диалогов. Начните переписку, чтобы чат
-              появился в списке.
+              {contactsOnlyMode
+                ? "У вас пока нет личных диалогов с контактами. Добавьте контакт или начните переписку."
+                : "У вас пока нет личных диалогов. Начните переписку, чтобы чат появился в списке."}
             </p>
           )}
 
@@ -1817,7 +1874,21 @@ export default function Home() {
                       }}
                       className="text-left text-sm font-medium text-slate-900 hover:text-sky-700"
                     >
-                      {item.profile.full_name || "Без имени"}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{item.profile.full_name || "Без имени"}</span>
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            isOnline(item.profile.last_seen_at ?? null)
+                              ? "bg-emerald-500"
+                              : "bg-slate-400"
+                          }`}
+                          title={
+                            isOnline(item.profile.last_seen_at ?? null)
+                              ? "Онлайн"
+                              : "Оффлайн"
+                          }
+                        />
+                      </span>
                     </button>
                     <p className="text-xs text-slate-500">
                       {item.profile.role_title || "Профессия не указана"}
@@ -1874,7 +1945,21 @@ export default function Home() {
                   }}
                   className="text-sm font-semibold text-slate-900 hover:text-sky-700"
                 >
-                  {activeChatUser.full_name || "Без имени"}
+                  <span className="inline-flex items-center gap-2">
+                    <span>{activeChatUser.full_name || "Без имени"}</span>
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        isOnline(activeChatUser.last_seen_at ?? null)
+                          ? "bg-emerald-500"
+                          : "bg-slate-400"
+                      }`}
+                      title={
+                        isOnline(activeChatUser.last_seen_at ?? null)
+                          ? "Онлайн"
+                          : "Оффлайн"
+                      }
+                    />
+                  </span>
                 </button>
                 <p className="text-[11px] text-slate-500">
                   {activeChatUser.role_title ||

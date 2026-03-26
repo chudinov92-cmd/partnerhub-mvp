@@ -76,37 +76,47 @@ async function seedCatalogIfEmptyAuthenticated() {
 
   const { error: seedErr } = await supabase
     .from("profession_catalog")
-    .upsert(PROFESSION_CATALOG_SEED, { onConflict: "label" });
+    .upsert(
+      PROFESSION_CATALOG_SEED.map((r) => ({ ...r, is_stock: true })),
+      { onConflict: "label" },
+    );
   if (seedErr) return;
 }
 
 export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
   const nowUtc = msNow();
+  let cachedRows: ProfessionCatalogRow[] | null = null;
 
   if (typeof window !== "undefined") {
     const cached = window.localStorage.getItem(LS_KEY);
-    const fetchedAtRaw = window.localStorage.getItem(LS_FETCHED_AT_KEY);
-    const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : null;
-
-    if (cached && fetchedAt && !shouldRefreshAt4amMsk(fetchedAt, nowUtc)) {
+    if (cached) {
       try {
-        const parsed = JSON.parse(cached) as ProfessionCatalogRow[];
-        return parsed;
+        cachedRows = JSON.parse(cached) as ProfessionCatalogRow[];
       } catch {
         // ignore cache parse errors
       }
     }
   }
 
-  // Ensure initial data exists (best-effort; requires auth and insert policy)
-  await seedCatalogIfEmptyAuthenticated();
-
-  const fresh = await fetchProfessionCatalogFromDb();
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
-    window.localStorage.setItem(LS_FETCHED_AT_KEY, String(nowUtc));
+  try {
+    // Ensure initial data exists (best-effort; requires auth and insert policy)
+    await seedCatalogIfEmptyAuthenticated();
+  } catch {
+    // ignore seed errors; we'll still try to fetch or fallback to cache
   }
-  return fresh;
+
+  try {
+    const fresh = await fetchProfessionCatalogFromDb();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
+      window.localStorage.setItem(LS_FETCHED_AT_KEY, String(nowUtc));
+    }
+    return fresh;
+  } catch {
+    // If DB is temporarily unavailable, keep app working with cached values.
+    if (cachedRows) return cachedRows;
+    return [];
+  }
 }
 
 export function getProfessionLabelsForSelect(rows: ProfessionCatalogRow[]) {

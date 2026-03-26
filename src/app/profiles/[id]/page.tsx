@@ -17,7 +17,8 @@ type PublicProfile = {
   experience_years: number | null;
   skills: string | null;
   looking_for: string | null;
-  can_help_with: string | null;
+  resources: string | null;
+  can_help_with: string | null; // legacy in DB
   interested_in: string | null;
   rating_count: number | null;
 };
@@ -59,7 +60,7 @@ export default function PublicProfilePage() {
         const { data, error } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, can_help_with, interested_in, rating_count",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count",
           )
           .eq("id", profileId)
           .maybeSingle();
@@ -246,6 +247,15 @@ export default function PublicProfilePage() {
             </p>
             <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
               {profile.skills || "Не указано"}
+            </p>
+          </section>
+
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Ресурсы
+            </p>
+            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
+              {profile.resources || "Не указано"}
             </p>
           </section>
 

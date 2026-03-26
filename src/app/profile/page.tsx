@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
   OTHER_PROFESSION_LABEL,
@@ -207,7 +206,8 @@ type Profile = {
   current_status: string | null;
   skills: string | null;
   looking_for: string | null;
-  can_help_with: string | null;
+  resources: string | null;
+  can_help_with: string | null; // legacy in DB (not shown in UI)
   interested_in: string | null;
 };
 
@@ -237,7 +237,6 @@ const LocationPicker = dynamic(
 );
 
 export default function ProfilePage() {
-  const router = useRouter();
   const MAX_GROUP2_BLOCKS = 5; // primary (profiles.*) + up to 4 additional blocks
   const [profile, setProfile] = useState<Profile | null>(null);
   const [location, setLocation] = useState<LocationRow | null>(null);
@@ -247,6 +246,12 @@ export default function ProfilePage() {
   const [professionIsOther, setProfessionIsOther] = useState(false);
   const [subindustryIsOther, setSubindustryIsOther] = useState(false);
   const [workBlocks, setWorkBlocks] = useState<WorkBlock[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
+  const savedSnapshotRef = useRef<string>("");
+  const [deleteBlockConfirmOpen, setDeleteBlockConfirmOpen] = useState(false);
+  const [deleteBlockConfirmIndex, setDeleteBlockConfirmIndex] = useState<
+    number | null
+  >(null);
   const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
     [],
   );
@@ -258,6 +263,62 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSaved || !profile) return;
+    const current = JSON.stringify({ profile, workBlocks });
+    if (savedSnapshotRef.current && current !== savedSnapshotRef.current) {
+      setIsSaved(false);
+    }
+  }, [isSaved, profile, workBlocks]);
+
+  const isExtraBlockStock = (wb: WorkBlock) => {
+    const roleTitle = (wb.role_title ?? "").trim();
+    const industry = (wb.industry ?? "").trim();
+    const industryOther = (wb.industry_other ?? "").trim();
+    const subindustry = (wb.subindustry ?? "").trim();
+
+    const roleEmpty =
+      !roleTitle || roleTitle === OTHER_PROFESSION_LABEL;
+
+    const industryEmpty =
+      !industry || (industry === "Другое" && !industryOther);
+
+    // For extra blocks we store "Другое" subindustry sentinel as "".
+    const subindustryEmpty = !subindustry;
+
+    const experienceEmpty = wb.experience_years == null;
+
+    return roleEmpty && industryEmpty && subindustryEmpty && experienceEmpty;
+  };
+
+  const requestDeleteExtraBlock = (extraIndex: number) => {
+    const wb = workBlocks[extraIndex];
+    if (!wb) return;
+
+    // "Stock" (empty) blocks delete immediately without confirmation.
+    if (isExtraBlockStock(wb)) {
+      setWorkBlocks((prev) => prev.filter((_, i) => i !== extraIndex));
+      return;
+    }
+
+    setDeleteBlockConfirmIndex(extraIndex);
+    setDeleteBlockConfirmOpen(true);
+  };
+
+  const confirmDeleteExtraBlock = () => {
+    if (deleteBlockConfirmIndex == null) return;
+    setWorkBlocks((prev) =>
+      prev.filter((_, i) => i !== deleteBlockConfirmIndex),
+    );
+    setDeleteBlockConfirmOpen(false);
+    setDeleteBlockConfirmIndex(null);
+  };
+
+  const cancelDeleteExtraBlock = () => {
+    setDeleteBlockConfirmOpen(false);
+    setDeleteBlockConfirmIndex(null);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -279,7 +340,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, can_help_with, interested_in",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -297,7 +358,7 @@ export default function ProfilePage() {
               auth_user_id: user.id,
             })
             .select(
-              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, can_help_with, interested_in",
+              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
             )
             .single();
 
@@ -391,6 +452,7 @@ export default function ProfilePage() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+    setIsSaved(false);
 
     try {
       // If user entered a custom profession ("Другое"), persist it in catalog.
@@ -498,7 +560,7 @@ export default function ProfilePage() {
             : null,
           skills: maskProfanity(profile.skills),
           looking_for: maskProfanity(profile.looking_for),
-          can_help_with: maskProfanity(profile.can_help_with),
+          resources: maskProfanity(profile.resources),
           interested_in: maskProfanity(profile.interested_in),
         })
         .eq("id", profile.id);
@@ -560,9 +622,8 @@ export default function ProfilePage() {
       }
 
       setSuccess("Профиль сохранён");
-      // обновим данные на других страницах и вернёмся на главную
-      router.refresh();
-      router.push("/");
+      setIsSaved(true);
+      savedSnapshotRef.current = JSON.stringify({ profile, workBlocks });
     } catch (err: any) {
       setError(err.message ?? "Не удалось сохранить профиль");
     } finally {
@@ -625,8 +686,9 @@ export default function ProfilePage() {
               type="text"
               value={profile.full_name ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, full_name: e.target.value })
+                setProfile({ ...profile, full_name: e.target.value.slice(0, 40) })
               }
+              maxLength={40}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
           </div>
@@ -739,6 +801,21 @@ export default function ProfilePage() {
                 key={ctx.key}
                 className="space-y-4 rounded-2xl border-2 border-slate-200 p-4"
               >
+                {!isPrimaryBlock && (
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteExtraBlock(blockIndex - 1)}
+                      className="rounded-full p-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <img
+                        src="/Icons/Trash 2.svg"
+                        alt="Удалить блок"
+                        className="h-4 w-4"
+                      />
+                    </button>
+                  </div>
+                )}
                 {isPrimaryBlock && (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -808,8 +885,9 @@ export default function ProfilePage() {
                             : b.role_title ?? ""
                         }
                         onChange={(e) =>
-                          ctx.set({ ...b, role_title: e.target.value })
+                          ctx.set({ ...b, role_title: e.target.value.slice(0, 40) })
                         }
+                        maxLength={40}
                         placeholder="Введите название"
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                       />
@@ -854,8 +932,12 @@ export default function ProfilePage() {
                       type="text"
                       value={b.industry_other ?? ""}
                       onChange={(e) =>
-                        ctx.set({ ...b, industry_other: e.target.value })
+                        ctx.set({
+                          ...b,
+                          industry_other: e.target.value.slice(0, 40),
+                        })
                       }
+                      maxLength={40}
                       placeholder="Введите название"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                     />
@@ -890,8 +972,9 @@ export default function ProfilePage() {
                           type="text"
                           value={b.subindustry ?? ""}
                           onChange={(e) =>
-                            ctx.set({ ...b, subindustry: e.target.value })
+                            ctx.set({ ...b, subindustry: e.target.value.slice(0, 40) })
                           }
+                          maxLength={40}
                           placeholder="Введите название"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                         />
@@ -950,64 +1033,45 @@ export default function ProfilePage() {
 
         {/* Группа 3: Описания */}
         <div className="space-y-4 rounded-2xl border-2 border-slate-200 p-4">
-          {/* Что умеешь */}
+          {/* О себе */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Что умеешь
+              О себе
             </label>
             <textarea
               value={profile.skills ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, skills: e.target.value })
+                setProfile({ ...profile, skills: e.target.value.slice(0, 600) })
               }
+              maxLength={600}
               rows={3}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
+            <div className="mt-1 text-right text-[11px] text-slate-400">
+              {(profile.skills ?? "").length}/600
+            </div>
           </div>
 
-          {/* Что хочешь найти */}
+          {/* Ресурсы */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Что хочешь найти на платформе
+              Ресурсы
             </label>
+            <p className="mb-1 text-xs text-slate-500">
+              Пример: Недвижимость, оборудование, транспорт, ПО
+            </p>
             <textarea
-              value={profile.looking_for ?? ""}
+              value={profile.resources ?? ""}
               onChange={(e) =>
-                setProfile({ ...profile, looking_for: e.target.value })
+                setProfile({ ...profile, resources: e.target.value.slice(0, 600) })
               }
-              rows={2}
+              maxLength={600}
+              rows={3}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
             />
-          </div>
-          
-          {/* Чем можешь помочь */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Чем можешь помочь другим
-            </label>
-            <textarea
-              value={profile.can_help_with ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, can_help_with: e.target.value })
-              }
-              rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
-
-          {/* Кто интересует */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Какие специалисты и из каких сфер интересуют
-            </label>
-            <textarea
-              value={profile.interested_in ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, interested_in: e.target.value })
-              }
-              rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
+            <div className="mt-1 text-right text-[11px] text-slate-400">
+              {(profile.resources ?? "").length}/600
+            </div>
           </div>
         </div>
 
@@ -1024,12 +1088,41 @@ export default function ProfilePage() {
         </div>
 
         <div className="pt-2">
+            {deleteBlockConfirmOpen && (
+              <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/50 px-3">
+                <div className="w-full max-w-sm rounded-2xl bg-white p-4 text-sm shadow-xl">
+                  <p className="text-slate-900">{`Вы действительно хотите удалить данные?`}</p>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelDeleteExtraBlock}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-900 hover:bg-slate-50"
+                    >
+                      Нет
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDeleteExtraBlock}
+                      className="rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700"
+                    >
+                      Да
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+            className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-60 ${
+              saving
+                ? "bg-sky-600 hover:bg-sky-700"
+                : isSaved
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-sky-600 hover:bg-sky-700"
+            }`}
           >
-            {saving ? "Сохраняем..." : "Сохранить профиль"}
+            {saving ? "Сохраняем..." : isSaved ? "Профиль сохранен" : "Сохранить профиль"}
           </button>
         </div>
       </form>

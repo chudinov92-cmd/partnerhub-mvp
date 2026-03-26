@@ -23,6 +23,59 @@ type LocationPoint = {
 
 const PERM_CENTER: LatLngExpression = [58.01, 56.25];
 const DEFAULT_ZOOM = 12;
+const GEO_PRIVACY_RADIUS_M = 250;
+
+function hashToSeed(str: string) {
+  // Deterministic 32-bit hash for stable obfuscation.
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number) {
+  let a = seed;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function obfuscateLatLngWithinRadius(
+  lat: number,
+  lng: number,
+  seedStr: string,
+  radiusM: number,
+) {
+  // Random point inside a disk with deterministic seed.
+  // Uses an equirectangular approximation which is accurate enough for <= a few km.
+  const seed = hashToSeed(seedStr);
+  const rnd = mulberry32(seed);
+
+  const u = rnd(); // [0,1)
+  const v = rnd(); // [0,1)
+  const r = radiusM * Math.sqrt(u);
+  const theta = 2 * Math.PI * v;
+
+  const R = 6378137; // meters (WGS84)
+  const latRad = (lat * Math.PI) / 180;
+
+  const dNorth = r * Math.cos(theta);
+  const dEast = r * Math.sin(theta);
+
+  const dLat = dNorth / R;
+  const dLng = dEast / (R * Math.cos(latRad));
+
+  return {
+    lat: lat + (dLat * 180) / Math.PI,
+    lng: lng + (dLng * 180) / Math.PI,
+  };
+}
 
 function getMarkerColorByProfession(profession?: string | null) {
   const p = (profession ?? "").toLowerCase();
@@ -49,8 +102,20 @@ export type PartnerMapProps = {
     subindustry?: string | null;
     role_title?: string | null;
     rating_count?: number | null;
+    last_seen_at?: string | null;
+    skills?: string | null;
+    resources?: string | null;
   }[];
 };
+
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+
+function isOnline(lastSeenAt?: string | null) {
+  if (!lastSeenAt) return false;
+  const t = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= ONLINE_WINDOW_MS;
+}
 
 function MapView({ center, zoom }: { center: LatLngExpression; zoom: number }) {
   const map = useMap();
@@ -130,11 +195,19 @@ export function PartnerMap({
           const profile = profileById[p.user_id];
           if (!profile) return null;
           const color = getMarkerColorByProfession(profile?.role_title);
+          const online = isOnline(profile?.last_seen_at ?? null);
+          const obf = obfuscateLatLngWithinRadius(
+            p.lat,
+            p.lng,
+            // Seed by user_id so the pin stays stable for the same user.
+            p.user_id,
+            GEO_PRIVACY_RADIUS_M,
+          );
 
           return (
             <CircleMarker
               key={p.id}
-              center={[p.lat, p.lng]}
+              center={[obf.lat, obf.lng]}
               radius={8}
               pathOptions={{
                 color,
@@ -149,7 +222,15 @@ export function PartnerMap({
               <Tooltip direction="top" offset={[0, -4]} opacity={1}>
                 <div className="text-xs">
                   <div className="font-semibold">
-                    {profile?.full_name || "Специалист"}
+                    <span className="inline-flex items-center gap-2">
+                      <span>{profile?.full_name || "Специалист"}</span>
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          online ? "bg-emerald-500" : "bg-slate-400"
+                        }`}
+                        title={online ? "Онлайн" : "Оффлайн"}
+                      />
+                    </span>
                   </div>
                   {profile?.role_title && (
                     <div className="text-slate-500">{profile.role_title}</div>
@@ -159,28 +240,62 @@ export function PartnerMap({
 
               <Popup>
                 <div className="space-y-1 text-xs">
+                  {/* 1) Имя + Профессия + Онлайн/Оффлайн */}
                   <p className="text-sm font-semibold text-slate-900">
-                    {profile?.full_name || "Специалист"}
+                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span>{profile?.full_name || "Специалист"}</span>
+                      {profile?.role_title ? (
+                        <span>{profile.role_title}</span>
+                      ) : null}
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          online ? "bg-emerald-500" : "bg-slate-400"
+                        }`}
+                        title={online ? "Онлайн" : "Оффлайн"}
+                      />
+                    </span>
                   </p>
-                  {profile?.rating_count != null && (
-                    <p className="text-[11px] font-medium text-slate-700">
-                      Рейтинг {profile.rating_count}
-                    </p>
-                  )}
+
+                  {/* 2) Отрасль */}
                   <p className="text-[11px] text-slate-600">
-                    {/* Берём из "первого блока" (profiles.*), доп. блоки хранятся отдельно */}
-                    {profile?.industry || "Отрасль не указана"}
+                    <span className="font-medium text-slate-700">Отрасль:</span>{" "}
+                    {profile?.industry || "Не указана"}
                   </p>
-                  {profile?.subindustry && (
-                    <p className="text-[11px] text-slate-600">
-                      {profile.subindustry}
-                    </p>
-                  )}
-                  {profile?.role_title && (
-                    <p className="text-[11px] text-slate-600">
-                      {profile.role_title}
-                    </p>
-                  )}
+
+                  {/* 3) Подотрасль */}
+                  <p className="text-[11px] text-slate-600">
+                    <span className="font-medium text-slate-700">Подотрасль:</span>{" "}
+                    {profile?.subindustry || "Не указана"}
+                  </p>
+
+                  {/* 4) О себе */}
+                  <p className="text-[11px] text-slate-600 whitespace-pre-line">
+                    <span className="block font-medium text-slate-700">
+                      О себе:
+                    </span>{" "}
+                    {profile?.skills
+                      ? profile.skills.slice(0, 220) +
+                        (profile.skills.length > 220 ? "…" : "")
+                      : "Не указано"}
+                  </p>
+
+                  {/* 5) Ресурсы */}
+                  <p className="text-[11px] text-slate-600 whitespace-pre-line">
+                    <span className="block font-medium text-slate-700">
+                      Ресурсы:
+                    </span>{" "}
+                    {profile?.resources
+                      ? profile.resources.slice(0, 220) +
+                        (profile.resources.length > 220 ? "…" : "")
+                      : "Не указано"}
+                  </p>
+                  {profile?.rating_count != null ? (
+                    <div className="flex justify-end">
+                      <p className="text-[11px] font-medium text-slate-700">
+                        Рейтинг {profile.rating_count}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex gap-2">
                     <Link
                       href={`/profiles/${p.user_id}`}

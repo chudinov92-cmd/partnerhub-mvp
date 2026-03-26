@@ -15,6 +15,7 @@ begin
 
   new.skills := public.mask_profanity(new.skills);
   new.looking_for := public.mask_profanity(new.looking_for);
+  new.resources := public.mask_profanity(new.resources);
   new.can_help_with := public.mask_profanity(new.can_help_with);
   new.interested_in := public.mask_profanity(new.interested_in);
   return new;

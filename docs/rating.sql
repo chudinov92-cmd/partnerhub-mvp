@@ -62,6 +62,7 @@ begin
 
   if coalesce(nullif(btrim(p.skills),''), '') <> '' then n := n + 1; end if;
   if coalesce(nullif(btrim(p.looking_for),''), '') <> '' then n := n + 1; end if;
+  if coalesce(nullif(btrim(p.resources),''), '') <> '' then n := n + 1; end if;
   if coalesce(nullif(btrim(p.can_help_with),''), '') <> '' then n := n + 1; end if;
   if coalesce(nullif(btrim(p.interested_in),''), '') <> '' then n := n + 1; end if;
 
@@ -70,7 +71,8 @@ end;
 $$;
 
 -- Apply profile-related rating changes (delta + geo once)
-create or replace function public.apply_profile_rating(profile_id uuid)
+drop function if exists public.apply_profile_rating(uuid);
+create or replace function public.apply_profile_rating(p_profile_id uuid)
 returns void
 language plpgsql
 as $$
@@ -82,21 +84,21 @@ declare
   delta int := 0;
   has_geo boolean := false;
 begin
-  select * into p from public.profiles where id = profile_id;
+  select * into p from public.profiles where id = p_profile_id;
   if not found then
     return;
   end if;
 
   select filled_fields, geo_awarded
     into prev_filled, prev_geo
-  from public.rating_state
-  where rating_state.profile_id = profile_id;
+    from public.rating_state
+    where rating_state.profile_id = p_profile_id;
 
   if not found then
     prev_filled := 0;
     prev_geo := false;
     insert into public.rating_state(profile_id, filled_fields, geo_awarded)
-    values (profile_id, 0, false)
+    values (p_profile_id, 0, false)
     on conflict (profile_id) do nothing;
   end if;
 
@@ -105,19 +107,19 @@ begin
   if delta <> 0 then
     update public.profiles
       set rating_count = coalesce(rating_count, 0) + delta
-    where id = profile_id;
+    where id = p_profile_id;
   end if;
 
   select exists(
     select 1
     from public.locations l
-    where l.user_id = profile_id and l.is_active = true
+    where l.user_id = p_profile_id and l.is_active = true
   ) into has_geo;
 
   if has_geo and not prev_geo then
     update public.profiles
       set rating_count = coalesce(rating_count, 0) + 1
-    where id = profile_id;
+    where id = p_profile_id;
     prev_geo := true;
   end if;
 
@@ -125,27 +127,28 @@ begin
     set filled_fields = now_filled,
         geo_awarded = prev_geo,
         updated_at = now()
-  where rating_state.profile_id = profile_id;
+  where rating_state.profile_id = p_profile_id;
 end;
 $$;
 
 -- Daily award helpers
-create or replace function public.award_daily(profile_id uuid, event_type text, ts timestamptz)
+drop function if exists public.award_daily(uuid, text, timestamptz);
+create or replace function public.award_daily(p_profile_id uuid, p_event_type text, p_ts timestamptz)
 returns void
 language plpgsql
 as $$
 declare
   d date;
 begin
-  d := public.day_msk(ts);
+  d := public.day_msk(p_ts);
   insert into public.rating_daily_events(profile_id, event_type, day_msk)
-  values (profile_id, event_type, d)
+  values (p_profile_id, p_event_type, d)
   on conflict (profile_id, event_type, day_msk) do nothing;
 
   if found then
     update public.profiles
       set rating_count = coalesce(rating_count, 0) + 1
-    where id = profile_id;
+    where id = p_profile_id;
   end if;
 end;
 $$;
@@ -168,7 +171,7 @@ create trigger profiles_apply_rating
 after insert or update of
   full_name, country, city,
   role_title, industry, industry_other, subindustry,
-  experience_years, skills, looking_for, can_help_with, interested_in
+  experience_years, skills, looking_for, resources, can_help_with, interested_in
 on public.profiles
 for each row
 execute function public.trg_profiles_apply_rating();

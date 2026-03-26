@@ -3,10 +3,11 @@
 import {
   MapContainer,
   TileLayer,
-  CircleMarker,
+  Marker,
   useMapEvents,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
+import L from "leaflet";
 
 const PERM_CENTER: LatLngExpression = [58.01, 56.25];
 
@@ -29,6 +30,20 @@ export function ProfileLocationPicker({ value, onChange }: Props) {
     ? [value.lat, value.lng]
     : PERM_CENTER;
 
+  const pinIcon = L.divIcon({
+    className: "",
+    html: `<div style="
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      background: #ef4444;
+      border: 2px solid #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+    "></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
   return (
     <div className="h-64 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
       <MapContainer
@@ -41,14 +56,15 @@ export function ProfileLocationPicker({ value, onChange }: Props) {
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <ClickHandler onChange={onChange} />
         {value && (
-          <CircleMarker
-            center={[value.lat, value.lng]}
-            radius={10}
-            pathOptions={{
-              color: "#ef4444",
-              fillColor: "#ef4444",
-              fillOpacity: 0.35,
-              weight: 2,
+          <Marker
+            position={[value.lat, value.lng]}
+            draggable
+            icon={pinIcon}
+            eventHandlers={{
+              dragend: (e) => {
+                const latlng = e.target.getLatLng();
+                onChange({ lat: latlng.lat, lng: latlng.lng });
+              },
             }}
           />
         )}

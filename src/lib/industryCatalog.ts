@@ -52,12 +52,18 @@ async function seedIndustryCatalogAuthenticated() {
   // if insert is denied / table is missing, we don't want to break UI.
   const { error: indErr } = await supabase
     .from("industry_catalog")
-    .upsert(INDUSTRY_SEED.map((label) => ({ label })), { onConflict: "label" });
+    .upsert(
+      INDUSTRY_SEED.map((label) => ({ label, is_stock: true })),
+      { onConflict: "label" },
+    );
   if (indErr) return;
 
   const { error: subErr } = await supabase
     .from("subindustry_catalog")
-    .upsert(SUBINDUSTRY_SEED, { onConflict: "industry_label,label" });
+    .upsert(
+      SUBINDUSTRY_SEED.map((r) => ({ ...r, is_stock: true })),
+      { onConflict: "industry_label,label" },
+    );
   if (subErr) return;
 }
 
@@ -81,14 +87,13 @@ export async function fetchSubindustryCatalogFromDb(): Promise<SubindustryCatalo
 
 export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
   const nowUtc = msNow();
+  let cachedRows: IndustryCatalogRow[] | null = null;
 
   if (typeof window !== "undefined") {
     const cached = window.localStorage.getItem(LS_INDUSTRY_KEY);
-    const fetchedAtRaw = window.localStorage.getItem(LS_INDUSTRY_FETCHED_AT_KEY);
-    const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : null;
-    if (cached && fetchedAt && !shouldRefreshAt4amMsk(fetchedAt, nowUtc)) {
+    if (cached) {
       try {
-        return JSON.parse(cached) as IndustryCatalogRow[];
+        cachedRows = JSON.parse(cached) as IndustryCatalogRow[];
       } catch {}
     }
   }
@@ -103,7 +108,8 @@ export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
   try {
     fresh = await fetchIndustryCatalogFromDb();
   } catch (e) {
-    // If DB read fails, UI will fall back to hardcoded lists.
+    // If DB read fails, keep cached values first; then fallback to hardcoded lists in UI.
+    if (cachedRows) return cachedRows;
     return [];
   }
   if (typeof window !== "undefined") {
@@ -115,14 +121,13 @@ export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
 
 export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]> {
   const nowUtc = msNow();
+  let cachedRows: SubindustryCatalogRow[] | null = null;
 
   if (typeof window !== "undefined") {
     const cached = window.localStorage.getItem(LS_SUBINDUSTRY_KEY);
-    const fetchedAtRaw = window.localStorage.getItem(LS_SUBINDUSTRY_FETCHED_AT_KEY);
-    const fetchedAt = fetchedAtRaw ? Number(fetchedAtRaw) : null;
-    if (cached && fetchedAt && !shouldRefreshAt4amMsk(fetchedAt, nowUtc)) {
+    if (cached) {
       try {
-        return JSON.parse(cached) as SubindustryCatalogRow[];
+        cachedRows = JSON.parse(cached) as SubindustryCatalogRow[];
       } catch {}
     }
   }
@@ -137,7 +142,8 @@ export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]>
   try {
     fresh = await fetchSubindustryCatalogFromDb();
   } catch (e) {
-    // If DB read fails, UI will fall back to hardcoded lists.
+    // If DB read fails, keep cached values first; then fallback to hardcoded lists in UI.
+    if (cachedRows) return cachedRows;
     return [];
   }
   if (typeof window !== "undefined") {
