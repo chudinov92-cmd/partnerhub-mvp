@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 
 type PublicProfile = {
   id: string;
@@ -173,6 +174,7 @@ export default function PublicProfilePage() {
                       if (error) throw error;
                       setIsContact(true);
                     }
+                    notifyProfileContactsChanged();
                   } catch (e) {
                     console.error("Failed to toggle contact", e);
                   } finally {

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import { TopBar } from "@/components/TopBar";
+import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,12 +28,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased text-slate-900`}
       >
-        <div className="flex min-h-screen flex-col bg-slate-50">
-          <TopBar />
-          <div className="flex-1">{children}</div>
-        </div>
+        <SelectedCityProvider>
+          <div className="flex min-h-screen flex-col bg-gray-100">
+            <TopBar />
+            <div className="flex-1">{children}</div>
+          </div>
+        </SelectedCityProvider>
       </body>
     </html>
   );

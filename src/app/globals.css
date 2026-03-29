@@ -22,5 +22,120 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Leaflet: кастомные пины (как в макете Figma) */
+.leaflet-div-icon.partner-map-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.partner-map-pin-wrap {
+  display: flex;
+  width: 48px;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.partner-map-pin-head {
+  display: flex;
+  height: 48px;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 4px solid white;
+  box-shadow:
+    0 10px 15px -3px rgb(15 23 42 / 0.12),
+    0 4px 6px -4px rgb(15 23 42 / 0.08);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.partner-map-pin-letter {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.partner-map-pin-stem {
+  height: 12px;
+  width: 4px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.partner-map-pin-wrap:hover .partner-map-pin-head {
+  transform: scale(1.25);
+  box-shadow:
+    0 20px 25px -5px rgb(15 23 42 / 0.15),
+    0 8px 10px -6px rgb(15 23 42 / 0.1);
+}
+
+/* Zoom +/- на карте: скругление как у кнопок MainMobileNav (rounded-lg) */
+.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 0.08),
+    0 1px 2px -1px rgb(15 23 42 / 0.06);
+}
+
+.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a {
+  border-radius: 0 !important;
+  /* как у неактивных иконок MainMobileNav: text-slate-600 */
+  color: rgb(71 85 105);
+}
+
+.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a:hover,
+.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a:focus {
+  color: rgb(51 65 85);
+}
+
+.leaflet-container.zeip-partner-map
+  .leaflet-control-zoom.leaflet-bar
+  a.leaflet-disabled {
+  color: rgb(148 163 184);
+}
+
+/* Попап профиля на карте (Leaflet): без лишних отступов, скругление как у карточки */
+.zeip-profile-leaflet-popup.leaflet-popup {
+  text-align: start !important;
+}
+
+.zeip-profile-leaflet-popup .leaflet-popup-content-wrapper {
+  box-sizing: border-box;
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  width: min(100vw - 2rem, 20rem);
+  min-width: 280px;
+  max-width: min(100vw - 2rem, 20rem);
+  box-shadow:
+    0 10px 15px -3px rgb(15 23 42 / 0.12),
+    0 4px 6px -4px rgb(15 23 42 / 0.08);
+}
+
+/* Leaflet выставляет .leaflet-popup-content width по maxWidth=300 — шире wrapper получаются поля */
+.zeip-profile-leaflet-popup .leaflet-popup-content {
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
+}
+
+.zeip-profile-leaflet-popup .leaflet-popup-tip {
+  background: white;
+  box-shadow: 0 2px 4px rgb(15 23 42 / 0.06);
+}
+
+/* Закрытие только кнопкой в ProfilePreviewCard, не стандартной × Leaflet */
+.zeip-profile-leaflet-popup .leaflet-popup-close-button {
+  display: none !important;
 }

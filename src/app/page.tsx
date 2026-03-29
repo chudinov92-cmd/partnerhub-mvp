@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { MainMobileNav, type MobileMainTab } from "@/components/MainMobileNav";
+import { ProfilePreviewCard } from "@/components/ProfilePreviewCard";
 import type { PartnerMapProps } from "@/components/PartnerMap";
 import { supabase } from "@/lib/supabaseClient";
 import { maskProfanity } from "@/lib/profanity";
@@ -21,6 +24,9 @@ import {
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
 import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
+import { notifyProfileContactsChanged } from "@/lib/contactEvents";
+import { useSelectedCity } from "@/contexts/SelectedCityContext";
+import { getMapConfigForCity } from "@/data/cityMapViews";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -266,80 +272,6 @@ type ChatMessage = {
   created_at: string;
 };
 
-import { RUSSIA_LABEL, SORTED_CITY_OPTIONS } from "@/data/cities";
-
-type CityViewConfig = {
-  center: [number, number];
-  zoom: number;
-};
-
-const CITY_VIEWS: Record<string, CityViewConfig> = {
-  Россия: {
-    center: [61, 90],
-    zoom: 3,
-  },
-  Москва: {
-    center: [55.7558, 37.6176],
-    zoom: 10,
-  },
-  "Санкт-Петербург": {
-    center: [59.9311, 30.3609],
-    zoom: 10,
-  },
-  Новосибирск: {
-    center: [55.0084, 82.9357],
-    zoom: 10,
-  },
-  Екатеринбург: {
-    center: [56.8389, 60.6057],
-    zoom: 10,
-  },
-  Казань: {
-    center: [55.7963, 49.1088],
-    zoom: 10,
-  },
-  "Нижний Новгород": {
-    center: [56.2965, 43.9361],
-    zoom: 10,
-  },
-  Челябинск: {
-    center: [55.1644, 61.4368],
-    zoom: 10,
-  },
-  Самара: {
-    center: [53.1959, 50.1008],
-    zoom: 10,
-  },
-  Омск: {
-    center: [54.9885, 73.3242],
-    zoom: 10,
-  },
-  "Ростов-на-Дону": {
-    center: [47.2357, 39.7015],
-    zoom: 10,
-  },
-  Уфа: {
-    center: [54.7388, 55.9721],
-    zoom: 10,
-  },
-  Красноярск: {
-    center: [56.0153, 92.8932],
-    zoom: 10,
-  },
-  Пермь: {
-    center: [58.01, 56.25],
-    zoom: 12,
-  },
-  Волгоград: {
-    center: [48.708, 44.5133],
-    zoom: 10,
-  },
-  Воронеж: {
-    center: [51.6608, 39.2003],
-    zoom: 10,
-  },
-};
-
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -372,40 +304,22 @@ export default function Home() {
     top: number;
     left?: number;
   } | null>(null);
-  const [experienceSumByKey, setExperienceSumByKey] = useState<
-    Record<string, number>
-  >({});
-  const [cityMenuOpen, setCityMenuOpen] = useState(false);
-  const [citySearch, setCitySearch] = useState("");
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
-  const cityMenuRef = useRef<HTMLDivElement | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
   const [contactsOnlyMode, setContactsOnlyMode] = useState(false);
+  const router = useRouter();
+  const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
+  const { selectedCity } = useSelectedCity();
+  const mapConfig = useMemo(
+    () => getMapConfigForCity(selectedCity),
+    [selectedCity],
+  );
 
   const timeZone = useMemo(() => {
     const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
-
-  const getTotalExperienceYears = (profileId: string, roleTitle: string | null | undefined) => {
-    if (!profileId || !roleTitle) return null;
-    const key = `${profileId}::${roleTitle}`;
-    const v = experienceSumByKey[key];
-    return typeof v === "number" ? v : null;
-  };
-
-  // загружаем выбранный город из localStorage
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem("selected_city");
-    if (saved) {
-      setSelectedCity(saved);
-    } else {
-      setSelectedCity("Пермь");
-    }
-  }, []);
 
   // режим "Контакты" включаем через query-param ?contacts=1
   // (Next router меняет URL через history.pushState, поэтому слушаем изменения location.search)
@@ -451,6 +365,10 @@ export default function Home() {
       window.removeEventListener("locationchange", onLocationChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (contactsOnlyMode) setMobileTab("contacts");
+  }, [contactsOnlyMode]);
 
   // подгружаем сохранённые фильтры ленты
   useEffect(() => {
@@ -513,7 +431,7 @@ export default function Home() {
           supabase
             .from("posts")
             .select(
-              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, experience_years, industry, subindustry)",
+              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
             )
             .order("created_at", { ascending: false })
             .limit(20),
@@ -538,49 +456,6 @@ export default function Home() {
         setPosts(postsData ?? []);
         const allProfiles = (profilesData ?? []) as Profile[];
         setProfiles(allProfiles);
-
-        // Суммарный стаж по одной и той же профессии (role_title) с учётом разных отраслей/подотраслей.
-        // Берём base из profiles.experience_years и дополняем из public.profile_work.
-        const expMap = new Map<string, number>();
-        const addExp = (
-          profileId: string,
-          roleTitle: string | null | undefined,
-          exp: number | null | undefined,
-        ) => {
-          if (!profileId || !roleTitle) return;
-          if (exp == null) return;
-          const key = `${profileId}::${roleTitle}`;
-          expMap.set(key, (expMap.get(key) ?? 0) + exp);
-        };
-
-        // Считаем стаж ТОЛЬКО один раз по профилям (profilesData),
-        // а затем дополняем его из profile_work.
-        const profileIds = new Set<string>();
-        for (const p of allProfiles) {
-          profileIds.add(p.id);
-          addExp(p.id, p.role_title, p.experience_years);
-        }
-
-        if (profileIds.size > 0) {
-          try {
-            const { data: workRows, error: workErr } = await supabase
-              .from("profile_work")
-              .select("profile_id, role_title, experience_years")
-              .in("profile_id", Array.from(profileIds));
-            if (workErr) throw workErr;
-
-            for (const row of workRows ?? []) {
-              const r = row as any;
-              addExp(r.profile_id, r.role_title, r.experience_years);
-            }
-          } catch {
-            // в случае ошибок оставляем базовую сумму из profiles/posts
-          }
-        }
-
-        const expObj: Record<string, number> = {};
-        for (const [k, v] of expMap.entries()) expObj[k] = v;
-        setExperienceSumByKey(expObj);
 
         if (user && !currentProfileResult.error && currentProfileResult.data) {
           const p = currentProfileResult.data as {
@@ -909,6 +784,11 @@ export default function Home() {
     return chatList.filter((item) => contactProfileIds.includes(item.profile.id));
   }, [chatList, contactsOnlyMode, contactProfileIds]);
 
+  const unreadChatsTotal = useMemo(
+    () => Object.values(unreadByUser).reduce((sum, n) => sum + n, 0),
+    [unreadByUser],
+  );
+
   const resetContactsMode = () => {
     if (typeof window === "undefined") return;
     // Update UI immediately; URL listener will confirm via next event.
@@ -917,6 +797,15 @@ export default function Home() {
     url.searchParams.delete("contacts");
     window.history.replaceState({}, "", url.toString());
     window.dispatchEvent(new Event("locationchange"));
+  };
+
+  const handleMobileTab = (t: MobileMainTab) => {
+    setMobileTab(t);
+    if (t === "contacts") {
+      router.push("/?contacts=1");
+      return;
+    }
+    if (contactsOnlyMode) resetContactsMode();
   };
 
   const toggleContact = async (profileId: string) => {
@@ -943,11 +832,13 @@ export default function Home() {
         });
         if (error) throw error;
       }
+      notifyProfileContactsChanged();
     } catch (e) {
       console.error("Failed to toggle contact", e);
       setContactProfileIds((prev) =>
         isIn ? [...prev, profileId] : prev.filter((x) => x !== profileId),
       );
+      notifyProfileContactsChanged();
     }
   };
 
@@ -1246,64 +1137,45 @@ export default function Home() {
     };
   }, [activeProfileCard]);
 
-  // Закрытие меню выбора города по клику вне и по Esc
-  useEffect(() => {
-    if (!cityMenuOpen) return;
-
-    const handleClick = (event: MouseEvent) => {
-      if (!cityMenuRef.current) return;
-      if (!cityMenuRef.current.contains(event.target as Node)) {
-        setCityMenuOpen(false);
-        setCitySearch("");
-      }
-    };
-
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setCityMenuOpen(false);
-        setCitySearch("");
-      }
-    };
-
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [cityMenuOpen]);
-
-  const visibleCities = SORTED_CITY_OPTIONS.filter((city) =>
-    city.toLowerCase().includes(citySearch.toLowerCase()),
-  );
-
-  const currentCityKey = selectedCity || "Пермь";
-  const mapConfig = CITY_VIEWS[currentCityKey] ?? CITY_VIEWS["Пермь"];
+  const showChatsColumn =
+    mobileTab === "my-chats" || mobileTab === "contacts";
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] bg-slate-50">
-      <main className="flex h-full w-full flex-col gap-4 py-3 md:flex-row md:gap-3 lg:gap-4">
+    <div className="flex h-[calc(100vh-3rem)] flex-col bg-gray-100">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[4.5rem] lg:flex-row lg:pb-0">
         {/* Левая колонка: лента запросов, как список чата */}
-        <section className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[320px] md:flex-shrink-0 md:p-5">
-          <header className="relative mb-3 flex items-center justify-between gap-2">
-            <h1 className="text-base font-semibold text-slate-900">
-              Общий чат
-            </h1>
+        <section
+          className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
+            mobileTab === "chat" ? "flex" : "hidden"
+          } lg:flex`}
+        >
+          <header className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+            <svg
+              className="h-5 w-5 shrink-0 text-slate-900"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 7.5 7.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            <h1 className="font-semibold text-slate-900">Общий чат</h1>
           </header>
 
-          {loading && <p className="text-sm text-slate-500">Загрузка...</p>}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4">
+          {loading && <p className="py-2 text-sm text-slate-500">Загрузка...</p>}
+          {error && <p className="py-2 text-sm text-red-600">{error}</p>}
 
           {!loading && posts.length === 0 && (
-            <p className="text-sm text-slate-500">
+            <p className="py-2 text-sm text-slate-500">
               Пока нет запросов. Создай первый пост позже — мы добавим форму.
             </p>
           )}
 
           {/* Список постов с прокруткой */}
-          <div className="mb-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            <ul className="space-y-2">
+          <div className="space-y-4 py-4">
+            <ul className="space-y-1">
               {visiblePosts.map((post) => {
                 const isExpanded = expandedPosts.has(post.id);
                 const body = post.body || "";
@@ -1320,72 +1192,92 @@ export default function Home() {
                 const authorName = authorObj?.full_name || "Аноним";
                 const authorOnline = isOnline(authorObj?.last_seen_at ?? null);
                 const prof = (authorObj?.role_title as string | null) ?? null;
-                const totalExpYears = getTotalExperienceYears(post.author_id, prof);
+
+                const openAuthorCard = (el: HTMLElement) => {
+                  const p = profiles.find((pr) => pr.id === post.author_id);
+                  if (p) {
+                    const rect = el.getBoundingClientRect();
+                    const top = rect.top + window.scrollY;
+                    setActiveProfileCard({ profile: p, top });
+                  }
+                };
 
                 return (
                   <li
                     key={post.id}
-                    className="cursor-pointer rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-sky-100 hover:bg-sky-50/40"
+                    className="group -mx-2 cursor-pointer rounded-lg px-2 py-2 transition-colors hover:bg-gray-50"
                   >
-                    <div className="mb-1 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const p = profiles.find(
-                            (pr) => pr.id === post.author_id,
-                          );
-                          if (p) {
-                            const rect = (
-                              e.currentTarget as HTMLElement
-                            ).getBoundingClientRect();
-                            const top = rect.top + window.scrollY;
-                            setActiveProfileCard({ profile: p, top });
-                          }
-                        }}
-                        className="text-left text-sm font-semibold text-slate-900 hover:text-sky-700"
-                      >
-                        <span className="inline-flex items-center gap-2">
-                          <span>{authorName}</span>
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              authorOnline ? "bg-emerald-500" : "bg-slate-400"
-                            }`}
-                            title={authorOnline ? "Онлайн" : "Оффлайн"}
-                          />
-                        </span>
-                        {prof ? (
-                          <span className="ml-1 text-xs font-normal text-slate-500">
-                            — {prof}
-                          </span>
+                    <div className="flex gap-3">
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const inner = (e.currentTarget as HTMLElement)
+                              .firstElementChild as HTMLElement;
+                            openAuthorCard(inner);
+                          }}
+                          title={authorOnline ? "Онлайн" : "Оффлайн"}
+                          className="block shrink-0 cursor-pointer border-0 bg-transparent p-0 text-left"
+                        >
+                          <div className="relative flex h-12 w-12 items-center justify-center overflow-visible rounded-full bg-slate-900 text-sm font-medium text-white">
+                            {(authorName[0] || "?").toUpperCase()}
+                            <div
+                              className={`pointer-events-none absolute bottom-0 right-0 z-[1] box-border h-4 w-4 rounded-full border-2 border-white ${
+                                authorOnline ? "bg-emerald-500" : "bg-gray-400"
+                              }`}
+                              aria-hidden
+                            />
+                          </div>
+                        </button>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAuthorCard(e.currentTarget);
+                            }}
+                            className="text-left text-sm font-medium text-slate-900 hover:text-emerald-600"
+                          >
+                            {authorName}
+                          </button>
+                          {prof ? (
+                            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-slate-700">
+                              {prof}
+                            </span>
+                          ) : null}
+                        </div>
+                        {body ? (
+                          <p className="mb-1 text-sm text-slate-600">{text}</p>
                         ) : null}
-                      </button>
+                        <span className="text-xs text-gray-400">
+                          {post.created_at ? formatDateTime(post.created_at) : ""}
+                        </span>
+                        {shouldTruncate && (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePost(post.id)}
+                            className="mt-1 block text-xs font-medium text-emerald-600 hover:underline"
+                          >
+                            {isExpanded ? "Свернуть" : "Читать далее"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">
-                        {post.created_at ? formatDateTime(post.created_at) : ""}
-                      </span>
-                    </div>
-                    {body && (
-                      <p className="text-xs text-slate-600">{text}</p>
-                    )}
-                    {shouldTruncate && (
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePost(post.id)}
-                        className="mt-1 text-[11px] font-medium text-sky-700 hover:underline"
-                      >
-                        {isExpanded ? "Свернуть" : "Читать далее"}
-                      </button>
-                    )}
                   </li>
                 );
               })}
             </ul>
           </div>
+          </div>
 
           {/* Форма нового сообщения */}
-          <form onSubmit={handleCreatePost} className="space-y-2">
+          <form
+            onSubmit={handleCreatePost}
+            className="mt-auto space-y-2 border-t border-gray-200 bg-gray-50 p-4"
+          >
             <textarea
               value={newPostBody}
               onChange={(e) =>
@@ -1397,7 +1289,7 @@ export default function Home() {
                   ? "Напиши, кого или что ты ищешь…"
                   : "Войди, чтобы написать сообщение…"
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              className="min-h-[80px] w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -1408,13 +1300,13 @@ export default function Home() {
               }}
             />
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-gray-400">
                 {newPostBody.length}/1000
               </span>
               <button
                 type="submit"
                 disabled={creating}
-                className="inline-flex items-center rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
               >
                 {creating ? "Отправляем..." : "Отправить"}
               </button>
@@ -1425,116 +1317,48 @@ export default function Home() {
           </form>
 
           {activeProfileCard && (
-            <div
-              data-profile-card
-              className="fixed z-[1300] w-[260px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+            <ProfilePreviewCard
+              rootDataAttr
+              variant="floating"
+              profile={activeProfileCard.profile}
+              online={isOnline(activeProfileCard.profile.last_seen_at ?? null)}
               style={{
                 top: activeProfileCard.top,
                 left: activeProfileCard.left ?? 340,
               }}
-            >
-              <div className="mb-2 flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span>
-                        {activeProfileCard.profile.full_name || "Пользователь"}
-                      </span>
-                      {activeProfileCard.profile.role_title ? (
-                        <span>{activeProfileCard.profile.role_title}</span>
-                      ) : null}
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          isOnline(activeProfileCard.profile.last_seen_at ?? null)
-                            ? "bg-emerald-500"
-                            : "bg-slate-400"
-                        }`}
-                        title={
-                          isOnline(activeProfileCard.profile.last_seen_at ?? null)
-                            ? "Онлайн"
-                            : "Оффлайн"
-                        }
-                      />
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {activeProfileCard.profile.city || "Город не указан"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveProfileCard(null)}
-                  className="ml-2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                >
-                  ✕
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-600">
-                <span className="font-medium text-slate-700">Отрасль:</span>{" "}
-                {activeProfileCard.profile.industry || "Не указана"}
-              </p>
-              <p className="text-[11px] text-slate-600">
-                <span className="font-medium text-slate-700">Подотрасль:</span>{" "}
-                {activeProfileCard.profile.subindustry || "Не указана"}
-              </p>
-
-              <p className="text-[11px] text-slate-600 whitespace-pre-line">
-                <span className="block font-medium text-slate-700">О себе:</span>{" "}
-                {activeProfileCard.profile.skills
-                  ? activeProfileCard.profile.skills.slice(0, 220) +
-                    (activeProfileCard.profile.skills.length > 220 ? "…" : "")
-                  : "Не указано"}
-              </p>
-
-              <p className="text-[11px] text-slate-600 whitespace-pre-line">
-                <span className="block font-medium text-slate-700">Ресурсы:</span>{" "}
-                {activeProfileCard.profile.resources
-                  ? activeProfileCard.profile.resources.slice(0, 220) +
-                    (activeProfileCard.profile.resources.length > 220 ? "…" : "")
-                  : "Не указано"}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <a
-                  href={`/profiles/${activeProfileCard.profile.id}`}
-                  className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Профиль
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    openChatWithProfile(activeProfileCard.profile);
-                    setActiveProfileCard(null);
-                  }}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-sky-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
-                >
-                  Написать
-                </button>
-                {currentUser?.profileId &&
-                currentUser.profileId !== activeProfileCard.profile.id ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleContact(activeProfileCard.profile.id)}
-                    className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    {contactProfileIds.includes(activeProfileCard.profile.id)
-                      ? "Удалить"
-                      : "Добавить в контакты"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
+              onClose={() => setActiveProfileCard(null)}
+              profileHref={`/profiles/${activeProfileCard.profile.id}`}
+              onWrite={() => {
+                openChatWithProfile(activeProfileCard.profile);
+                setActiveProfileCard(null);
+              }}
+              showContactButton={
+                !!currentUser?.profileId &&
+                currentUser.profileId !== activeProfileCard.profile.id
+              }
+              isInContacts={contactProfileIds.includes(
+                activeProfileCard.profile.id,
+              )}
+              onToggleContact={() =>
+                toggleContact(activeProfileCard.profile.id)
+              }
+            />
           )}
         </section>
 
         {/* Центр: карта во всю высоту */}
-        <section className="order-last flex h-full flex-1 flex-col md:order-none md:px-1 lg:px-2">
-          <div className="relative z-[1100] mb-3 flex items-center justify-between gap-2">
-            <div className="relative flex items-center gap-2" ref={feedFiltersRef}>
+        <section
+          id="main-map"
+          className={`flex h-full min-h-0 flex-1 flex-col bg-white lg:min-w-0 ${
+            mobileTab === "map" ? "flex" : "hidden"
+          } lg:flex`}
+        >
+          <div className="relative z-[1100] mb-3 flex items-center gap-2 px-2 pt-2 lg:px-3">
+            <div className="relative flex min-w-0 flex-1 items-center gap-2" ref={feedFiltersRef}>
               <button
                 type="button"
                 onClick={() => setFeedFiltersOpen((v) => !v)}
-                className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm hover:border-sky-300 hover:text-sky-700"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white p-0 text-slate-900 shadow-sm transition hover:scale-105 hover:bg-gray-50"
                 aria-label="Настройки поиска"
                 title="Настройки"
               >
@@ -1544,7 +1368,7 @@ export default function Home() {
                   className="h-4 w-4"
                 />
               </button>
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-slate-900">
                 Специалисты на карте
               </h2>
 
@@ -1721,85 +1545,11 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => setFeedFiltersOpen(false)}
-                        className="rounded-full bg-sky-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-700"
+                        className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700"
                       >
                         Поиск
                       </button>
                     </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="relative w-48" ref={cityMenuRef}>
-              <button
-                type="button"
-                onClick={() => setCityMenuOpen((v) => !v)}
-                className="flex w-full items-center justify-between rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700 shadow-sm hover:border-sky-300 hover:text-sky-800"
-              >
-                <span className="truncate">
-                  {selectedCity ? selectedCity : "Выберите город"}
-                </span>
-                <span className="ml-2 text-[10px] text-slate-400">
-                  {cityMenuOpen ? "▲" : "▼"}
-                </span>
-              </button>
-
-              {cityMenuOpen && (
-                <div className="absolute right-0 top-9 z-[1200] w-56 rounded-xl border border-slate-200 bg-white py-1 text-xs shadow-lg">
-                  <div className="px-2 pb-1">
-                    <input
-                      autoFocus
-                      value={citySearch}
-                      onChange={(e) => setCitySearch(e.target.value)}
-                      placeholder="Найти город"
-                      className="h-7 w-full rounded-full border border-slate-200 px-2 text-[11px] text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"
-                    />
-                  </div>
-                  <div className="max-h-[560px] overflow-y-auto px-1 pb-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCity(RUSSIA_LABEL);
-                        if (typeof window !== "undefined") {
-                          window.localStorage.setItem(
-                            "selected_city",
-                            RUSSIA_LABEL,
-                          );
-                        }
-                        setCityMenuOpen(false);
-                        setCitySearch("");
-                      }}
-                      className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-[11px] font-medium text-slate-800 hover:bg-slate-50"
-                    >
-                      <span>{RUSSIA_LABEL}</span>
-                    </button>
-                    <div className="my-1 h-px bg-slate-100" />
-                    {visibleCities.length === 0 ? (
-                      <p className="px-2 py-1 text-[11px] text-slate-400">
-                        Ничего не найдено
-                      </p>
-                    ) : (
-                      visibleCities.map((city) => (
-                        <button
-                          key={city}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCity(city);
-                            if (typeof window !== "undefined") {
-                              window.localStorage.setItem(
-                                "selected_city",
-                                city,
-                              );
-                            }
-                            setCityMenuOpen(false);
-                            setCitySearch("");
-                          }}
-                          className="flex w-full items-center rounded-lg px-2 py-1 text-left text-[11px] text-slate-700 hover:bg-slate-50"
-                        >
-                          {city}
-                        </button>
-                      ))
-                    )}
                   </div>
                 </div>
               )}
@@ -1825,16 +1575,37 @@ export default function Home() {
         </section>
 
         {/* Правая колонка: список чатов / специалистов */}
-        <aside className="flex h-full w-full flex-col rounded-2xl bg-white p-4 shadow-sm md:w-[260px] md:flex-shrink-0 md:p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
-              {contactsOnlyMode ? "Контакты" : "Мои чаты"}
-            </h2>
+        <aside
+          className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-l lg:border-gray-200 ${
+            showChatsColumn ? "flex" : "hidden"
+          } lg:flex`}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <svg
+                className="h-5 w-5 shrink-0 text-slate-900"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M13 8H7" />
+                <path d="M17 12H7" />
+              </svg>
+              <h2 className="font-semibold text-slate-900">
+                {contactsOnlyMode ? "Контакты" : "Мои чаты"}
+              </h2>
+            </div>
             {contactsOnlyMode ? (
               <button
                 type="button"
-                onClick={resetContactsMode}
-                className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 hover:text-sky-700"
+                onClick={() => {
+                  resetContactsMode();
+                  setMobileTab("my-chats");
+                }}
+                className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-medium text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-700"
               >
                 Сбросить
               </button>
@@ -1842,79 +1613,91 @@ export default function Home() {
           </div>
 
           {!loading && filteredChatList.length === 0 && (
-            <p className="text-sm text-slate-500">
+            <p className="px-4 py-2 text-sm text-slate-500">
               {contactsOnlyMode
                 ? "У вас пока нет личных диалогов с контактами. Добавьте контакт или начните переписку."
                 : "У вас пока нет личных диалогов. Начните переписку, чтобы чат появился в списке."}
             </p>
           )}
 
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <ul className="space-y-2">
-              {filteredChatList.map((item) => (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <ul className="space-y-3">
+              {filteredChatList.map((item) => {
+                const unread = unreadByUser[item.profile.id] ?? 0;
+                const name = item.profile.full_name || "Без имени";
+                const online = isOnline(item.profile.last_seen_at ?? null);
+                return (
                 <li
                   key={item.profile.id}
                   onClick={() => openChatFromList(item)}
-                  className="flex cursor-pointer items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 transition hover:border-sky-200 hover:bg-sky-50/60"
+                  className={`cursor-pointer rounded-xl border p-4 transition-all hover:border-gray-300 hover:shadow-lg ${
+                    unread > 0
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-gray-200 bg-white"
+                  }`}
                 >
-                  <div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        const top = rect.top + window.scrollY;
-                      const popupWidth = 260;
-                      const gap = 8;
-                      const mapRect = mapContainerRef.current?.getBoundingClientRect();
-                      const left = mapRect
-                        ? Math.max(8, mapRect.right - popupWidth - gap)
-                        : 340;
-                      setActiveProfileCard({ profile: item.profile, top, left });
-                      }}
-                      className="text-left text-sm font-medium text-slate-900 hover:text-sky-700"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <span>{item.profile.full_name || "Без имени"}</span>
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            isOnline(item.profile.last_seen_at ?? null)
-                              ? "bg-emerald-500"
-                              : "bg-slate-400"
+                  <div className="flex items-start gap-3">
+                    <div className="relative shrink-0">
+                      <div className="relative flex h-12 w-12 items-center justify-center overflow-visible rounded-full bg-slate-900 text-sm font-medium text-white">
+                        {(name[0] || "?").toUpperCase()}
+                        <div
+                          className={`pointer-events-none absolute bottom-0 right-0 z-[1] box-border h-4 w-4 rounded-full border-2 border-white ${
+                            online ? "bg-emerald-500" : "bg-gray-400"
                           }`}
-                          title={
-                            isOnline(item.profile.last_seen_at ?? null)
-                              ? "Онлайн"
-                              : "Оффлайн"
-                          }
+                          aria-hidden
                         />
-                      </span>
-                    </button>
-                    <p className="text-xs text-slate-500">
-                      {item.profile.role_title || "Профессия не указана"}
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      {item.profile.city || "Город не указан"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      const unread = unreadByUser[item.profile.id] ?? 0;
-                      if (unread <= 0) return null;
-                      return (
-                      <span className="inline-flex min-w-[18px] justify-center rounded-full bg-sky-600 px-1 text-[10px] font-semibold text-white">
-                          +{unread}
-                      </span>
-                      );
-                    })()}
-                    {item.profile.rating_count != null ? (
-                      <span className="text-xs font-medium text-slate-600">
-                        Рейтинг {item.profile.rating_count}
-                      </span>
-                    ) : null}
+                      </div>
+                      {unread > 0 ? (
+                        <div className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-md">
+                          {unread > 9 ? "9+" : unread}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = (
+                              e.currentTarget as HTMLElement
+                            ).getBoundingClientRect();
+                            const top = rect.top + window.scrollY;
+                            const popupWidth = 260;
+                            const gap = 8;
+                            const mapRect =
+                              mapContainerRef.current?.getBoundingClientRect();
+                            const left = mapRect
+                              ? Math.max(8, mapRect.right - popupWidth - gap)
+                              : 340;
+                            setActiveProfileCard({
+                              profile: item.profile,
+                              top,
+                              left,
+                            });
+                          }}
+                          className="truncate text-left font-medium text-slate-900 hover:text-emerald-600"
+                        >
+                          {name}
+                        </button>
+                        {item.profile.rating_count != null &&
+                        item.profile.rating_count > 0 ? (
+                          <span className="shrink-0 text-xs font-medium text-amber-500">
+                            ★ {item.profile.rating_count}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        {item.profile.role_title || "Профессия не указана"}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {item.profile.city || "Город не указан"}
+                      </p>
+                    </div>
                   </div>
                 </li>
-              ))}
+              );
+              })}
             </ul>
           </div>
         </aside>
@@ -1923,10 +1706,10 @@ export default function Home() {
         {activeChatUser && (
           <div
             ref={chatWindowRef}
-            className="pointer-events-auto fixed top-16 right-3 z-[1600] flex h-[380px] w-full max-w-sm flex-col rounded-2xl border border-slate-200 bg-white shadow-xl md:right-[280px]"
+            className="pointer-events-auto fixed top-16 right-2 z-[1600] flex h-[380px] w-[min(100vw-1rem,24rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.15)] ring-1 ring-slate-900/5 lg:right-[336px]"
           >
-            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-              <div>
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2.5">
+              <div className="min-w-0">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1943,29 +1726,37 @@ export default function Home() {
                     : 340;
                   setActiveProfileCard({ profile: activeChatUser, top, left });
                   }}
-                  className="text-sm font-semibold text-slate-900 hover:text-sky-700"
+                  title={
+                    isOnline(activeChatUser.last_seen_at ?? null)
+                      ? "Онлайн"
+                      : "Оффлайн"
+                  }
+                  className="group flex w-full min-w-0 items-start gap-2 text-left"
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <span>{activeChatUser.full_name || "Без имени"}</span>
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        isOnline(activeChatUser.last_seen_at ?? null)
-                          ? "bg-emerald-500"
-                          : "bg-slate-400"
-                      }`}
-                      title={
-                        isOnline(activeChatUser.last_seen_at ?? null)
-                          ? "Онлайн"
-                          : "Оффлайн"
-                      }
-                    />
-                  </span>
+                  <div className="relative shrink-0">
+                    <div className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full bg-slate-900 text-sm font-medium text-white">
+                      {(activeChatUser.full_name?.[0] || "?").toUpperCase()}
+                      <div
+                        className={`pointer-events-none absolute bottom-0 right-0 z-[1] box-border h-4 w-4 rounded-full border-2 border-white ${
+                          isOnline(activeChatUser.last_seen_at ?? null)
+                            ? "bg-emerald-500"
+                            : "bg-gray-400"
+                        }`}
+                        aria-hidden
+                      />
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600">
+                      {activeChatUser.full_name || "Без имени"}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      {activeChatUser.role_title ||
+                        activeChatUser.city ||
+                        "Профессия не указана"}
+                    </p>
+                  </div>
                 </button>
-                <p className="text-[11px] text-slate-500">
-                  {activeChatUser.role_title ||
-                    activeChatUser.city ||
-                    "Профессия не указана"}
-                </p>
               </div>
               <button
                 type="button"
@@ -1997,7 +1788,7 @@ export default function Home() {
                         key={m.id}
                         className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-xs ${
                           m.sender_id === currentUser?.profileId
-                            ? "ml-auto bg-sky-600 text-white"
+                            ? "ml-auto bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
                             : "mr-auto bg-slate-50/70 text-slate-900"
                         }`}
                       >
@@ -2037,7 +1828,7 @@ export default function Home() {
                   }
                   rows={4}
                   placeholder="Напишите сообщение…"
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-xs outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -2054,7 +1845,7 @@ export default function Home() {
                   <button
                     type="submit"
                     disabled={chatSending || !chatInput.trim()}
-                    className="inline-flex items-center rounded-lg bg-sky-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-sky-700 disabled:opacity-60"
+                    className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
                   >
                     {chatSending ? "Отправляем..." : "Отправить"}
                   </button>
@@ -2064,6 +1855,11 @@ export default function Home() {
           </div>
         )}
       </main>
+      <MainMobileNav
+        activeTab={mobileTab}
+        onTabChange={handleMobileTab}
+        unreadChatsCount={unreadChatsTotal}
+      />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import L from "leaflet";
+import { ProfilePreviewCard } from "@/components/ProfilePreviewCard";
 import {
   MapContainer,
   TileLayer,
-  CircleMarker,
+  Marker,
   Tooltip,
   Popup,
   useMap,
@@ -24,6 +25,8 @@ type LocationPoint = {
 const PERM_CENTER: LatLngExpression = [58.01, 56.25];
 const DEFAULT_ZOOM = 12;
 const GEO_PRIVACY_RADIUS_M = 250;
+/** Единая заливка всех пинов на карте */
+const PIN_FILL_COLOR = "#10B981";
 
 function hashToSeed(str: string) {
   // Deterministic 32-bit hash for stable obfuscation.
@@ -77,15 +80,48 @@ function obfuscateLatLngWithinRadius(
   };
 }
 
-function getMarkerColorByProfession(profession?: string | null) {
-  const p = (profession ?? "").toLowerCase();
-  if (!p) return "#0ea5e9";
-  if (p.includes("программист") || p.includes("инженер")) return "#3b82f6";
-  if (p.includes("юрист") || p.includes("бухгалтер") || p.includes("экономист"))
-    return "#a855f7";
-  if (p.includes("дизайнер")) return "#22c55e";
-  if (p.includes("менеджер") || p.includes("маркет")) return "#22c55e";
-  return "#0ea5e9";
+function escapeHtmlChar(char: string) {
+  if (char === "&") return "&amp;";
+  if (char === "<") return "&lt;";
+  if (char === ">") return "&gt;";
+  if (char === '"') return "&quot;";
+  return char;
+}
+
+function pinInitial(fullName: string | null | undefined) {
+  const c = fullName?.trim()?.[0];
+  if (!c) return "?";
+  return escapeHtmlChar(c.toLocaleUpperCase("ru-RU"));
+}
+
+function escapeHtmlColor(hex: string) {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return PIN_FILL_COLOR;
+  return hex;
+}
+
+const PIN_ICON_SIZE: [number, number] = [48, 60];
+const PIN_ICON_ANCHOR: [number, number] = [24, 60];
+const PIN_POPUP_ANCHOR: [number, number] = [0, -56];
+
+function getOrCreatePinIcon(cache: Map<string, L.DivIcon>, letter: string) {
+  const safeColor = escapeHtmlColor(PIN_FILL_COLOR);
+  let icon = cache.get(letter);
+  if (!icon) {
+    icon = L.divIcon({
+      className: "partner-map-div-icon",
+      html: `<div class="partner-map-pin-wrap">
+        <div class="partner-map-pin-head" style="background-color:${safeColor}">
+          <span class="partner-map-pin-letter">${letter}</span>
+        </div>
+        <div class="partner-map-pin-stem" style="background-color:${safeColor}"></div>
+      </div>`,
+      iconSize: PIN_ICON_SIZE,
+      iconAnchor: PIN_ICON_ANCHOR,
+      popupAnchor: PIN_POPUP_ANCHOR,
+    });
+    cache.set(letter, icon);
+  }
+  return icon;
 }
 
 export type PartnerMapProps = {
@@ -127,6 +163,52 @@ function MapView({ center, zoom }: { center: LatLngExpression; zoom: number }) {
   return null;
 }
 
+function MapProfilePopupContent({
+  profile,
+  userId,
+  online,
+  onOpenChat,
+  onToggleContact,
+  isInContact,
+}: {
+  profile: PartnerMapProps["profiles"][number];
+  userId: string;
+  online: boolean;
+  onOpenChat?: (profileId: string) => void;
+  onToggleContact?: (profileId: string) => void;
+  isInContact: boolean;
+}) {
+  const map = useMap();
+  return (
+    <ProfilePreviewCard
+      variant="embedded"
+      profile={{
+        id: userId,
+        full_name: profile.full_name,
+        city: profile.city,
+        industry: profile.industry,
+        subindustry: profile.subindustry,
+        role_title: profile.role_title,
+        skills: profile.skills,
+        resources: profile.resources,
+        rating_count: profile.rating_count,
+      }}
+      online={online}
+      onClose={() => map.closePopup()}
+      profileHref={`/profiles/${userId}`}
+      onWrite={() => {
+        onOpenChat?.(userId);
+        map.closePopup();
+      }}
+      showContactButton={!!onToggleContact}
+      isInContacts={isInContact}
+      onToggleContact={
+        onToggleContact ? () => onToggleContact(userId) : undefined
+      }
+    />
+  );
+}
+
 export function PartnerMap({
   onOpenChat,
   onToggleContact,
@@ -136,6 +218,7 @@ export function PartnerMap({
   zoom,
 }: PartnerMapProps) {
   const [points, setPoints] = useState<LocationPoint[]>([]);
+  const pinIconCacheRef = useRef(new Map<string, L.DivIcon>());
 
   const profileById = useMemo(() => {
     const map: Record<string, PartnerMapProps["profiles"][number]> = {};
@@ -179,6 +262,7 @@ export function PartnerMap({
   return (
     <div className="h-full min-h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
       <MapContainer
+        className="zeip-partner-map"
         center={effectiveCenter}
         zoom={effectiveZoom}
         scrollWheelZoom={false}
@@ -194,8 +278,9 @@ export function PartnerMap({
         {points.map((p) => {
           const profile = profileById[p.user_id];
           if (!profile) return null;
-          const color = getMarkerColorByProfession(profile?.role_title);
           const online = isOnline(profile?.last_seen_at ?? null);
+          const initial = pinInitial(profile?.full_name);
+          const pinIcon = getOrCreatePinIcon(pinIconCacheRef.current, initial);
           const obf = obfuscateLatLngWithinRadius(
             p.lat,
             p.lng,
@@ -205,21 +290,12 @@ export function PartnerMap({
           );
 
           return (
-            <CircleMarker
+            <Marker
               key={p.id}
-              center={[obf.lat, obf.lng]}
-              radius={8}
-              pathOptions={{
-                color,
-                fillColor: color,
-                fillOpacity: 0.8,
-              }}
-              eventHandlers={{
-                // даём Leaflet открыть popup на первый клик
-                click: () => {},
-              }}
+              position={[obf.lat, obf.lng]}
+              icon={pinIcon}
             >
-              <Tooltip direction="top" offset={[0, -4]} opacity={1}>
+              <Tooltip direction="top" offset={[0, -52]} opacity={1}>
                 <div className="text-xs">
                   <div className="font-semibold">
                     <span className="inline-flex items-center gap-2">
@@ -238,93 +314,20 @@ export function PartnerMap({
                 </div>
               </Tooltip>
 
-              <Popup>
-                <div className="space-y-1 text-xs">
-                  {/* 1) Имя + Профессия + Онлайн/Оффлайн */}
-                  <p className="text-sm font-semibold text-slate-900">
-                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span>{profile?.full_name || "Специалист"}</span>
-                      {profile?.role_title ? (
-                        <span>{profile.role_title}</span>
-                      ) : null}
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          online ? "bg-emerald-500" : "bg-slate-400"
-                        }`}
-                        title={online ? "Онлайн" : "Оффлайн"}
-                      />
-                    </span>
-                  </p>
-
-                  {/* 2) Отрасль */}
-                  <p className="text-[11px] text-slate-600">
-                    <span className="font-medium text-slate-700">Отрасль:</span>{" "}
-                    {profile?.industry || "Не указана"}
-                  </p>
-
-                  {/* 3) Подотрасль */}
-                  <p className="text-[11px] text-slate-600">
-                    <span className="font-medium text-slate-700">Подотрасль:</span>{" "}
-                    {profile?.subindustry || "Не указана"}
-                  </p>
-
-                  {/* 4) О себе */}
-                  <p className="text-[11px] text-slate-600 whitespace-pre-line">
-                    <span className="block font-medium text-slate-700">
-                      О себе:
-                    </span>{" "}
-                    {profile?.skills
-                      ? profile.skills.slice(0, 220) +
-                        (profile.skills.length > 220 ? "…" : "")
-                      : "Не указано"}
-                  </p>
-
-                  {/* 5) Ресурсы */}
-                  <p className="text-[11px] text-slate-600 whitespace-pre-line">
-                    <span className="block font-medium text-slate-700">
-                      Ресурсы:
-                    </span>{" "}
-                    {profile?.resources
-                      ? profile.resources.slice(0, 220) +
-                        (profile.resources.length > 220 ? "…" : "")
-                      : "Не указано"}
-                  </p>
-                  {profile?.rating_count != null ? (
-                    <div className="flex justify-end">
-                      <p className="text-[11px] font-medium text-slate-700">
-                        Рейтинг {profile.rating_count}
-                      </p>
-                    </div>
-                  ) : null}
-                  <div className="mt-2 flex gap-2">
-                    <Link
-                      href={`/profiles/${p.user_id}`}
-                      className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Профиль
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => onOpenChat?.(p.user_id)}
-                      className="inline-flex items-center rounded-full bg-sky-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-sky-700"
-                    >
-                      Написать
-                    </button>
-                    {onToggleContact ? (
-                      <button
-                        type="button"
-                        onClick={() => onToggleContact(p.user_id)}
-                        className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        {contactSet.has(p.user_id)
-                          ? "Удалить"
-                          : "Добавить в контакты"}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+              <Popup
+                className="zeip-profile-leaflet-popup"
+                closeButton={false}
+              >
+                <MapProfilePopupContent
+                  profile={profile}
+                  userId={p.user_id}
+                  online={online}
+                  onOpenChat={onOpenChat}
+                  onToggleContact={onToggleContact}
+                  isInContact={contactSet.has(p.user_id)}
+                />
               </Popup>
-            </CircleMarker>
+            </Marker>
           );
         })}
       </MapContainer>
