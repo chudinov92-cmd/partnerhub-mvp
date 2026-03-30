@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
@@ -35,11 +35,53 @@ export function TopBar() {
   const [contactCount, setContactCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mapContactsActive, setMapContactsActive] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const mapContactsActive = searchParams?.get("mapContacts") === "1";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const read = () => {
+      const params = new URLSearchParams(window.location.search);
+      setMapContactsActive(params.get("mapContacts") === "1");
+    };
+
+    read();
+
+    const onLocationChange = () => read();
+
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+
+    history.pushState = function (
+      this: History,
+      ...args: Parameters<History["pushState"]>
+    ) {
+      const ret = origPush.apply(this, args as any);
+      window.dispatchEvent(new Event("locationchange"));
+      return ret;
+    } as any;
+
+    history.replaceState = function (
+      this: History,
+      ...args: Parameters<History["replaceState"]>
+    ) {
+      const ret = origReplace.apply(this, args as any);
+      window.dispatchEvent(new Event("locationchange"));
+      return ret;
+    } as any;
+
+    window.addEventListener("popstate", onLocationChange);
+    window.addEventListener("locationchange", onLocationChange);
+
+    return () => {
+      history.pushState = origPush;
+      history.replaceState = origReplace;
+      window.removeEventListener("popstate", onLocationChange);
+      window.removeEventListener("locationchange", onLocationChange);
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -217,15 +259,11 @@ export function TopBar() {
           type="button"
           onClick={() => {
             if (!isAuthed || loading) return;
-            const params = new URLSearchParams(
-              searchParams?.toString() ?? "",
-            );
-            if (mapContactsActive) params.delete("mapContacts");
-            else params.set("mapContacts", "1");
-
-            const query = params.toString();
-            const nextUrl = query ? `${pathname}?${query}` : pathname ?? "/";
-            router.replace(nextUrl);
+            if (typeof window === "undefined") return;
+            const url = new URL(window.location.href);
+            if (mapContactsActive) url.searchParams.delete("mapContacts");
+            else url.searchParams.set("mapContacts", "1");
+            router.replace(url.pathname + url.search);
           }}
           disabled={!isAuthed || loading}
           className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
