@@ -66,6 +66,26 @@ function IconUserPlus({ className }: { className?: string }) {
   );
 }
 
+function IconUsers({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
 function IconMessagesSquare({ className }: { className?: string }) {
   return (
     <svg
@@ -98,7 +118,7 @@ export function MainMobileNav({
   }[] = [
     { id: "chat", icon: IconMessageCircle, label: "Чат" },
     { id: "map", icon: IconMap, label: "Карта" },
-    { id: "contacts", icon: IconUserPlus, label: "Контакты" },
+    { id: "contacts", icon: IconUsers, label: "Контакты" },
     {
       id: "my-chats",
       icon: IconMessagesSquare,
@@ -109,16 +129,16 @@ export function MainMobileNav({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[1400] border-t border-gray-200 bg-white shadow-lg lg:hidden"
+      className="fixed bottom-0 left-0 right-0 z-[1400] h-[8vh] border-t border-gray-200 bg-white shadow-lg lg:hidden"
       aria-label="Основная навигация"
     >
-      <div className="flex items-center justify-around px-2 py-2">
+      <div className="flex h-full items-stretch justify-around px-2">
         {tabs.map(({ id, icon: Icon, label, badge }) => (
           <button
             key={id}
             type="button"
             onClick={() => onTabChange(id)}
-            className={`relative flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 transition-all ${
+            className={`relative flex h-full flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-0 transition-all ${
               activeTab === id
                 ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
                 : "text-slate-600 hover:bg-gray-100"

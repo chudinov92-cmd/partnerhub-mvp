@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
@@ -36,7 +36,10 @@ export function TopBar() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const mapContactsActive = searchParams?.get("mapContacts") === "1";
 
   useEffect(() => {
     const load = async () => {
@@ -187,7 +190,7 @@ export function TopBar() {
     fullName?.trim()?.[0]?.toUpperCase() ?? "П";
 
   return (
-    <header className="sticky top-0 z-[1500] grid min-h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 shadow-sm md:px-4">
+    <header className="sticky top-0 z-[1500] grid h-[8vh] min-h-0 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-gray-200 bg-white px-3 py-0 shadow-sm md:px-4">
       <Link
         href="/"
         className="flex min-w-0 items-center gap-2 justify-self-start"
@@ -212,8 +215,20 @@ export function TopBar() {
       <div className="flex items-center justify-end gap-2 md:gap-3">
         <button
           type="button"
-          onClick={() => router.push("/?contacts=1")}
-          className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900"
+          onClick={() => {
+            if (!isAuthed || loading) return;
+            const params = new URLSearchParams(
+              searchParams?.toString() ?? "",
+            );
+            if (mapContactsActive) params.delete("mapContacts");
+            else params.set("mapContacts", "1");
+
+            const query = params.toString();
+            const nextUrl = query ? `${pathname}?${query}` : pathname ?? "/";
+            router.replace(nextUrl);
+          }}
+          disabled={!isAuthed || loading}
+          className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Контакты"
         >
           <IconUsers className="h-5 w-5" />

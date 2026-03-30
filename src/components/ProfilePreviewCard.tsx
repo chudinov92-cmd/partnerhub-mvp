@@ -102,6 +102,24 @@ function IconUserMinus({ className }: { className?: string }) {
   );
 }
 
+function IconLock({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V8a5 5 0 0 1 10 0v3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconLockOpen({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V8a5 5 0 0 1 9.5-2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const AVATAR_FALLBACK_BG = "#374151";
 
 type ProfilePreviewCardProps = {
@@ -113,6 +131,10 @@ type ProfilePreviewCardProps = {
   showContactButton?: boolean;
   isInContacts?: boolean;
   onToggleContact?: () => void;
+  showBlockButton?: boolean;
+  isBlocked?: boolean;
+  onToggleBlock?: () => void;
+  blockButtonDisabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
   /** floating = фиксированная карточка на главной; embedded = внутри Leaflet Popup */
@@ -130,6 +152,10 @@ export function ProfilePreviewCard({
   showContactButton,
   isInContacts,
   onToggleContact,
+  showBlockButton,
+  isBlocked,
+  onToggleBlock,
+  blockButtonDisabled,
   className = "",
   style,
   variant = "floating",
@@ -292,15 +318,39 @@ export function ProfilePreviewCard({
 
         <div className={`w-full min-w-0 shrink-0 space-y-3 border-t border-gray-200 bg-gray-50 ${footerPad}`}>
           <div className="flex gap-2 sm:gap-3">
-            <Link
-              href={profileHref}
-              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
-                isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
-              }`}
-            >
-              <IconExternalLink className="h-4 w-4 shrink-0" />
-              Профиль
-            </Link>
+            {showContactButton && onToggleContact ? (
+              <button
+                type="button"
+                onClick={onToggleContact}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border font-medium transition-all ${
+                  isInContacts
+                    ? "border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
+                    : "border-emerald-300 text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50"
+                } ${isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"}`}
+              >
+                {isInContacts ? (
+                  <>
+                    <IconUserMinus className="h-4 w-4 shrink-0" />
+                    Удалить из контактов
+                  </>
+                ) : (
+                  <>
+                    <IconUserPlus className="h-4 w-4 shrink-0" />
+                    Добавить в контакты
+                  </>
+                )}
+              </button>
+            ) : (
+              <Link
+                href={profileHref}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
+                  isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
+                }`}
+              >
+                <IconExternalLink className="h-4 w-4 shrink-0" />
+                Профиль
+              </Link>
+            )}
             <button
               type="button"
               onClick={onWrite}
@@ -312,25 +362,26 @@ export function ProfilePreviewCard({
               Написать
             </button>
           </div>
-          {showContactButton && onToggleContact ? (
+          {showBlockButton && onToggleBlock ? (
             <button
               type="button"
-              onClick={onToggleContact}
-              className={`flex w-full items-center justify-center gap-2 rounded-xl border font-medium transition-all ${
-                isInContacts
-                  ? "border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
-                  : "border-emerald-300 text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50"
+              disabled={blockButtonDisabled}
+              onClick={onToggleBlock}
+              className={`flex w-full items-center justify-center gap-2 rounded-xl border font-medium transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                isBlocked
+                  ? "border-emerald-300 text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50"
+                  : "border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50"
               } ${isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"}`}
             >
-              {isInContacts ? (
+              {isBlocked ? (
                 <>
-                  <IconUserMinus className="h-4 w-4 shrink-0" />
-                  Удалить из контактов
+                  <IconLockOpen className="h-4 w-4 shrink-0" />
+                  Разблокировать
                 </>
               ) : (
                 <>
-                  <IconUserPlus className="h-4 w-4 shrink-0" />
-                  Добавить в контакты
+                  <IconLock className="h-4 w-4 shrink-0" />
+                  Заблокировать
                 </>
               )}
             </button>

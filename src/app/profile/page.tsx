@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import {
   OTHER_PROFESSION_LABEL,
@@ -665,65 +666,136 @@ export default function ProfilePage() {
   );
 
   return (
-    <div className="flex min-h-screen justify-center bg-slate-50 px-3 py-6">
+    <div className="flex min-h-screen justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl space-y-4 rounded-2xl bg-white p-5 shadow-sm"
+        className="w-full max-w-4xl space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg"
       >
-        <h1 className="text-lg font-semibold text-slate-900">Мой профиль</h1>
+        <div className="mb-2">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              Мой профиль
+            </h1>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">
+            Заполните информацию о себе, чтобы другие пользователи могли вас
+            найти
+          </p>
+        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-emerald-600">{success}</p>}
 
         {/* Группа 1: Имя / Страна / Город */}
-        <div className="space-y-4 rounded-2xl border-2 border-slate-200 p-4">
-          {/* Имя */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Имя
-            </label>
-            <input
-              type="text"
-              value={profile.full_name ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, full_name: e.target.value.slice(0, 40) })
-              }
-              maxLength={40}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Личная информация
+            </h2>
           </div>
 
-          {/* Страна / город */}
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-4">
+            {/* Имя */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Страна
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Имя
               </label>
               <input
                 type="text"
-                value={profile.country ?? ""}
+                value={profile.full_name ?? ""}
                 onChange={(e) =>
-                  setProfile({ ...profile, country: e.target.value })
+                  setProfile({ ...profile, full_name: e.target.value.slice(0, 40) })
                 }
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                maxLength={40}
+                className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Город
-              </label>
-              <CityDropdown
-                value={profile.city}
-                onChange={(city) => setProfile({ ...profile, city })}
-                includeRussia={false}
-                placeholder="Выберите город"
-              />
+
+            {/* Страна / город */}
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Страна
+                </label>
+                <input
+                  type="text"
+                  value={profile.country ?? ""}
+                  onChange={(e) =>
+                    setProfile({ ...profile, country: e.target.value })
+                  }
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Город
+                </label>
+                <CityDropdown
+                  value={profile.city}
+                  onChange={(city) => setProfile({ ...profile, city })}
+                  includeRussia={false}
+                  placeholder="Выберите город"
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Группа 2: Профессия / Отрасль / Подотрасль / Стаж (повторяемая) */}
-        <div className="space-y-3">
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <path d="M2 13h20" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Профессиональная информация
+            </h2>
+          </div>
+
+          <div className="space-y-3">
           {[
             // Первая группа 2 — источником истины остаётся profiles.*
             {
@@ -799,7 +871,7 @@ export default function ProfilePage() {
             return (
               <div
                 key={ctx.key}
-                className="space-y-4 rounded-2xl border-2 border-slate-200 p-4"
+                className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4"
               >
                 {!isPrimaryBlock && (
                   <div className="flex items-center justify-end">
@@ -822,6 +894,7 @@ export default function ProfilePage() {
                       Текущий статус
                     </label>
                     <DropdownSelect
+                      variant="profile"
                       value={profile.current_status ?? null}
                       placeholder="Выберите статус"
                       options={SORTED_CURRENT_STATUS_OPTIONS.map((s) => ({
@@ -889,7 +962,7 @@ export default function ProfilePage() {
                         }
                         maxLength={40}
                         placeholder="Введите название"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                       />
                     </div>
                   )}
@@ -901,6 +974,7 @@ export default function ProfilePage() {
                     Отрасль
                   </label>
                   <DropdownSelect
+                    variant="profile"
                     value={industryValue}
                     placeholder="Выберите отрасль"
                     options={(industryCatalog.length > 0
@@ -939,7 +1013,7 @@ export default function ProfilePage() {
                       }
                       maxLength={40}
                       placeholder="Введите название"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                     />
                   </div>
                 )}
@@ -951,6 +1025,7 @@ export default function ProfilePage() {
                       Подотрасль
                     </label>
                     <DropdownSelect
+                      variant="profile"
                       value={isSubOther ? "Другое" : b.subindustry}
                       placeholder="Выберите подотрасль"
                       options={subOptions.map((s) => ({ value: s, label: s }))}
@@ -976,7 +1051,7 @@ export default function ProfilePage() {
                           }
                           maxLength={40}
                           placeholder="Введите название"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                         />
                       </div>
                     )}
@@ -998,7 +1073,7 @@ export default function ProfilePage() {
                         experience_years: e.target.value ? Number(e.target.value) : null,
                       })
                     }
-                    className="w-full max-w-[160px] rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                   />
                 </div>
 
@@ -1021,7 +1096,7 @@ export default function ProfilePage() {
                     },
                   ])
                 }
-                className="text-sm font-medium text-sky-700 hover:text-sky-800"
+                className="text-sm font-semibold text-[#009966] hover:text-[#009966]/90"
               >
                 Добавить
               </button>
@@ -1029,61 +1104,105 @@ export default function ProfilePage() {
               <p className="text-xs text-slate-500">Лимит: 5 блоков</p>
             )}
           </div>
+          </div>
         </div>
 
         {/* Группа 3: Описания */}
-        <div className="space-y-4 rounded-2xl border-2 border-slate-200 p-4">
-          {/* О себе */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              О себе
-            </label>
-            <textarea
-              value={profile.skills ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, skills: e.target.value.slice(0, 600) })
-              }
-              maxLength={600}
-              rows={3}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-            <div className="mt-1 text-right text-[11px] text-slate-400">
-              {(profile.skills ?? "").length}/600
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="6" />
+                <path d="M12 2v4" />
+              </svg>
             </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              О себе и ресурсы
+            </h2>
           </div>
 
-          {/* Ресурсы */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Ресурсы
-            </label>
-            <p className="mb-1 text-xs text-slate-500">
-              Пример: Недвижимость, оборудование, транспорт, ПО
-            </p>
-            <textarea
-              value={profile.resources ?? ""}
-              onChange={(e) =>
-                setProfile({ ...profile, resources: e.target.value.slice(0, 600) })
-              }
-              maxLength={600}
-              rows={3}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-            <div className="mt-1 text-right text-[11px] text-slate-400">
-              {(profile.resources ?? "").length}/600
+          <div className="space-y-4">
+            {/* О себе */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                О себе
+              </label>
+              <textarea
+                value={profile.skills ?? ""}
+                onChange={(e) =>
+                  setProfile({ ...profile, skills: e.target.value.slice(0, 600) })
+                }
+                maxLength={600}
+                rows={3}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+              />
+              <div className="mt-1 text-right text-[11px] text-slate-400">
+                {(profile.skills ?? "").length}/600
+              </div>
+            </div>
+
+            {/* Ресурсы */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Ресурсы
+              </label>
+              <p className="mb-1 text-xs text-slate-500">
+                Пример: Недвижимость, оборудование, транспорт, ПО
+              </p>
+              <textarea
+                value={profile.resources ?? ""}
+                onChange={(e) =>
+                  setProfile({ ...profile, resources: e.target.value.slice(0, 600) })
+                }
+                maxLength={600}
+                rows={3}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+              />
+              <div className="mt-1 text-right text-[11px] text-slate-400">
+                {(profile.resources ?? "").length}/600
+              </div>
             </div>
           </div>
         </div>
 
         {/* Локация на карте */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-700">
-            Локация на карте
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Локация на карте
+            </h2>
+          </div>
+
+          <p className="mb-4 text-xs text-slate-500">
+            Кликни по карте, чтобы указать район, где ты находишься. Точная точка
+            будет скрыта для других пользователей.
           </p>
-          <p className="text-xs text-slate-500">
-            Кликни по карте, чтобы указать район, где ты находишься. Точная
-            точка будет скрыта для других пользователей.
-          </p>
+
           <LocationPicker value={coords} onChange={setCoords} />
         </div>
 
@@ -1111,19 +1230,32 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
-          <button
-            type="submit"
-            disabled={saving}
-            className={`inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-60 ${
-              saving
-                ? "bg-sky-600 hover:bg-sky-700"
+          <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/"
+              className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:w-auto sm:px-6"
+            >
+              Отмена
+            </Link>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
+                saving
+                  ? "bg-[#009966]/80 hover:bg-[#009966]/80"
+                  : isSaved
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-gradient-to-r from-[#009966] to-emerald-600 hover:from-[#009966] hover:to-emerald-700"
+              }`}
+            >
+              {saving
+                ? "Сохраняем..."
                 : isSaved
-                  ? "bg-emerald-600 hover:bg-emerald-700"
-                  : "bg-sky-600 hover:bg-sky-700"
-            }`}
-          >
-            {saving ? "Сохраняем..." : isSaved ? "Профиль сохранен" : "Сохранить профиль"}
-          </button>
+                  ? "Профиль сохранен"
+                  : "Сохранить профиль"}
+            </button>
+          </div>
         </div>
       </form>
     </div>

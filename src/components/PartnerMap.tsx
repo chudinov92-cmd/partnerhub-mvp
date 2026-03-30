@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { ProfilePreviewCard } from "@/components/ProfilePreviewCard";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Tooltip,
-  Popup,
   useMap,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
@@ -27,6 +25,10 @@ const DEFAULT_ZOOM = 12;
 const GEO_PRIVACY_RADIUS_M = 250;
 /** Единая заливка всех пинов на карте */
 const PIN_FILL_COLOR = "#10B981";
+/** Обводка пина по умолчанию */
+const PIN_BORDER_COLOR = "#FFFFFF";
+/** Просмотренные профили: делаем обводку серой */
+const PIN_VIEWED_BORDER_COLOR = "#9CA3AF";
 
 function hashToSeed(str: string) {
   // Deterministic 32-bit hash for stable obfuscation.
@@ -94,8 +96,8 @@ function pinInitial(fullName: string | null | undefined) {
   return escapeHtmlChar(c.toLocaleUpperCase("ru-RU"));
 }
 
-function escapeHtmlColor(hex: string) {
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return PIN_FILL_COLOR;
+function escapeHtmlColor(hex: string, fallback: string) {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return fallback;
   return hex;
 }
 
@@ -104,7 +106,7 @@ const PIN_ICON_ANCHOR: [number, number] = [24, 60];
 const PIN_POPUP_ANCHOR: [number, number] = [0, -56];
 
 function getOrCreatePinIcon(cache: Map<string, L.DivIcon>, letter: string) {
-  const safeColor = escapeHtmlColor(PIN_FILL_COLOR);
+  const safeColor = escapeHtmlColor(PIN_FILL_COLOR, PIN_FILL_COLOR);
   let icon = cache.get(letter);
   if (!icon) {
     icon = L.divIcon({
@@ -124,10 +126,40 @@ function getOrCreatePinIcon(cache: Map<string, L.DivIcon>, letter: string) {
   return icon;
 }
 
+function getOrCreatePinIconColored(
+  cache: Map<string, L.DivIcon>,
+  letter: string,
+  colorHex: string,
+  borderColorHex: string,
+) {
+  const safeColor = escapeHtmlColor(colorHex, PIN_FILL_COLOR);
+  const safeBorderColor = escapeHtmlColor(borderColorHex, PIN_BORDER_COLOR);
+  const key = `${letter}::${safeColor}::${safeBorderColor}`;
+  let icon = cache.get(key);
+  if (!icon) {
+    icon = L.divIcon({
+      className: "partner-map-div-icon",
+      html: `<div class="partner-map-pin-wrap">
+        <div class="partner-map-pin-head" style="background-color:${safeColor};border-color:${safeBorderColor}">
+          <span class="partner-map-pin-letter">${letter}</span>
+        </div>
+        <div class="partner-map-pin-stem" style="background-color:${safeColor}"></div>
+      </div>`,
+      iconSize: PIN_ICON_SIZE,
+      iconAnchor: PIN_ICON_ANCHOR,
+      popupAnchor: PIN_POPUP_ANCHOR,
+    });
+    cache.set(key, icon);
+  }
+  return icon;
+}
+
 export type PartnerMapProps = {
   onOpenChat?: (profileId: string) => void;
   onToggleContact?: (profileId: string) => void;
+  onOpenProfile?: (profile: PartnerMapProps["profiles"][number]) => void;
   contactProfileIds?: string[];
+  viewedProfileIds?: string[];
   center?: LatLngExpression;
   zoom?: number;
   profiles: {
@@ -158,61 +190,37 @@ function MapView({ center, zoom }: { center: LatLngExpression; zoom: number }) {
 
   useEffect(() => {
     map.setView(center, zoom);
+    // После смены видимости контейнера (таб/accordion/пересчёт layout)
+    // Leaflet иногда не обновляет размеры сам.
+    map.invalidateSize();
   }, [center, zoom, map]);
 
   return null;
 }
 
-function MapProfilePopupContent({
-  profile,
-  userId,
-  online,
-  onOpenChat,
-  onToggleContact,
-  isInContact,
-}: {
-  profile: PartnerMapProps["profiles"][number];
-  userId: string;
-  online: boolean;
-  onOpenChat?: (profileId: string) => void;
-  onToggleContact?: (profileId: string) => void;
-  isInContact: boolean;
-}) {
+function MapSizeInvalidator({ invalidateKey }: { invalidateKey: string }) {
   const map = useMap();
-  return (
-    <ProfilePreviewCard
-      variant="embedded"
-      profile={{
-        id: userId,
-        full_name: profile.full_name,
-        city: profile.city,
-        industry: profile.industry,
-        subindustry: profile.subindustry,
-        role_title: profile.role_title,
-        skills: profile.skills,
-        resources: profile.resources,
-        rating_count: profile.rating_count,
-      }}
-      online={online}
-      onClose={() => map.closePopup()}
-      profileHref={`/profiles/${userId}`}
-      onWrite={() => {
-        onOpenChat?.(userId);
-        map.closePopup();
-      }}
-      showContactButton={!!onToggleContact}
-      isInContacts={isInContact}
-      onToggleContact={
-        onToggleContact ? () => onToggleContact(userId) : undefined
-      }
-    />
-  );
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [invalidateKey, map]);
+
+  return null;
 }
+
+// Leaflet Popup якорится к координатам маркера, поэтому поп-ап
+// визуально "привязан". Для требований "в центре экрана" используем
+// отдельный React-overlay (см. рендер ниже).
 
 export function PartnerMap({
   onOpenChat,
   onToggleContact,
+  onOpenProfile,
   contactProfileIds,
+  viewedProfileIds,
   profiles,
   center,
   zoom,
@@ -254,13 +262,13 @@ export function PartnerMap({
 
   const effectiveCenter = center ?? PERM_CENTER;
   const effectiveZoom = zoom ?? DEFAULT_ZOOM;
-  const contactSet = useMemo(
-    () => new Set(contactProfileIds ?? []),
-    [contactProfileIds],
-  );
+  void onOpenChat;
+  void onToggleContact;
+  void contactProfileIds;
+  void viewedProfileIds;
 
   return (
-    <div className="h-full min-h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
+    <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
       <MapContainer
         className="zeip-partner-map"
         center={effectiveCenter}
@@ -274,13 +282,22 @@ export function PartnerMap({
         />
 
         <MapView center={effectiveCenter} zoom={effectiveZoom} />
+        <MapSizeInvalidator
+          invalidateKey={`${points.length}-${(contactProfileIds ?? []).length}`}
+        />
 
         {points.map((p) => {
           const profile = profileById[p.user_id];
           if (!profile) return null;
           const online = isOnline(profile?.last_seen_at ?? null);
           const initial = pinInitial(profile?.full_name);
-          const pinIcon = getOrCreatePinIcon(pinIconCacheRef.current, initial);
+          const isViewed = (viewedProfileIds ?? []).includes(profile.id);
+          const pinIcon = getOrCreatePinIconColored(
+            pinIconCacheRef.current,
+            initial,
+            PIN_FILL_COLOR,
+            isViewed ? PIN_VIEWED_BORDER_COLOR : PIN_BORDER_COLOR,
+          );
           const obf = obfuscateLatLngWithinRadius(
             p.lat,
             p.lng,
@@ -294,6 +311,9 @@ export function PartnerMap({
               key={p.id}
               position={[obf.lat, obf.lng]}
               icon={pinIcon}
+              eventHandlers={{
+                click: () => onOpenProfile?.(profile),
+              }}
             >
               <Tooltip direction="top" offset={[0, -52]} opacity={1}>
                 <div className="text-xs">
@@ -313,20 +333,6 @@ export function PartnerMap({
                   )}
                 </div>
               </Tooltip>
-
-              <Popup
-                className="zeip-profile-leaflet-popup"
-                closeButton={false}
-              >
-                <MapProfilePopupContent
-                  profile={profile}
-                  userId={p.user_id}
-                  online={online}
-                  onOpenChat={onOpenChat}
-                  onToggleContact={onToggleContact}
-                  isInContact={contactSet.has(p.user_id)}
-                />
-              </Popup>
             </Marker>
           );
         })}

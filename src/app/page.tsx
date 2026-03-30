@@ -27,6 +27,7 @@ import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
+import type { PostCommentRow } from "@/components/PostComments";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -44,7 +45,7 @@ type Post = {
   author: any;
 };
 
-type Profile = {
+export type Profile = {
   id: string;
   full_name: string | null;
   city: string | null;
@@ -73,7 +74,15 @@ type ChatListItem = {
   chatId: string;
   profile: Profile;
   lastMessageAt: string | null;
+  /** Текст последнего сообщения в чате (для превью в списке) */
+  lastMessagePreview: string | null;
 };
+
+function formatChatListPreview(content: string | null | undefined): string | null {
+  const s = (content ?? "").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  return s.length > 30 ? `${s.slice(0, 30)}...` : s;
+}
 
 const INDUSTRY_OPTIONS = [
   "Природные ресурсы",
@@ -103,6 +112,18 @@ function sortWithOtherLast(items: readonly string[]) {
   const other = "Другое";
   const rest = items.filter((x) => x !== other).slice().sort(sortRuAsc);
   return items.includes(other) ? [...rest, other] : rest;
+}
+
+function groupCommentsByPostId(
+  rows: PostCommentRow[],
+): Record<string, PostCommentRow[]> {
+  const byPost: Record<string, PostCommentRow[]> = {};
+  for (const row of rows) {
+    const pid = row.post_id;
+    if (!byPost[pid]) byPost[pid] = [];
+    byPost[pid].push(row);
+  }
+  return byPost;
 }
 
 const SORTED_INDUSTRY_OPTIONS = sortWithOtherLast(INDUSTRY_OPTIONS);
@@ -274,6 +295,9 @@ type ChatMessage = {
 
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [commentsByPostId, setCommentsByPostId] = useState<
+    Record<string, PostCommentRow[]>
+  >({});
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -285,6 +309,12 @@ export default function Home() {
   const [feedFiltersOpen, setFeedFiltersOpen] = useState(false);
   const [feedFilters, setFeedFilters] = useState<FeedFilters>(
     () => DEFAULT_FEED_FILTERS,
+  );
+  const hasActiveFeedFilters = Boolean(
+    feedFilters.profession ||
+      feedFilters.industry ||
+      feedFilters.subindustry ||
+      feedFilters.current_status,
   );
   const [newPostBody, setNewPostBody] = useState("");
   const [creating, setCreating] = useState(false);
@@ -299,15 +329,19 @@ export default function Home() {
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
-  const [activeProfileCard, setActiveProfileCard] = useState<{
-    profile: Profile;
-    top: number;
-    left?: number;
-  } | null>(null);
+  const feedScrollRef = useRef<HTMLDivElement | null>(null);
+  const [activeProfileOverlay, setActiveProfileOverlay] =
+    useState<Profile | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
+  const [viewedProfileIds, setViewedProfileIds] = useState<string[]>([]);
+  const [blockedProfileIds, setBlockedProfileIds] = useState<string[]>([]);
+  const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
+    Record<string, boolean>
+  >({});
   const [contactsOnlyMode, setContactsOnlyMode] = useState(false);
+  const [mapContactsOnly, setMapContactsOnly] = useState(false);
   const router = useRouter();
   const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
   const { selectedCity } = useSelectedCity();
@@ -329,6 +363,7 @@ export default function Home() {
     const read = () => {
       const params = new URLSearchParams(window.location.search);
       setContactsOnlyMode(params.get("contacts") === "1");
+      setMapContactsOnly(params.get("mapContacts") === "1");
     };
 
     read();
@@ -413,6 +448,60 @@ export default function Home() {
     };
   }, [currentUser?.profileId]);
 
+  // загрузка просмотренных профилей текущего пользователя
+  useEffect(() => {
+    if (!currentUser?.profileId) {
+      setViewedProfileIds([]);
+      return;
+    }
+    let alive = true;
+    supabase
+      .from("profile_views")
+      .select("viewed_profile_id")
+      .eq("viewer_id", currentUser.profileId)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          console.error("Failed to load views", error);
+          setViewedProfileIds([]);
+          return;
+        }
+        const ids =
+          (data as any[] | null)?.map((r) => r.viewed_profile_id) ?? [];
+        setViewedProfileIds(ids);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [currentUser?.profileId]);
+
+  // загрузка блокировок текущего пользователя
+  useEffect(() => {
+    if (!currentUser?.profileId) {
+      setBlockedProfileIds([]);
+      return;
+    }
+    let alive = true;
+    supabase
+      .from("profile_blocks")
+      .select("blocked_profile_id")
+      .eq("owner_id", currentUser.profileId)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          console.error("Failed to load blocks", error);
+          setBlockedProfileIds([]);
+          return;
+        }
+        const ids =
+          (data as any[] | null)?.map((r) => r.blocked_profile_id) ?? [];
+        setBlockedProfileIds(ids);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [currentUser?.profileId]);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -454,6 +543,27 @@ export default function Home() {
         if (profilesError) throw profilesError;
 
         setPosts(postsData ?? []);
+        const postIds = (postsData ?? []).map((p: any) => p.id as string);
+        if (postIds.length > 0) {
+          const { data: commentsData, error: commentsErr } = await supabase
+            .from("post_comments")
+            .select(
+              "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
+            )
+            .in("post_id", postIds)
+            .order("post_id", { ascending: true })
+            .order("created_at", { ascending: true });
+          if (commentsErr) {
+            console.warn("post_comments load failed", commentsErr);
+            setCommentsByPostId({});
+          } else if (commentsData) {
+            setCommentsByPostId(
+              groupCommentsByPostId(commentsData as PostCommentRow[]),
+            );
+          }
+        } else {
+          setCommentsByPostId({});
+        }
         const allProfiles = (profilesData ?? []) as Profile[];
         setProfiles(allProfiles);
 
@@ -518,31 +628,55 @@ export default function Home() {
                   chatId: v.chatId,
                   profile: v.profile,
                   lastMessageAt: null,
+                  lastMessagePreview: null,
                 }),
               );
 
-              // подтягиваем время последнего сообщения для сортировки
-              const lastByChat = new Map<string, string>();
+              const otherProfileIdByChatId = new Map<string, string>();
+              baseItems.forEach((i) => otherProfileIdByChatId.set(i.chatId, i.profile.id));
+
+              const lastByChat = new Map<
+                string,
+                { at: string; preview: string }
+              >();
               await Promise.all(
                 Array.from(new Set(baseItems.map((i) => i.chatId))).map(
                   async (chatId) => {
-                    const { data: msg } = await supabase
+                    let q = supabase
                       .from("messages")
-                      .select("created_at")
-                      .eq("chat_id", chatId)
+                      .select("created_at, content")
+                      .eq("chat_id", chatId);
+
+                    const otherId = otherProfileIdByChatId.get(chatId);
+                    if (otherId && blockedProfileIds.includes(otherId)) {
+                      q = q.neq("sender_id", otherId);
+                    }
+
+                    const { data: msg } = await q
                       .order("created_at", { ascending: false })
                       .limit(1)
                       .maybeSingle();
-                    if (msg?.created_at) lastByChat.set(chatId, msg.created_at);
+                    if (msg?.created_at) {
+                      lastByChat.set(chatId, {
+                        at: msg.created_at,
+                        preview: String((msg as any).content ?? "").trim(),
+                      });
+                    }
                   },
                 ),
               );
 
               const withLast = baseItems
-                .map((i) => ({
-                  ...i,
-                  lastMessageAt: lastByChat.get(i.chatId) ?? null,
-                }))
+                .map((i) => {
+                  const last = lastByChat.get(i.chatId);
+                  return {
+                    ...i,
+                    lastMessageAt: last?.at ?? null,
+                    lastMessagePreview: last?.preview
+                      ? last.preview
+                      : null,
+                  };
+                })
                 .sort((a, b) => {
                   const at = a.lastMessageAt ?? "";
                   const bt = b.lastMessageAt ?? "";
@@ -598,6 +732,22 @@ export default function Home() {
 
       if (!error && data) {
         setPosts(data as Post[]);
+        const ids = (data as Post[]).map((p) => p.id);
+        if (ids.length === 0) {
+          setCommentsByPostId({});
+          return;
+        }
+        const { data: cdata, error: cerr } = await supabase
+          .from("post_comments")
+          .select(
+            "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
+          )
+          .in("post_id", ids)
+          .order("post_id", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (!cerr && cdata) {
+          setCommentsByPostId(groupCommentsByPostId(cdata as PostCommentRow[]));
+        }
       }
     }, 5000);
 
@@ -618,6 +768,8 @@ export default function Home() {
 
           // Игнорируем свои же сообщения (мы их уже добавили локально)
           if (msg.sender_id === currentUser.profileId) return;
+          // Игнорируем сообщения от пользователей, которых мы заблокировали
+          if (blockedProfileIds.includes(msg.sender_id)) return;
 
           try {
             // Проверяем, что текущий пользователь участник этого чата
@@ -646,13 +798,17 @@ export default function Home() {
               }));
             }
 
-            // Поднимаем чат вверх в списке и обновляем lastMessageAt
+            // Поднимаем чат вверх в списке и обновляем превью
             setChatList((prev) => {
               const chatId = (msg as any).chat_id as string;
               const idx = prev.findIndex((x) => x.chatId === chatId);
               if (idx < 0) return prev;
               const next = [...prev];
-              const item = { ...next[idx], lastMessageAt: msg.created_at };
+              const item = {
+                ...next[idx],
+                lastMessageAt: msg.created_at,
+                lastMessagePreview: String(msg.content ?? "").trim(),
+              };
               next.splice(idx, 1);
               return [item, ...next];
             });
@@ -666,12 +822,13 @@ export default function Home() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser, activeChatId]);
+  }, [currentUser, activeChatId, blockedProfileIds]);
 
   const visiblePosts = useMemo(() => {
     const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
 
-    return posts.filter((post) => {
+    return posts
+      .filter((post) => {
       const a = normalizedAuthor(post.author);
       if (!a) return true;
 
@@ -689,8 +846,23 @@ export default function Home() {
           return false;
       }
       return true;
-    });
+      })
+      .slice()
+      .sort((a, b) => {
+        const ta = a.created_at ? Date.parse(a.created_at) : 0;
+        const tb = b.created_at ? Date.parse(b.created_at) : 0;
+        return ta - tb; // сверху старые, снизу новые
+      });
   }, [posts, feedFilters]);
+
+  useEffect(() => {
+    const el = feedScrollRef.current;
+    if (!el) return;
+    // После отрисовки контейнера прокручиваем к последнему сообщению (низ ленты)
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [visiblePosts, loading, feedFilters]);
 
   const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
     [],
@@ -759,7 +931,7 @@ export default function Home() {
 
   const filteredProfilesForMap = useMemo(() => {
     return profiles.filter((p) => {
-      if (contactsOnlyMode) {
+      if (contactsOnlyMode || mapContactsOnly) {
         if (!contactProfileIds.includes(p.id)) return false;
       }
       if (feedFilters.profession) {
@@ -777,7 +949,13 @@ export default function Home() {
       }
       return true;
     });
-  }, [profiles, feedFilters, contactsOnlyMode, contactProfileIds]);
+  }, [
+    profiles,
+    feedFilters,
+    contactsOnlyMode,
+    mapContactsOnly,
+    contactProfileIds,
+  ]);
 
   const filteredChatList = useMemo(() => {
     if (!contactsOnlyMode) return chatList;
@@ -839,6 +1017,64 @@ export default function Home() {
         isIn ? [...prev, profileId] : prev.filter((x) => x !== profileId),
       );
       notifyProfileContactsChanged();
+    }
+  };
+
+  const toggleBlock = async (profileId: string) => {
+    if (!currentUser?.profileId) return;
+    if (profileId === currentUser.profileId) return;
+
+    const isBlocked = blockedProfileIds.includes(profileId);
+    setBlockedProfileIds((prev) =>
+      isBlocked ? prev.filter((x) => x !== profileId) : [...prev, profileId],
+    );
+    setBlockBusyByProfileId((prev) => ({ ...prev, [profileId]: true }));
+
+    // если блокируем текущего собеседника — сразу скрываем его сообщения в UI
+    if (!isBlocked && activeChatUser?.id === profileId) {
+      setChatMessages((prev) => prev.filter((m) => m.sender_id !== profileId));
+    }
+
+    try {
+      if (isBlocked) {
+        const { error } = await supabase
+          .from("profile_blocks")
+          .delete()
+          .eq("owner_id", currentUser.profileId)
+          .eq("blocked_profile_id", profileId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("profile_blocks").insert({
+          owner_id: currentUser.profileId,
+          blocked_profile_id: profileId,
+        });
+        if (error) throw error;
+      }
+    } catch (e) {
+      console.error("Failed to toggle block", e);
+      setBlockedProfileIds((prev) =>
+        isBlocked ? [...prev, profileId] : prev.filter((x) => x !== profileId),
+      );
+    } finally {
+      setBlockBusyByProfileId((prev) => ({ ...prev, [profileId]: false }));
+    }
+  };
+
+  const markProfileViewed = async (profileId: string) => {
+    if (!currentUser?.profileId) return;
+    if (profileId === currentUser.profileId) return;
+    if (viewedProfileIds.includes(profileId)) return;
+
+    setViewedProfileIds((prev) => [...prev, profileId]);
+    try {
+      const { error } = await supabase.from("profile_views").insert({
+        viewer_id: currentUser.profileId,
+        viewed_profile_id: profileId,
+      });
+      if (error) throw error;
+    } catch (e) {
+      console.error("Failed to mark profile viewed", e);
+      setViewedProfileIds((prev) => prev.filter((x) => x !== profileId));
     }
   };
 
@@ -935,6 +1171,32 @@ export default function Home() {
     }
   };
 
+  const handleSubmitComment = async (postId: string, body: string) => {
+    if (!currentUser || currentUser.isBlocked) return;
+    const masked = (maskProfanity(body.trim()) ?? "").slice(0, 1000);
+    if (!masked) {
+      throw new Error("Пустой текст.");
+    }
+    const { data, error } = await supabase
+      .from("post_comments")
+      .insert({
+        post_id: postId,
+        author_id: currentUser.profileId,
+        body: masked,
+      })
+      .select(
+        "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
+      )
+      .single();
+    if (error) throw error;
+    if (data) {
+      setCommentsByPostId((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] ?? []), data as PostCommentRow],
+      }));
+    }
+  };
+
   const openChatWithProfile = async (profile: Profile) => {
     if (!currentUser) {
       setChatError("Нужно войти, чтобы отправлять сообщения.");
@@ -998,11 +1260,30 @@ export default function Home() {
 
       setActiveChatId(chatId);
 
+      // Гарантируем, что чат есть в списке (важно для UI поп-апа и сортировки)
+      setChatList((prev) => {
+        const exists = prev.some((x) => x.chatId === chatId);
+        if (exists) return prev;
+        const item: ChatListItem = {
+          chatId,
+          profile,
+          lastMessageAt: null,
+          lastMessagePreview: null,
+        };
+        return [item, ...prev];
+      });
+
       // Загружаем последние 5 сообщений
-      const { data: msgsData, error: msgsError } = await supabase
+      let msgsQuery = supabase
         .from("messages")
         .select("id, content, sender_id, created_at")
-        .eq("chat_id", chatId)
+        .eq("chat_id", chatId);
+
+      if (blockedProfileIds.includes(profile.id)) {
+        msgsQuery = msgsQuery.neq("sender_id", profile.id);
+      }
+
+      const { data: msgsData, error: msgsError } = await msgsQuery
         .order("created_at", { ascending: false })
         .limit(5);
 
@@ -1067,7 +1348,11 @@ export default function Home() {
         const idx = prev.findIndex((x) => x.chatId === activeChatId);
         if (idx < 0) return prev;
         const next = [...prev];
-        const item = { ...next[idx], lastMessageAt: (data as any).created_at };
+        const item = {
+          ...next[idx],
+          lastMessageAt: (data as any).created_at,
+          lastMessagePreview: content,
+        };
         next.splice(idx, 1);
         return [item, ...next];
       });
@@ -1091,6 +1376,9 @@ export default function Home() {
     if (!activeChatUser) return;
 
     const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Если открыт поп-ап профиля, взаимодействие с ним не должно закрывать чат
+      if (target?.closest?.("[data-profile-card]")) return;
       if (!chatWindowRef.current) return;
       if (!chatWindowRef.current.contains(event.target as Node)) {
         setActiveChatUser(null);
@@ -1118,16 +1406,16 @@ export default function Home() {
     };
   }, [activeChatUser]);
 
-  // закрытие карточки профиля (из общего чата) по клику вне и Esc
+  // закрытие поп-апа профиля по клику вне и Esc
   useEffect(() => {
-    if (!activeProfileCard) return;
+    if (!activeProfileOverlay) return;
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest?.("[data-profile-card]")) return;
-      setActiveProfileCard(null);
+      setActiveProfileOverlay(null);
     };
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setActiveProfileCard(null);
+      if (event.key === "Escape") setActiveProfileOverlay(null);
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
@@ -1135,14 +1423,14 @@ export default function Home() {
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [activeProfileCard]);
+  }, [activeProfileOverlay]);
 
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col bg-gray-100">
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[4.5rem] lg:flex-row lg:pb-0">
+    <div className="flex h-[calc(100vh-8vh)] flex-col overflow-hidden bg-gray-100">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[8vh] lg:flex-row lg:pb-0">
         {/* Левая колонка: лента запросов, как список чата */}
         <section
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
@@ -1163,7 +1451,10 @@ export default function Home() {
             <h1 className="font-semibold text-slate-900">Общий чат</h1>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4">
+          <div
+            ref={feedScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-4"
+          >
           {loading && <p className="py-2 text-sm text-slate-500">Загрузка...</p>}
           {error && <p className="py-2 text-sm text-red-600">{error}</p>}
 
@@ -1193,12 +1484,11 @@ export default function Home() {
                 const authorOnline = isOnline(authorObj?.last_seen_at ?? null);
                 const prof = (authorObj?.role_title as string | null) ?? null;
 
-                const openAuthorCard = (el: HTMLElement) => {
+                const openAuthorCard = () => {
                   const p = profiles.find((pr) => pr.id === post.author_id);
                   if (p) {
-                    const rect = el.getBoundingClientRect();
-                    const top = rect.top + window.scrollY;
-                    setActiveProfileCard({ profile: p, top });
+                    setActiveProfileOverlay(p);
+                    void markProfileViewed(p.id);
                   }
                 };
 
@@ -1215,7 +1505,8 @@ export default function Home() {
                             e.stopPropagation();
                             const inner = (e.currentTarget as HTMLElement)
                               .firstElementChild as HTMLElement;
-                            openAuthorCard(inner);
+                            void inner;
+                            openAuthorCard();
                           }}
                           title={authorOnline ? "Онлайн" : "Оффлайн"}
                           className="block shrink-0 cursor-pointer border-0 bg-transparent p-0 text-left"
@@ -1237,7 +1528,7 @@ export default function Home() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              openAuthorCard(e.currentTarget);
+                              openAuthorCard();
                             }}
                             className="text-left text-sm font-medium text-slate-900 hover:text-emerald-600"
                           >
@@ -1264,6 +1555,7 @@ export default function Home() {
                             {isExpanded ? "Свернуть" : "Читать далее"}
                           </button>
                         )}
+                        {/* Комментарии под постами временно скрыты (по запросу). */}
                       </div>
                     </div>
                   </li>
@@ -1316,32 +1608,40 @@ export default function Home() {
             )}
           </form>
 
-          {activeProfileCard && (
+          {activeProfileOverlay && (
             <ProfilePreviewCard
               rootDataAttr
               variant="floating"
-              profile={activeProfileCard.profile}
-              online={isOnline(activeProfileCard.profile.last_seen_at ?? null)}
+              profile={activeProfileOverlay}
+              online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
               style={{
-                top: activeProfileCard.top,
-                left: activeProfileCard.left ?? 340,
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
               }}
-              onClose={() => setActiveProfileCard(null)}
-              profileHref={`/profiles/${activeProfileCard.profile.id}`}
+              onClose={() => setActiveProfileOverlay(null)}
+              profileHref={`/profiles/${activeProfileOverlay.id}`}
               onWrite={() => {
-                openChatWithProfile(activeProfileCard.profile);
-                setActiveProfileCard(null);
+                openChatWithProfile(activeProfileOverlay);
+                // по требованию: при открытии поп-апа из чата чат не закрываем,
+                // поэтому при "Написать" тоже просто закрываем поп-ап
+                setActiveProfileOverlay(null);
               }}
               showContactButton={
                 !!currentUser?.profileId &&
-                currentUser.profileId !== activeProfileCard.profile.id
+                currentUser.profileId !== activeProfileOverlay.id
               }
-              isInContacts={contactProfileIds.includes(
-                activeProfileCard.profile.id,
-              )}
-              onToggleContact={() =>
-                toggleContact(activeProfileCard.profile.id)
+              isInContacts={contactProfileIds.includes(activeProfileOverlay.id)}
+              onToggleContact={() => toggleContact(activeProfileOverlay.id)}
+              showBlockButton={
+                !!currentUser?.profileId &&
+                currentUser.profileId !== activeProfileOverlay.id
               }
+              isBlocked={blockedProfileIds.includes(activeProfileOverlay.id)}
+              blockButtonDisabled={
+                !!blockBusyByProfileId[activeProfileOverlay.id]
+              }
+              onToggleBlock={() => toggleBlock(activeProfileOverlay.id)}
             />
           )}
         </section>
@@ -1353,28 +1653,33 @@ export default function Home() {
             mobileTab === "map" ? "flex" : "hidden"
           } lg:flex`}
         >
-          <div className="relative z-[1100] mb-3 flex items-center gap-2 px-2 pt-2 lg:px-3">
-            <div className="relative flex min-w-0 flex-1 items-center gap-2" ref={feedFiltersRef}>
+          <div ref={mapContainerRef} className="relative min-h-0 flex-1">
+            <div className="pointer-events-none absolute inset-0 z-[1100]">
+              <div
+                ref={feedFiltersRef}
+                className="pointer-events-auto absolute top-[10px] right-[10px] z-[1200]"
+              >
               <button
                 type="button"
                 onClick={() => setFeedFiltersOpen((v) => !v)}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white p-0 text-slate-900 shadow-sm transition hover:scale-105 hover:bg-gray-50"
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border p-0 text-slate-900 shadow-sm transition hover:scale-105 ${
+                  hasActiveFeedFilters
+                    ? "border-[#009966] bg-[#009966] hover:bg-[#009966]/90"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
                 aria-label="Настройки поиска"
                 title="Настройки"
               >
                 <img
                   src="/Icons/Sliders.svg"
                   alt="Настройки"
-                  className="h-4 w-4"
+                  className={`h-4 w-4 ${hasActiveFeedFilters ? "invert" : ""}`}
                 />
               </button>
-              <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-slate-900">
-                Специалисты на карте
-              </h2>
 
               {feedFiltersOpen && (
                 <div
-                  className="pointer-events-auto absolute left-0 top-10 z-[1200] w-[300px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+                  className="pointer-events-auto absolute right-0 top-[calc(100%+0.5rem)] z-[1200] w-[min(calc(100vw-2rem),300px)] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <div className="mb-2 flex items-center justify-between">
@@ -1398,9 +1703,11 @@ export default function Home() {
                       </label>
                       <DropdownSelect
                         value={feedFilters.profession}
-                        placeholder="Любая"
+                        placeholder="Любой"
+                        searchable
+                        searchPlaceholder="Найти профессию"
                         options={[
-                          { value: "", label: "Любая" },
+                          { value: "", label: "Любой" },
                           ...getProfessionLabelsForSelect(professionCatalog).map(
                             (label) => ({
                               value: label,
@@ -1431,9 +1738,11 @@ export default function Home() {
                       </label>
                       <DropdownSelect
                         value={feedFilters.industry}
-                        placeholder="Любая"
+                        placeholder="Любой"
+                        searchable
+                        searchPlaceholder="Найти отрасль"
                         options={[
-                          { value: "", label: "Любая" },
+                          { value: "", label: "Любой" },
                           ...(
                             industryCatalog.length > 0
                               ? getIndustryLabelsForSelect(industryCatalog)
@@ -1469,10 +1778,12 @@ export default function Home() {
                         value={feedFilters.subindustry}
                         disabled={!feedFilters.industry}
                         placeholder={
-                          feedFilters.industry ? "Любая" : "Сначала выберите отрасль"
+                          feedFilters.industry ? "Любой" : "Сначала выберите отрасль"
                         }
+                        searchable
+                        searchPlaceholder="Найти подотрасль"
                         options={[
-                          { value: "", label: "Любая" },
+                          { value: "", label: "Любой" },
                           ...subindustryOptionsForFilters.map((s) => ({
                             value: s,
                             label: s,
@@ -1503,7 +1814,7 @@ export default function Home() {
                         value={feedFilters.current_status}
                         placeholder="Любой"
                         options={[
-                          { value: "", label: "Любая" },
+                          { value: "", label: "Любой" },
                           ...CURRENT_STATUS_OPTIONS.map((s) => ({
                             value: s,
                             label: s,
@@ -1553,14 +1864,19 @@ export default function Home() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
-          </div>
-          <div ref={mapContainerRef} className="min-h-0 flex-1">
             <PartnerMap
               profiles={filteredProfilesForMap}
               contactProfileIds={contactProfileIds}
+              viewedProfileIds={viewedProfileIds}
               center={mapConfig.center}
               zoom={mapConfig.zoom}
+              onOpenProfile={(p) => {
+                const full = profiles.find((x) => x.id === p.id) ?? null;
+                setActiveProfileOverlay(full);
+                if (full) void markProfileViewed(full.id);
+              }}
               onOpenChat={(profileId) => {
                 const p = profiles.find((pr) => pr.id === profileId);
                 if (p) {
@@ -1659,22 +1975,8 @@ export default function Home() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const rect = (
-                              e.currentTarget as HTMLElement
-                            ).getBoundingClientRect();
-                            const top = rect.top + window.scrollY;
-                            const popupWidth = 260;
-                            const gap = 8;
-                            const mapRect =
-                              mapContainerRef.current?.getBoundingClientRect();
-                            const left = mapRect
-                              ? Math.max(8, mapRect.right - popupWidth - gap)
-                              : 340;
-                            setActiveProfileCard({
-                              profile: item.profile,
-                              top,
-                              left,
-                            });
+                            setActiveProfileOverlay(item.profile);
+                            void markProfileViewed(item.profile.id);
                           }}
                           className="truncate text-left font-medium text-slate-900 hover:text-emerald-600"
                         >
@@ -1693,6 +1995,10 @@ export default function Home() {
                       <p className="text-sm text-slate-500">
                         {item.profile.city || "Город не указан"}
                       </p>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {formatChatListPreview(item.lastMessagePreview) ??
+                          "Нет сообщений"}
+                      </p>
                     </div>
                   </div>
                 </li>
@@ -1706,7 +2012,7 @@ export default function Home() {
         {activeChatUser && (
           <div
             ref={chatWindowRef}
-            className="pointer-events-auto fixed top-16 right-2 z-[1600] flex h-[380px] w-[min(100vw-1rem,24rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.15)] ring-1 ring-slate-900/5 lg:right-[336px]"
+            className="pointer-events-auto fixed inset-0 z-[1600] flex flex-col overflow-hidden bg-white lg:top-16 lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[380px] lg:w-[min(100vw-1rem,24rem)] lg:max-w-sm lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
           >
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2.5">
               <div className="min-w-0">
@@ -1714,17 +2020,8 @@ export default function Home() {
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
-                    const rect = (
-                      e.currentTarget as HTMLElement
-                    ).getBoundingClientRect();
-                    const top = rect.top + window.scrollY;
-                  const popupWidth = 260;
-                  const gap = 8;
-                  const mapRect = mapContainerRef.current?.getBoundingClientRect();
-                  const left = mapRect
-                    ? Math.max(8, mapRect.right - popupWidth - gap)
-                    : 340;
-                  setActiveProfileCard({ profile: activeChatUser, top, left });
+                    setActiveProfileOverlay(activeChatUser);
+                    void markProfileViewed(activeChatUser.id);
                   }}
                   title={
                     isOnline(activeChatUser.last_seen_at ?? null)
@@ -1788,7 +2085,7 @@ export default function Home() {
                         key={m.id}
                         className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-xs ${
                           m.sender_id === currentUser?.profileId
-                            ? "ml-auto bg-gradient-to-r from-emerald-500 to-emerald-600 text-white"
+                            ? "ml-auto bg-[#009966] text-white"
                             : "mr-auto bg-slate-50/70 text-slate-900"
                         }`}
                       >

@@ -105,6 +105,13 @@ body {
 /* Попап профиля на карте (Leaflet): без лишних отступов, скругление как у карточки */
 .zeip-profile-leaflet-popup.leaflet-popup {
   text-align: start !important;
+  /* Делаем попап оверлеем по центру экрана, чтобы не сдвигать карту */
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  z-index: 3000;
 }
 
 .zeip-profile-leaflet-popup .leaflet-popup-content-wrapper {
@@ -131,8 +138,7 @@ body {
 }
 
 .zeip-profile-leaflet-popup .leaflet-popup-tip {
-  background: white;
-  box-shadow: 0 2px 4px rgb(15 23 42 / 0.06);
+  display: none !important;
 }
 
 /* Закрытие только кнопкой в ProfilePreviewCard, не стандартной × Leaflet */

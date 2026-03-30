@@ -15,6 +15,9 @@ export function DropdownSelect({
   className,
   menuClassName,
   disabled,
+  searchable,
+  searchPlaceholder,
+  variant = "default",
 }: {
   value: string | null | undefined;
   onChange: (value: string) => void;
@@ -23,9 +26,13 @@ export function DropdownSelect({
   className?: string;
   menuClassName?: string;
   disabled?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  variant?: "default" | "profile";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -46,6 +53,10 @@ export function DropdownSelect({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
   const labelByValue = useMemo(() => {
     const map = new Map(options.map((o) => [o.value, o.label]));
     return map;
@@ -54,6 +65,17 @@ export function DropdownSelect({
   const currentLabel =
     value != null && value !== "" ? labelByValue.get(value) : undefined;
 
+  const visibleOptions = useMemo(() => {
+    if (!searchable) return options;
+    const q = search.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((opt) =>
+      opt.label.toLowerCase().includes(q),
+    );
+  }, [options, searchable, search]);
+
+  const isProfile = variant === "profile";
+
   return (
     <div ref={ref} className={"relative " + (className ?? "")}>
       <button
@@ -61,7 +83,10 @@ export function DropdownSelect({
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={
-          "flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 disabled:bg-slate-50 disabled:text-slate-400"
+          "flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-400 " +
+          (isProfile
+            ? "h-12 rounded-xl border-gray-300 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+            : "focus:border-sky-500 focus:ring-1 focus:ring-sky-500")
         }
       >
         <span className="truncate">
@@ -75,13 +100,37 @@ export function DropdownSelect({
       {open && !disabled && (
         <div
           className={
-            "pointer-events-auto absolute left-0 top-[calc(100%+6px)] z-[2000] w-full rounded-xl border border-slate-200 bg-white p-1 shadow-xl " +
+            "pointer-events-auto absolute left-0 top-[calc(100%+6px)] z-[2000] w-full rounded-xl border bg-white p-1 shadow-xl " +
+            (isProfile ? "border-gray-200" : "border-slate-200") +
             (menuClassName ?? "")
           }
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {searchable ? (
+            <div className="px-2 pb-1">
+              <input
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={searchPlaceholder ?? "Найти"}
+                className={
+                  "h-7 w-full rounded-full border px-2 text-[11px] text-slate-700 outline-none " +
+                  (isProfile
+                    ? "border-gray-200 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                    : "border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-400")
+                }
+              />
+            </div>
+          ) : null}
+
           <div className="max-h-[560px] overflow-y-auto">
-            {options.map((opt) => {
+            {visibleOptions.length === 0 ? (
+              <p className="px-2 py-1 text-[11px] text-slate-400">
+                Ничего не найдено
+              </p>
+            ) : null}
+
+            {visibleOptions.map((opt) => {
               const active = opt.value === (value ?? "");
               return (
                 <button
@@ -93,7 +142,13 @@ export function DropdownSelect({
                   }}
                   className={
                     "flex w-full items-center rounded-lg px-2 py-1 text-left text-sm hover:bg-slate-50 " +
-                    (active ? "bg-sky-50 text-sky-800" : "text-slate-700")
+                    (isProfile
+                      ? active
+                        ? "bg-[#009966]/15 text-[#009966]"
+                        : "text-slate-800 hover:bg-[#009966]/10"
+                      : active
+                        ? "bg-sky-50 text-sky-800"
+                        : "text-slate-700")
                   }
                 >
                   <span className="truncate">{opt.label}</span>
