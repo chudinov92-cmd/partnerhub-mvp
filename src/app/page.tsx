@@ -2125,8 +2125,11 @@ export default function Home() {
             online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
             style={{
               left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
+              // Keep the popup fully visible between TopBar (8vh) and bottom nav (8vh) on mobile.
+              top: "calc(8vh + env(safe-area-inset-top) + 8px)",
+              transform: "translateX(-50%)",
+              maxHeight:
+                "calc(100vh - 8vh - 8vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px)",
             }}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}

@@ -1263,7 +1263,7 @@ export default function ProfilePage() {
             {hasChanges ? (
               <Link
                 href="/"
-                className="inline-flex h-24 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:h-24 sm:w-auto sm:px-6"
+                className="inline-flex h-24 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:h-24 sm:w-auto sm:px-6"
               >
                 Отмена
               </Link>
@@ -1272,7 +1272,7 @@ export default function ProfilePage() {
             <button
               type="submit"
               disabled={saving}
-              className={`inline-flex h-24 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
+              className={`inline-flex h-24 w-full items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 sm:w-auto sm:flex-1 ${
                 saving
                   ? "bg-[#009966]/80 hover:bg-[#009966]/80"
                   : isSaved

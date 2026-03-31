@@ -189,6 +189,12 @@ export function ProfilePreviewCard({
       {...(rootDataAttr ? { "data-profile-card": true } : {})}
       className={rootClass}
       style={style}
+      // Prevent Leaflet from panning/zooming when user scrolls the popup.
+      onWheelCapture={(e) => e.stopPropagation()}
+      onTouchStartCapture={(e) => e.stopPropagation()}
+      onTouchMoveCapture={(e) => e.stopPropagation()}
+      onPointerDownCapture={(e) => e.stopPropagation()}
+      onPointerMoveCapture={(e) => e.stopPropagation()}
     >
       <div className="flex max-h-[inherit] w-full min-w-0 flex-col overflow-hidden">
         <div

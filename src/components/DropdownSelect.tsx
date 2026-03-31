@@ -75,6 +75,7 @@ export function DropdownSelect({
   }, [options, searchable, search]);
 
   const isProfile = variant === "profile";
+  const isPlaceholder = currentLabel == null;
 
   return (
     <div ref={ref} className={"relative " + (className ?? "")}>
@@ -83,16 +84,16 @@ export function DropdownSelect({
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={
-          "flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none disabled:bg-slate-50 disabled:text-slate-400 " +
+          "flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none disabled:bg-slate-50 disabled:text-slate-400 " +
           (isProfile
             ? "h-12 rounded-xl border-gray-300 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
             : "focus:border-sky-500 focus:ring-1 focus:ring-sky-500")
         }
       >
-        <span className="truncate">
+        <span className={"truncate " + (isPlaceholder ? "text-slate-400" : "text-slate-900")}>
           {currentLabel ?? placeholder}
         </span>
-        <span className="ml-2 text-[10px] text-slate-400">
+        <span className="ml-2 text-[10px] text-slate-500">
           {open ? "▲" : "▼"}
         </span>
       </button>

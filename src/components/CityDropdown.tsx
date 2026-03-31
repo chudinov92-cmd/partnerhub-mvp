@@ -17,6 +17,7 @@ export function CityDropdown({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement | null>(null);
+  const isPlaceholder = !(value && value.trim());
 
   useEffect(() => {
     if (!open) return;
@@ -46,10 +47,12 @@ export function CityDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 h-12 py-0 text-sm text-slate-700 shadow-sm focus:border-[#009966] focus:ring-1 focus:ring-[#009966] hover:border-[#009966]/60 hover:text-slate-800"
+        className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 h-12 py-0 text-sm text-slate-900 shadow-sm focus:border-[#009966] focus:ring-1 focus:ring-[#009966] hover:border-[#009966]/60"
       >
-        <span className="truncate">{value ? value : placeholder}</span>
-        <span className="ml-2 text-[10px] text-slate-400">{open ? "▲" : "▼"}</span>
+        <span className={"truncate " + (isPlaceholder ? "text-slate-400" : "text-slate-900")}>
+          {value ? value : placeholder}
+        </span>
+        <span className="ml-2 text-[10px] text-slate-500">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
