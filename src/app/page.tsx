@@ -1607,43 +1607,6 @@ export default function Home() {
               <p className="text-[11px] text-red-600">{createError}</p>
             )}
           </form>
-
-          {activeProfileOverlay && (
-            <ProfilePreviewCard
-              rootDataAttr
-              variant="floating"
-              profile={activeProfileOverlay}
-              online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
-              style={{
-                left: "50%",
-                top: "50%",
-                transform: "translate(-50%, -50%)",
-              }}
-              onClose={() => setActiveProfileOverlay(null)}
-              profileHref={`/profiles/${activeProfileOverlay.id}`}
-              onWrite={() => {
-                openChatWithProfile(activeProfileOverlay);
-                // по требованию: при открытии поп-апа из чата чат не закрываем,
-                // поэтому при "Написать" тоже просто закрываем поп-ап
-                setActiveProfileOverlay(null);
-              }}
-              showContactButton={
-                !!currentUser?.profileId &&
-                currentUser.profileId !== activeProfileOverlay.id
-              }
-              isInContacts={contactProfileIds.includes(activeProfileOverlay.id)}
-              onToggleContact={() => toggleContact(activeProfileOverlay.id)}
-              showBlockButton={
-                !!currentUser?.profileId &&
-                currentUser.profileId !== activeProfileOverlay.id
-              }
-              isBlocked={blockedProfileIds.includes(activeProfileOverlay.id)}
-              blockButtonDisabled={
-                !!blockBusyByProfileId[activeProfileOverlay.id]
-              }
-              onToggleBlock={() => toggleBlock(activeProfileOverlay.id)}
-            />
-          )}
         </section>
 
         {/* Центр: карта во всю высоту */}
@@ -1870,6 +1833,7 @@ export default function Home() {
               profiles={filteredProfilesForMap}
               contactProfileIds={contactProfileIds}
               viewedProfileIds={viewedProfileIds}
+              invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}`}
               center={mapConfig.center}
               zoom={mapConfig.zoom}
               onOpenProfile={(p) => {
@@ -2150,6 +2114,40 @@ export default function Home() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Поп-ап профиля должен открываться и на мобилке (вкладка "Карта") */}
+        {activeProfileOverlay && (
+          <ProfilePreviewCard
+            rootDataAttr
+            variant="floating"
+            profile={activeProfileOverlay}
+            online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
+            style={{
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+            onClose={() => setActiveProfileOverlay(null)}
+            profileHref={`/profiles/${activeProfileOverlay.id}`}
+            onWrite={() => {
+              openChatWithProfile(activeProfileOverlay);
+              setActiveProfileOverlay(null);
+            }}
+            showContactButton={
+              !!currentUser?.profileId &&
+              currentUser.profileId !== activeProfileOverlay.id
+            }
+            isInContacts={contactProfileIds.includes(activeProfileOverlay.id)}
+            onToggleContact={() => toggleContact(activeProfileOverlay.id)}
+            showBlockButton={
+              !!currentUser?.profileId &&
+              currentUser.profileId !== activeProfileOverlay.id
+            }
+            isBlocked={blockedProfileIds.includes(activeProfileOverlay.id)}
+            blockButtonDisabled={!!blockBusyByProfileId[activeProfileOverlay.id]}
+            onToggleBlock={() => toggleBlock(activeProfileOverlay.id)}
+          />
         )}
       </main>
       <MainMobileNav

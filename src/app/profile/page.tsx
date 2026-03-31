@@ -264,12 +264,23 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const baselineSnapshotRef = useRef<string>("");
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    if (!isSaved || !profile) return;
+    if (!profile) return;
     const current = JSON.stringify({ profile, workBlocks });
-    if (savedSnapshotRef.current && current !== savedSnapshotRef.current) {
+
+    // "Профиль сохранен" сбрасываем при любом изменении после успешного сохранения.
+    if (isSaved && savedSnapshotRef.current && current !== savedSnapshotRef.current) {
       setIsSaved(false);
+    }
+
+    // Показ "Отмена" только если есть несохранённые изменения относительно базовой версии.
+    if (baselineSnapshotRef.current) {
+      setHasChanges(current !== baselineSnapshotRef.current);
+    } else {
+      setHasChanges(false);
     }
   }, [isSaved, profile, workBlocks]);
 
@@ -407,6 +418,22 @@ export default function ProfilePage() {
           );
         } catch {
           setWorkBlocks([]);
+        }
+
+        // Baseline snapshot for change detection (set after we have initial profile + workBlocks).
+        // We use the loaded workBlocks from state update above on the next tick; so compute from
+        // current values we already know (prof + rows) as best-effort.
+        // If the async block failed, baseline will be updated by the effect once profile is set.
+        try {
+          const baseline = JSON.stringify({
+            profile: prof,
+            workBlocks: Array.isArray((profData as any)?.workBlocks)
+              ? (profData as any).workBlocks
+              : [],
+          });
+          if (!baselineSnapshotRef.current) baselineSnapshotRef.current = baseline;
+        } catch {
+          // ignore
         }
 
         // Load industry/subindustry catalogs (best-effort).
@@ -625,6 +652,8 @@ export default function ProfilePage() {
       setSuccess("Профиль сохранён");
       setIsSaved(true);
       savedSnapshotRef.current = JSON.stringify({ profile, workBlocks });
+      baselineSnapshotRef.current = savedSnapshotRef.current;
+      setHasChanges(false);
     } catch (err: any) {
       setError(err.message ?? "Не удалось сохранить профиль");
     } finally {
@@ -737,7 +766,7 @@ export default function ProfilePage() {
                   setProfile({ ...profile, full_name: e.target.value.slice(0, 40) })
                 }
                 maxLength={40}
-                className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
             </div>
 
@@ -753,7 +782,7 @@ export default function ProfilePage() {
                   onChange={(e) =>
                     setProfile({ ...profile, country: e.target.value })
                   }
-                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                 />
               </div>
               <div>
@@ -962,7 +991,7 @@ export default function ProfilePage() {
                         }
                         maxLength={40}
                         placeholder="Введите название"
-                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                       />
                     </div>
                   )}
@@ -1013,7 +1042,7 @@ export default function ProfilePage() {
                       }
                       maxLength={40}
                       placeholder="Введите название"
-                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                     />
                   </div>
                 )}
@@ -1051,7 +1080,7 @@ export default function ProfilePage() {
                           }
                           maxLength={40}
                           placeholder="Введите название"
-                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                         />
                       </div>
                     )}
@@ -1073,7 +1102,7 @@ export default function ProfilePage() {
                         experience_years: e.target.value ? Number(e.target.value) : null,
                       })
                     }
-                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                   />
                 </div>
 
@@ -1144,7 +1173,7 @@ export default function ProfilePage() {
                 }
                 maxLength={600}
                 rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
               <div className="mt-1 text-right text-[11px] text-slate-400">
                 {(profile.skills ?? "").length}/600
@@ -1166,7 +1195,7 @@ export default function ProfilePage() {
                 }
                 maxLength={600}
                 rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
               <div className="mt-1 text-right text-[11px] text-slate-400">
                 {(profile.resources ?? "").length}/600
@@ -1231,17 +1260,19 @@ export default function ProfilePage() {
               </div>
             )}
           <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="/"
-              className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:w-auto sm:px-6"
-            >
-              Отмена
-            </Link>
+            {hasChanges ? (
+              <Link
+                href="/"
+                className="inline-flex h-24 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:flex-none sm:h-24 sm:w-auto sm:px-6"
+              >
+                Отмена
+              </Link>
+            ) : null}
 
             <button
               type="submit"
               disabled={saving}
-              className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
+              className={`inline-flex h-24 flex-1 items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
                 saving
                   ? "bg-[#009966]/80 hover:bg-[#009966]/80"
                   : isSaved

@@ -160,6 +160,8 @@ export type PartnerMapProps = {
   onOpenProfile?: (profile: PartnerMapProps["profiles"][number]) => void;
   contactProfileIds?: string[];
   viewedProfileIds?: string[];
+  /** Меняйте значение при show/hide контейнера карты (моб. табы и т.п.) */
+  invalidateKey?: string;
   center?: LatLngExpression;
   zoom?: number;
   profiles: {
@@ -221,6 +223,7 @@ export function PartnerMap({
   onOpenProfile,
   contactProfileIds,
   viewedProfileIds,
+  invalidateKey,
   profiles,
   center,
   zoom,
@@ -266,6 +269,7 @@ export function PartnerMap({
   void onToggleContact;
   void contactProfileIds;
   void viewedProfileIds;
+  void invalidateKey;
 
   return (
     <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
@@ -283,7 +287,9 @@ export function PartnerMap({
 
         <MapView center={effectiveCenter} zoom={effectiveZoom} />
         <MapSizeInvalidator
-          invalidateKey={`${points.length}-${(contactProfileIds ?? []).length}`}
+          invalidateKey={`${invalidateKey ?? ""}-${effectiveZoom}-${String(
+            effectiveCenter,
+          )}-${points.length}-${(contactProfileIds ?? []).length}`}
         />
 
         {points.map((p) => {

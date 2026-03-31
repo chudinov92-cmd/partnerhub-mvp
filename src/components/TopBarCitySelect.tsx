@@ -51,7 +51,7 @@ export function TopBarCitySelect() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-full border border-gray-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-800"
+        className="flex w-full items-center justify-between rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-800 sm:text-[11px]"
       >
         <span className="truncate">
           {selectedCity ? selectedCity : "Выберите город"}
@@ -69,7 +69,7 @@ export function TopBarCitySelect() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Найти город"
-              className="h-7 w-full rounded-full border border-slate-200 px-2 text-[11px] text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400"
+              className="h-9 w-full rounded-full border border-slate-200 px-3 text-base text-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 sm:h-7 sm:px-2 sm:text-[11px]"
             />
           </div>
           <div className="max-h-[min(60vh,280px)] overflow-y-auto px-1 pb-1">
@@ -80,7 +80,7 @@ export function TopBarCitySelect() {
                 setOpen(false);
                 setSearch("");
               }}
-              className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-[11px] font-medium text-slate-800 hover:bg-slate-50"
+              className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 sm:py-1 sm:text-[11px]"
             >
               <span>{RUSSIA_LABEL}</span>
             </button>
@@ -99,7 +99,7 @@ export function TopBarCitySelect() {
                     setOpen(false);
                     setSearch("");
                   }}
-                  className="flex w-full items-center rounded-lg px-2 py-1 text-left text-[11px] text-slate-700 hover:bg-slate-50"
+                  className="flex w-full items-center rounded-lg px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 sm:py-1 sm:text-[11px]"
                 >
                   {city}
                 </button>
