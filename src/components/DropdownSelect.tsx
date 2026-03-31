@@ -115,7 +115,9 @@ export function DropdownSelect({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={searchPlaceholder ?? "Найти"}
                 className={
-                  "h-7 w-full rounded-full border px-2 text-[11px] text-slate-700 outline-none " +
+                  // iOS Safari auto-zooms on inputs with font-size < 16px.
+                  // Use 16px on mobile, keep compact size on >= sm.
+                  "h-9 w-full rounded-full border px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none sm:h-7 sm:px-2 sm:text-[11px] sm:text-slate-700 " +
                   (isProfile
                     ? "border-gray-200 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                     : "border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-400")
