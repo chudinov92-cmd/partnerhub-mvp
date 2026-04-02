@@ -29,6 +29,8 @@ const PIN_FILL_COLOR = "#10B981";
 const PIN_BORDER_COLOR = "#FFFFFF";
 /** Просмотренные профили: делаем обводку серой */
 const PIN_VIEWED_BORDER_COLOR = "#9CA3AF";
+/** Выбранный профиль (после "Показать на карте") */
+const PIN_FOCUSED_BORDER_COLOR = "#F59E0B";
 
 function hashToSeed(str: string) {
   // Deterministic 32-bit hash for stable obfuscation.
@@ -160,6 +162,8 @@ export type PartnerMapProps = {
   onOpenProfile?: (profile: PartnerMapProps["profiles"][number]) => void;
   contactProfileIds?: string[];
   viewedProfileIds?: string[];
+  /** Если задано — перелететь к пину и выделить его */
+  focusedProfileId?: string | null;
   /** Меняйте значение при show/hide контейнера карты (моб. табы и т.п.) */
   invalidateKey?: string;
   center?: LatLngExpression;
@@ -213,6 +217,23 @@ function MapSizeInvalidator({ invalidateKey }: { invalidateKey: string }) {
   return null;
 }
 
+function FocusOnTarget({
+  target,
+}: {
+  target: { lat: number; lng: number } | null;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!target) return;
+    const current = map.getZoom();
+    const nextZoom = Math.max(current, 13);
+    map.flyTo([target.lat, target.lng], nextZoom, { duration: 0.6 });
+  }, [target, map]);
+
+  return null;
+}
+
 // Leaflet Popup якорится к координатам маркера, поэтому поп-ап
 // визуально "привязан". Для требований "в центре экрана" используем
 // отдельный React-overlay (см. рендер ниже).
@@ -223,6 +244,7 @@ export function PartnerMap({
   onOpenProfile,
   contactProfileIds,
   viewedProfileIds,
+  focusedProfileId,
   invalidateKey,
   profiles,
   center,
@@ -269,7 +291,29 @@ export function PartnerMap({
   void onToggleContact;
   void contactProfileIds;
   void viewedProfileIds;
+  void focusedProfileId;
   void invalidateKey;
+
+  const obfByUserId = useMemo(() => {
+    const map = new Map<string, { lat: number; lng: number }>();
+    for (const p of points) {
+      map.set(
+        p.user_id,
+        obfuscateLatLngWithinRadius(
+          p.lat,
+          p.lng,
+          p.user_id,
+          GEO_PRIVACY_RADIUS_M,
+        ),
+      );
+    }
+    return map;
+  }, [points]);
+
+  const focusedTarget = useMemo(() => {
+    if (!focusedProfileId) return null;
+    return obfByUserId.get(focusedProfileId) ?? null;
+  }, [focusedProfileId, obfByUserId]);
 
   return (
     <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
@@ -286,6 +330,7 @@ export function PartnerMap({
         />
 
         <MapView center={effectiveCenter} zoom={effectiveZoom} />
+        <FocusOnTarget target={focusedTarget} />
         <MapSizeInvalidator
           invalidateKey={`${invalidateKey ?? ""}-${effectiveZoom}-${String(
             effectiveCenter,
@@ -298,19 +343,22 @@ export function PartnerMap({
           const online = isOnline(profile?.last_seen_at ?? null);
           const initial = pinInitial(profile?.full_name);
           const isViewed = (viewedProfileIds ?? []).includes(profile.id);
+          const isFocused =
+            focusedProfileId != null && focusedProfileId === profile.id;
           const pinIcon = getOrCreatePinIconColored(
             pinIconCacheRef.current,
             initial,
             PIN_FILL_COLOR,
-            isViewed ? PIN_VIEWED_BORDER_COLOR : PIN_BORDER_COLOR,
+            isFocused
+              ? PIN_FOCUSED_BORDER_COLOR
+              : isViewed
+                ? PIN_VIEWED_BORDER_COLOR
+                : PIN_BORDER_COLOR,
           );
-          const obf = obfuscateLatLngWithinRadius(
-            p.lat,
-            p.lng,
-            // Seed by user_id so the pin stays stable for the same user.
-            p.user_id,
-            GEO_PRIVACY_RADIUS_M,
-          );
+          const obf = obfByUserId.get(p.user_id) ?? {
+            lat: p.lat,
+            lng: p.lng,
+          };
 
           return (
             <Marker

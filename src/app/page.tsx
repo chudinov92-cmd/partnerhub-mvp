@@ -39,6 +39,7 @@ type Post = {
   body: string | null;
   city: string | null;
   created_at: string;
+  edited_at?: string | null;
   author_id: string;
   // Структура автора приходит из Supabase как вложенный объект/массив,
   // для простоты типизируем как any и обрабатываем на уровне рендера.
@@ -48,6 +49,7 @@ type Post = {
 export type Profile = {
   id: string;
   full_name: string | null;
+  age?: number | null;
   city: string | null;
   rating_avg: number | null;
   rating_count: number | null;
@@ -270,6 +272,8 @@ type FeedFilters = {
   industry: string | null;
   subindustry: string | null;
   current_status: string | null;
+  age_from: number | null;
+  age_to: number | null;
 };
 
 const DEFAULT_FEED_FILTERS: FeedFilters = {
@@ -277,6 +281,8 @@ const DEFAULT_FEED_FILTERS: FeedFilters = {
   industry: null,
   subindustry: null,
   current_status: null,
+  age_from: null,
+  age_to: null,
 };
 
 type CurrentUser = {
@@ -291,6 +297,7 @@ type ChatMessage = {
   content: string;
   sender_id: string;
   created_at: string;
+  edited_at?: string | null;
 };
 
 export default function Home() {
@@ -302,11 +309,14 @@ export default function Home() {
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Лента общего чата грузится отдельно по выбранному в шапке городу (или «Россия»). */
+  const [postsLoading, setPostsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
   );
   const [feedFiltersOpen, setFeedFiltersOpen] = useState(false);
+  const [mapViewMode, setMapViewMode] = useState<"map" | "list">("map");
   const [feedFilters, setFeedFilters] = useState<FeedFilters>(
     () => DEFAULT_FEED_FILTERS,
   );
@@ -314,15 +324,19 @@ export default function Home() {
     feedFilters.profession ||
       feedFilters.industry ||
       feedFilters.subindustry ||
-      feedFilters.current_status,
+      feedFilters.current_status ||
+      feedFilters.age_from != null ||
+      feedFilters.age_to != null,
   );
   const [newPostBody, setNewPostBody] = useState("");
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<Profile | null>(null);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
@@ -332,6 +346,7 @@ export default function Home() {
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
     useState<Profile | null>(null);
+  const [focusedProfileId, setFocusedProfileId] = useState<string | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
@@ -512,58 +527,25 @@ export default function Home() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        const [
-          { data: postsData, error: postsError },
-          { data: profilesData, error: profilesError },
-          currentProfileResult,
-        ] = await Promise.all([
-          supabase
-            .from("posts")
-            .select(
-              "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
-            )
-            .order("created_at", { ascending: false })
-            .limit(20),
-          supabase
-            .from("profiles")
-            .select(
-              "id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, rating_avg, rating_count",
-            )
-            .limit(50),
-          user
-            ? supabase
-                .from("profiles")
-                .select("id, full_name, city, is_blocked")
-                .eq("auth_user_id", user.id)
-                .maybeSingle()
-            : Promise.resolve({ data: null, error: null }),
-        ] as const);
+        const [{ data: profilesData, error: profilesError }, currentProfileResult] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select(
+                "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, rating_avg, rating_count",
+              )
+              .limit(50),
+            user
+              ? supabase
+                  .from("profiles")
+                  .select("id, full_name, city, is_blocked")
+                  .eq("auth_user_id", user.id)
+                  .maybeSingle()
+              : Promise.resolve({ data: null, error: null }),
+          ] as const);
 
-        if (postsError) throw postsError;
         if (profilesError) throw profilesError;
 
-        setPosts(postsData ?? []);
-        const postIds = (postsData ?? []).map((p: any) => p.id as string);
-        if (postIds.length > 0) {
-          const { data: commentsData, error: commentsErr } = await supabase
-            .from("post_comments")
-            .select(
-              "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
-            )
-            .in("post_id", postIds)
-            .order("post_id", { ascending: true })
-            .order("created_at", { ascending: true });
-          if (commentsErr) {
-            console.warn("post_comments load failed", commentsErr);
-            setCommentsByPostId({});
-          } else if (commentsData) {
-            setCommentsByPostId(
-              groupCommentsByPostId(commentsData as PostCommentRow[]),
-            );
-          }
-        } else {
-          setCommentsByPostId({});
-        }
         const allProfiles = (profilesData ?? []) as Profile[];
         setProfiles(allProfiles);
 
@@ -705,6 +687,68 @@ export default function Home() {
     load();
   }, []);
 
+  // Общий чат привязан к выбранному в шапке городу; «Россия» — отдельная лента (city = 'Россия').
+  useEffect(() => {
+    let cancelled = false;
+    setPostsLoading(true);
+
+    (async () => {
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select(
+          "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
+        )
+        .eq("city", selectedCity)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (cancelled) return;
+
+      if (postsError) {
+        console.warn("posts load failed", postsError);
+        setPosts([]);
+        setCommentsByPostId({});
+        setPostsLoading(false);
+        return;
+      }
+
+      setPosts((postsData ?? []) as Post[]);
+      const postIds = (postsData ?? []).map((p: any) => p.id as string);
+      if (postIds.length > 0) {
+        const { data: commentsData, error: commentsErr } = await supabase
+          .from("post_comments")
+          .select(
+            "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
+          )
+          .in("post_id", postIds)
+          .order("post_id", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (cancelled) return;
+        if (commentsErr) {
+          console.warn("post_comments load failed", commentsErr);
+          setCommentsByPostId({});
+        } else if (commentsData) {
+          setCommentsByPostId(
+            groupCommentsByPostId(commentsData as PostCommentRow[]),
+          );
+        }
+      } else {
+        setCommentsByPostId({});
+      }
+      setPostsLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCity]);
+
+  useEffect(() => {
+    setEditingPostId(null);
+    setNewPostBody("");
+    setCreateError(null);
+  }, [selectedCity]);
+
   // Автооткрытие чата, если пришли с параметром ?chat=profileId
   useEffect(() => {
     if (!currentUser || !profiles.length) return;
@@ -718,15 +762,15 @@ export default function Home() {
     }
   }, [currentUser, profiles]);
 
-  // Периодически подтягиваем новые сообщения для общего чата,
-  // чтобы поведение было ближе к мессенджеру.
+  // Периодически подтягиваем новые сообщения для общего чата текущего города.
   useEffect(() => {
     const interval = setInterval(async () => {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
+          "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
         )
+        .eq("city", selectedCity)
         .order("created_at", { ascending: false })
         .limit(20);
 
@@ -752,7 +796,7 @@ export default function Home() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedCity]);
 
   // Реальное время для личных сообщений
   useEffect(() => {
@@ -817,6 +861,51 @@ export default function Home() {
           }
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        async (payload) => {
+          const msg = payload.new as ChatMessage & { chat_id: string };
+
+          // Игнорируем апдейты от заблокированных пользователей
+          if (blockedProfileIds.includes(msg.sender_id)) return;
+
+          try {
+            // Проверяем, что текущий пользователь участник этого чата
+            const { data: members, error } = await supabase
+              .from("chat_members")
+              .select("user_id")
+              .eq("chat_id", (msg as any).chat_id);
+
+            if (error || !members) return;
+
+            const memberIds = members.map((m) => m.user_id as string);
+            if (!memberIds.includes(currentUser.profileId)) return;
+
+            if (activeChatId === (msg as any).chat_id) {
+              setChatMessages((prev) =>
+                prev.map((m) => (m.id === msg.id ? (msg as ChatMessage) : m)),
+              );
+            }
+
+            // Обновляем превью последнего сообщения в списке чатов, если редактировали последнее
+            setChatList((prev) => {
+              const chatId = (msg as any).chat_id as string;
+              const idx = prev.findIndex((x) => x.chatId === chatId);
+              if (idx < 0) return prev;
+              const next = [...prev];
+              const item = {
+                ...next[idx],
+                lastMessagePreview: String((msg as any).content ?? "").trim(),
+              };
+              next[idx] = item;
+              return next;
+            });
+          } catch {
+            // ignore
+          }
+        },
+      )
       .subscribe();
 
     return () => {
@@ -845,6 +934,12 @@ export default function Home() {
         if ((a.current_status ?? null) !== feedFilters.current_status)
           return false;
       }
+      if (feedFilters.age_from != null || feedFilters.age_to != null) {
+        const age = typeof a.age === "number" ? a.age : null;
+        if (age == null) return false;
+        if (feedFilters.age_from != null && age < feedFilters.age_from) return false;
+        if (feedFilters.age_to != null && age > feedFilters.age_to) return false;
+      }
       return true;
       })
       .slice()
@@ -862,7 +957,7 @@ export default function Home() {
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
-  }, [visiblePosts, loading, feedFilters]);
+  }, [visiblePosts, loading, postsLoading, feedFilters]);
 
   const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
     [],
@@ -946,6 +1041,12 @@ export default function Home() {
       if (feedFilters.current_status) {
         if ((p.current_status ?? null) !== feedFilters.current_status)
           return false;
+      }
+      if (feedFilters.age_from != null || feedFilters.age_to != null) {
+        const age = typeof p.age === "number" ? p.age : null;
+        if (age == null) return false;
+        if (feedFilters.age_from != null && age < feedFilters.age_from) return false;
+        if (feedFilters.age_to != null && age > feedFilters.age_to) return false;
       }
       return true;
     });
@@ -1144,26 +1245,44 @@ export default function Home() {
     try {
       const maskedBody = maskProfanity(newPostBody.trim()) ?? "";
       const body = maskedBody.slice(0, 1000);
-      const { data, error } = await supabase
-        .from("posts")
-        .insert({
-          author_id: currentUser.profileId,
-          title: "Общий чат",
-          body,
-          city: currentUser.city,
-        })
-        .select(
-          "id, body, city, created_at, author_id, author:profiles(full_name, role_title, last_seen_at, current_status, industry, subindustry)",
-        )
-        .single();
+      if (editingPostId) {
+        const { data, error } = await supabase
+          .from("posts")
+          .update({ body })
+          .eq("id", editingPostId)
+          .select(
+            "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
+          )
+          .single();
+        if (error) throw error;
 
-      if (error) throw error;
+        setPosts((prev) =>
+          prev.map((p) => (p.id === editingPostId ? (data as Post) : p)),
+        );
+        setEditingPostId(null);
+        setNewPostBody("");
+      } else {
+        const { data, error } = await supabase
+          .from("posts")
+          .insert({
+            author_id: currentUser.profileId,
+            title: "Общий чат",
+            body,
+            city: selectedCity,
+          })
+          .select(
+            "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
+          )
+          .single();
 
-      setPosts((prev) => {
-        const next = [data as Post, ...prev];
-        return next.slice(0, 20);
-      });
-      setNewPostBody("");
+        if (error) throw error;
+
+        setPosts((prev) => {
+          const next = [data as Post, ...prev];
+          return next.slice(0, 20);
+        });
+        setNewPostBody("");
+      }
     } catch (err: any) {
       setCreateError(err.message ?? "Не удалось отправить сообщение.");
     } finally {
@@ -1276,7 +1395,7 @@ export default function Home() {
       // Загружаем последние 5 сообщений
       let msgsQuery = supabase
         .from("messages")
-        .select("id, content, sender_id, created_at")
+        .select("id, content, sender_id, created_at, edited_at")
         .eq("chat_id", chatId);
 
       if (blockedProfileIds.includes(profile.id)) {
@@ -1291,6 +1410,8 @@ export default function Home() {
 
       const normalized = (msgsData ?? []).reverse() as ChatMessage[];
       setChatMessages(normalized);
+      setEditingMessageId(null);
+      setChatInput("");
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
     } catch (err: any) {
       setChatError(err.message ?? "Не удалось открыть диалог.");
@@ -1327,35 +1448,65 @@ export default function Home() {
       // Personal messages: do not mask profanity (per product rule)
       const content = chatInput.trim().slice(0, 1000);
 
-      const { data, error } = await supabase
-        .from("messages")
-        .insert({
-          chat_id: activeChatId,
-          sender_id: currentUser.profileId,
-          content,
-        })
-        .select("id, content, sender_id, created_at")
-        .single();
+      if (editingMessageId) {
+        const { data, error } = await supabase
+          .from("messages")
+          .update({ content })
+          .eq("id", editingMessageId)
+          .select("id, content, sender_id, created_at, edited_at")
+          .single();
+        if (error) throw error;
 
-      if (error) throw error;
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === editingMessageId ? (data as ChatMessage) : m)),
+        );
+        setEditingMessageId(null);
+        setChatInput("");
 
-      setChatMessages((prev) => [...prev, data as ChatMessage]);
-      setChatInput("");
+        // Если редактировали последнее сообщение — обновим превью в списке
+        setChatList((prev) => {
+          if (!activeChatId) return prev;
+          const idx = prev.findIndex((x) => x.chatId === activeChatId);
+          if (idx < 0) return prev;
+          const next = [...prev];
+          const item = {
+            ...next[idx],
+            lastMessagePreview: content,
+          };
+          next[idx] = item;
+          return next;
+        });
+      } else {
+        const { data, error } = await supabase
+          .from("messages")
+          .insert({
+            chat_id: activeChatId,
+            sender_id: currentUser.profileId,
+            content,
+          })
+          .select("id, content, sender_id, created_at, edited_at")
+          .single();
 
-      // Поднимаем чат вверх в списке по отправке
-      setChatList((prev) => {
-        if (!activeChatId) return prev;
-        const idx = prev.findIndex((x) => x.chatId === activeChatId);
-        if (idx < 0) return prev;
-        const next = [...prev];
-        const item = {
-          ...next[idx],
-          lastMessageAt: (data as any).created_at,
-          lastMessagePreview: content,
-        };
-        next.splice(idx, 1);
-        return [item, ...next];
-      });
+        if (error) throw error;
+
+        setChatMessages((prev) => [...prev, data as ChatMessage]);
+        setChatInput("");
+
+        // Поднимаем чат вверх в списке по отправке
+        setChatList((prev) => {
+          if (!activeChatId) return prev;
+          const idx = prev.findIndex((x) => x.chatId === activeChatId);
+          if (idx < 0) return prev;
+          const next = [...prev];
+          const item = {
+            ...next[idx],
+            lastMessageAt: (data as any).created_at,
+            lastMessagePreview: content,
+          };
+          next.splice(idx, 1);
+          return [item, ...next];
+        });
+      }
     } catch (err: any) {
       setChatError(err.message ?? "Не удалось отправить сообщение.");
     } finally {
@@ -1448,19 +1599,26 @@ export default function Home() {
             >
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 7.5 7.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
             </svg>
-            <h1 className="font-semibold text-slate-900">Общий чат</h1>
+            <h1 className="min-w-0 font-semibold leading-tight text-slate-900">
+              <span className="block">Общий чат</span>
+              <span className="block truncate text-xs font-normal text-slate-500">
+                {selectedCity}
+              </span>
+            </h1>
           </header>
 
           <div
             ref={feedScrollRef}
             className="min-h-0 flex-1 overflow-y-auto px-4"
           >
-          {loading && <p className="py-2 text-sm text-slate-500">Загрузка...</p>}
+          {(loading || postsLoading) && (
+            <p className="py-2 text-sm text-slate-500">Загрузка...</p>
+          )}
           {error && <p className="py-2 text-sm text-red-600">{error}</p>}
 
-          {!loading && posts.length === 0 && (
+          {!loading && !postsLoading && posts.length === 0 && (
             <p className="py-2 text-sm text-slate-500">
-              Пока нет запросов. Создай первый пост позже — мы добавим форму.
+              В чате «{selectedCity}» пока нет сообщений. Напишите первым.
             </p>
           )}
 
@@ -1543,9 +1701,26 @@ export default function Home() {
                         {body ? (
                           <p className="mb-1 text-sm text-slate-600">{text}</p>
                         ) : null}
-                        <span className="text-xs text-gray-400">
-                          {post.created_at ? formatDateTime(post.created_at) : ""}
-                        </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-400">
+                            {post.created_at ? formatDateTime(post.created_at) : ""}
+                            {post.edited_at ? " · изменено" : ""}
+                          </span>
+                          {currentUser?.profileId &&
+                          post.author_id === currentUser.profileId ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPostId(post.id);
+                                setNewPostBody(post.body ?? "");
+                              }}
+                              className="text-xs font-medium text-emerald-600 hover:underline"
+                            >
+                              Изменить
+                            </button>
+                          ) : null}
+                        </div>
                         {shouldTruncate && (
                           <button
                             type="button"
@@ -1591,6 +1766,23 @@ export default function Home() {
                 }
               }}
             />
+            {editingPostId ? (
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-amber-600">
+                  Режим редактирования
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPostId(null);
+                    setNewPostBody("");
+                  }}
+                  className="text-[11px] font-medium text-slate-600 hover:underline"
+                >
+                  Отмена
+                </button>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400">
                 {newPostBody.length}/1000
@@ -1600,7 +1792,11 @@ export default function Home() {
                 disabled={creating}
                 className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
               >
-                {creating ? "Отправляем..." : "Отправить"}
+                {creating
+                  ? "Отправляем..."
+                  : editingPostId
+                    ? "Сохранить"
+                    : "Отправить"}
               </button>
             </div>
             {createError && (
@@ -1620,7 +1816,7 @@ export default function Home() {
             <div className="pointer-events-none absolute inset-0 z-[1100]">
               <div
                 ref={feedFiltersRef}
-                className="pointer-events-auto absolute top-[10px] right-[10px] z-[1200]"
+                className="pointer-events-auto absolute top-[10px] right-[10px] z-[1200] flex items-center gap-2"
               >
               <button
                 type="button"
@@ -1637,6 +1833,26 @@ export default function Home() {
                   src="/Icons/Sliders.svg"
                   alt="Настройки"
                   className={`h-4 w-4 ${hasActiveFeedFilters ? "invert" : ""}`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setMapViewMode((v) => (v === "map" ? "list" : "map"))
+                }
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border p-0 text-slate-900 shadow-sm transition hover:scale-105 ${
+                  mapViewMode === "list"
+                    ? "border-[#009966] bg-[#009966] hover:bg-[#009966]/90"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
+                aria-label={mapViewMode === "map" ? "Список" : "Карта"}
+                title={mapViewMode === "map" ? "Список" : "Карта"}
+              >
+                <img
+                  src={mapViewMode === "map" ? "/Icons/List.svg" : "/Icons/Map.svg"}
+                  alt={mapViewMode === "map" ? "Список" : "Карта"}
+                  className={`h-4 w-4 ${mapViewMode === "list" ? "invert" : ""}`}
                 />
               </button>
 
@@ -1800,6 +2016,74 @@ export default function Home() {
                       />
                     </div>
 
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Возраст
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[10px] text-slate-500">
+                            От
+                          </label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={80}
+                            value={feedFilters.age_from ?? ""}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const n = raw === "" ? null : Number(raw);
+                              const next: FeedFilters = {
+                                ...feedFilters,
+                                age_from:
+                                  raw === "" ? null : Number.isFinite(n) ? n : null,
+                              };
+                              setFeedFilters(next);
+                              if (typeof window !== "undefined") {
+                                window.localStorage.setItem(
+                                  "feed_filters",
+                                  JSON.stringify(next),
+                                );
+                              }
+                            }}
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+                            placeholder="0"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] text-slate-500">
+                            До
+                          </label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={80}
+                            value={feedFilters.age_to ?? ""}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const n = raw === "" ? null : Number(raw);
+                              const next: FeedFilters = {
+                                ...feedFilters,
+                                age_to:
+                                  raw === "" ? null : Number.isFinite(n) ? n : null,
+                              };
+                              setFeedFilters(next);
+                              if (typeof window !== "undefined") {
+                                window.localStorage.setItem(
+                                  "feed_filters",
+                                  JSON.stringify(next),
+                                );
+                              }
+                            }}
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+                            placeholder="80"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="mt-2 flex items-center justify-between">
                       <button
                         type="button"
@@ -1829,28 +2113,111 @@ export default function Home() {
               )}
               </div>
             </div>
-            <PartnerMap
-              profiles={filteredProfilesForMap}
-              contactProfileIds={contactProfileIds}
-              viewedProfileIds={viewedProfileIds}
-              invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}`}
-              center={mapConfig.center}
-              zoom={mapConfig.zoom}
-              onOpenProfile={(p) => {
-                const full = profiles.find((x) => x.id === p.id) ?? null;
-                setActiveProfileOverlay(full);
-                if (full) void markProfileViewed(full.id);
-              }}
-              onOpenChat={(profileId) => {
-                const p = profiles.find((pr) => pr.id === profileId);
-                if (p) {
-                  openChatWithProfile(p);
-                }
-              }}
-              onToggleContact={(profileId) => {
-                toggleContact(profileId);
-              }}
-            />
+            {mapViewMode === "map" ? (
+              <PartnerMap
+                profiles={filteredProfilesForMap}
+                contactProfileIds={contactProfileIds}
+                viewedProfileIds={viewedProfileIds}
+                focusedProfileId={focusedProfileId}
+                invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}`}
+                center={mapConfig.center}
+                zoom={mapConfig.zoom}
+                onOpenProfile={(p) => {
+                  const full = profiles.find((x) => x.id === p.id) ?? null;
+                  setActiveProfileOverlay(full);
+                  setFocusedProfileId(null);
+                  if (full) void markProfileViewed(full.id);
+                }}
+                onOpenChat={(profileId) => {
+                  const p = profiles.find((pr) => pr.id === profileId);
+                  if (p) {
+                    openChatWithProfile(p);
+                  }
+                }}
+                onToggleContact={(profileId) => {
+                  toggleContact(profileId);
+                }}
+              />
+            ) : (
+              <div className="h-full min-h-0 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Профили
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Сортировка: рейтинг по убыванию
+                  </p>
+                </div>
+                <div className="space-y-2 p-3">
+                  {filteredProfilesForMap
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        (b.rating_count ?? 0) - (a.rating_count ?? 0),
+                    )
+                    .map((p) => {
+                      const name = p.full_name || "Пользователь";
+                      const initial = (name[0] || "?").toUpperCase();
+                      const industry = (p.industry ?? "").trim();
+                      const sub = (p.subindustry ?? "").trim();
+                      const role = (p.role_title ?? "").trim();
+                      const age =
+                        typeof (p as any).age === "number" ? (p as any).age : null;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveProfileOverlay(p);
+                            setFocusedProfileId(null);
+                            void markProfileViewed(p.id);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-white">
+                            {initial}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">
+                                  {name}
+                                </p>
+                                <p className="truncate text-xs text-slate-500">
+                                  {p.city || "Город не указан"}
+                                  {age != null ? ` · ${age} лет` : ""}
+                                </p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <p className="text-xs font-semibold text-amber-600">
+                                  ★ {p.rating_count ?? 0}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {role ? (
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                                  {role}
+                                </span>
+                              ) : null}
+                              {industry ? (
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                                  {industry}
+                                </span>
+                              ) : null}
+                              {sub ? (
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                                  {sub}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -2047,22 +2414,37 @@ export default function Home() {
                     {chatMessages.map((m) => (
                       <div
                         key={m.id}
-                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-xs ${
+                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-[12px] ${
                           m.sender_id === currentUser?.profileId
                             ? "ml-auto bg-[#009966] text-white"
                             : "mr-auto bg-slate-50/70 text-slate-900"
                         }`}
                       >
                         <p>{m.content}</p>
-                        <p
-                          className={`mt-1 text-[10px] ${
+                        <div
+                          className={`mt-1 flex items-center justify-between gap-2 text-[10px] ${
                             m.sender_id === currentUser?.profileId
                               ? "text-white/80"
                               : "text-slate-400"
                           }`}
                         >
-                          {m.created_at ? formatDateTime(m.created_at) : ""}
-                        </p>
+                          <span className="truncate">
+                            {m.created_at ? formatDateTime(m.created_at) : ""}
+                            {m.edited_at ? " · изменено" : ""}
+                          </span>
+                          {m.sender_id === currentUser?.profileId ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMessageId(m.id);
+                                setChatInput(m.content ?? "");
+                              }}
+                              className="shrink-0 underline-offset-2 hover:underline"
+                            >
+                              Изменить
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     ))}
                     {chatMessages.length === 0 && !chatLoading && (
@@ -2099,6 +2481,23 @@ export default function Home() {
                     }
                   }}
                 />
+                {editingMessageId ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-amber-600">
+                      Режим редактирования
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingMessageId(null);
+                        setChatInput("");
+                      }}
+                      className="text-[11px] font-medium text-slate-600 hover:underline"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-400">
                     {chatInput.length}/1000
@@ -2108,7 +2507,11 @@ export default function Home() {
                     disabled={chatSending || !chatInput.trim()}
                     className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
                   >
-                    {chatSending ? "Отправляем..." : "Отправить"}
+                    {chatSending
+                      ? "Отправляем..."
+                      : editingMessageId
+                        ? "Сохранить"
+                        : "Отправить"}
                   </button>
                 </div>
               </form>
@@ -2133,6 +2536,26 @@ export default function Home() {
             }}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}
+            onShowOnMap={() => {
+              setFocusedProfileId(activeProfileOverlay.id);
+              setActiveProfileOverlay(null);
+              setMobileTab("map");
+            }}
+            onFilterProfession={(profession) => {
+              const next: FeedFilters = {
+                ...feedFilters,
+                profession: profession || null,
+              };
+              setFeedFilters(next);
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(
+                  "feed_filters",
+                  JSON.stringify(next),
+                );
+              }
+              setActiveProfileOverlay(null);
+              setMobileTab("map");
+            }}
             onWrite={() => {
               openChatWithProfile(activeProfileOverlay);
               setActiveProfileOverlay(null);

@@ -128,6 +128,10 @@ type ProfilePreviewCardProps = {
   onWrite: () => void;
   profileHref: string;
   onClose?: () => void;
+  /** При клике по городу показать пин на карте */
+  onShowOnMap?: () => void;
+  /** При клике по профессии применить фильтр */
+  onFilterProfession?: (profession: string) => void;
   showContactButton?: boolean;
   isInContacts?: boolean;
   onToggleContact?: () => void;
@@ -149,6 +153,8 @@ export function ProfilePreviewCard({
   onWrite,
   profileHref,
   onClose,
+  onShowOnMap,
+  onFilterProfession,
   showContactButton,
   isInContacts,
   onToggleContact,
@@ -231,14 +237,36 @@ export function ProfilePreviewCard({
               </div>
 
               {profile.role_title ? (
-                <span className="mb-2 inline-block rounded-md bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
-                  {profile.role_title}
-                </span>
+                onFilterProfession ? (
+                  <button
+                    type="button"
+                    onClick={() => onFilterProfession(profile.role_title as string)}
+                    className="mb-2 inline-block max-w-full rounded-md bg-white/20 px-2.5 py-0.5 text-left text-xs font-medium text-white backdrop-blur-sm hover:bg-white/25 hover:underline underline-offset-2"
+                    title="Показать на карте специалистов этой профессии"
+                  >
+                    <span className="truncate">{profile.role_title}</span>
+                  </button>
+                ) : (
+                  <span className="mb-2 inline-block rounded-md bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                    {profile.role_title}
+                  </span>
+                )
               ) : null}
 
               <div className="mt-1 flex items-center gap-1.5 text-sm text-white/90">
                 <IconMapPin className="h-4 w-4 shrink-0" />
-                <span>{profile.city?.trim() || "Город не указан"}</span>
+                {onShowOnMap ? (
+                  <button
+                    type="button"
+                    onClick={onShowOnMap}
+                    className="truncate text-left underline-offset-2 hover:underline"
+                    title="Показать на карте"
+                  >
+                    {profile.city?.trim() || "Город не указан"}
+                  </button>
+                ) : (
+                  <span>{profile.city?.trim() || "Город не указан"}</span>
+                )}
               </div>
             </div>
           </div>

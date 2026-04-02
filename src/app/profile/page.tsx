@@ -197,6 +197,7 @@ const SORTED_CURRENT_STATUS_OPTIONS: CurrentStatusOption[] = [
 type Profile = {
   id: string;
   full_name: string | null;
+  age: number | null;
   country: string | null;
   city: string | null;
   industry: string | null;
@@ -352,7 +353,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
+            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -370,7 +371,7 @@ export default function ProfilePage() {
               auth_user_id: user.id,
             })
             .select(
-              "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
+              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
             )
             .single();
 
@@ -573,6 +574,7 @@ export default function ProfilePage() {
         .from("profiles")
         .update({
           full_name: maskProfanity(profile.full_name),
+          age: profile.age,
           country: profile.country,
           city: profile.city,
           industry: profile.industry,
@@ -754,20 +756,46 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-4">
-            {/* Имя */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Имя
-              </label>
-              <input
-                type="text"
-                value={profile.full_name ?? ""}
-                onChange={(e) =>
-                  setProfile({ ...profile, full_name: e.target.value.slice(0, 40) })
-                }
-                maxLength={40}
-                className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
+            {/* Имя / возраст */}
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Имя
+                </label>
+                <input
+                  type="text"
+                  value={profile.full_name ?? ""}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      full_name: e.target.value.slice(0, 25),
+                    })
+                  }
+                  maxLength={25}
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Ваш возраст
+                </label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={80}
+                  value={profile.age ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const n = raw === "" ? null : Number(raw);
+                    setProfile({
+                      ...profile,
+                      age: raw === "" ? null : Number.isFinite(n) ? n : null,
+                    });
+                  }}
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+              </div>
             </div>
 
             {/* Страна / город */}
