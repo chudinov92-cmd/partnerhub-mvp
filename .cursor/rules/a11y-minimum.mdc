@@ -1,0 +1,19 @@
+---
+description: Minimum accessibility checklist for UI changes
+globs: **/*.{tsx,jsx}
+alwaysApply: false
+---
+
+## A11y minimum (do every time)
+- Every input has a **label** (visible or `sr-only`) and `id` wiring.
+- Buttons/links have **clear text**; icon-only requires `aria-label`.
+- Focus is visible (`focus-visible:*`), and keyboard navigation works.
+- Use `aria-current`, `aria-selected`, `aria-expanded` where appropriate.
+- Provide `alt` for meaningful images; `alt=""` for decorative.
+
+## Forms
+- Error message is connected via `aria-describedby`.
+- Invalid state sets `aria-invalid="true"`.
+
+## Tables/lists/menus
+- Prefer native semantics first; only use ARIA roles when necessary.

@@ -316,6 +316,16 @@ export function TopBar() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/about");
+                    }}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    О проекте
+                  </button>
+                  <button
+                    type="button"
                     onClick={async () => {
                       setMenuOpen(false);
                       await supabase.auth.signOut();

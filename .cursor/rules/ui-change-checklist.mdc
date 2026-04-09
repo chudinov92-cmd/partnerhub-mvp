@@ -1,0 +1,13 @@
+---
+description: Definition of done for UI PRs (fast startup bar)
+globs: **/*.{tsx,jsx,css,scss}
+alwaysApply: false
+---
+
+## DoD (fast, but not sloppy)
+- Responsive: looks OK at **375px** and a desktop width.
+- States: loading/empty/error covered where relevant.
+- Spacing: uses a consistent scale (no “random” margins).
+- Copy: clear headings, helpful empty states, no placeholder lorem.
+- A11y: passes the minimum checklist rule.
+- Performance: avoid re-render loops; no giant client components without need.

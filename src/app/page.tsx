@@ -272,6 +272,7 @@ type FeedFilters = {
   industry: string | null;
   subindustry: string | null;
   current_status: string | null;
+  online_status: "online" | "offline" | null;
   age_from: number | null;
   age_to: number | null;
 };
@@ -281,6 +282,7 @@ const DEFAULT_FEED_FILTERS: FeedFilters = {
   industry: null,
   subindustry: null,
   current_status: null,
+  online_status: null,
   age_from: null,
   age_to: null,
 };
@@ -311,6 +313,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   /** Лента общего чата грузится отдельно по выбранному в шапке городу (или «Россия»). */
   const [postsLoading, setPostsLoading] = useState(true);
+  const [postsLoadError, setPostsLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
@@ -325,6 +328,7 @@ export default function Home() {
       feedFilters.industry ||
       feedFilters.subindustry ||
       feedFilters.current_status ||
+      feedFilters.online_status ||
       feedFilters.age_from != null ||
       feedFilters.age_to != null,
   );
@@ -691,16 +695,35 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     setPostsLoading(true);
+    setPostsLoadError(null);
 
     (async () => {
-      const { data: postsData, error: postsError } = await supabase
-        .from("posts")
-        .select(
-          "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-        )
-        .eq("city", selectedCity)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      // Если колонка moderation_status ещё не добавлена в БД, запрос с фильтром упадёт.
+      // Делаем fallback на старую схему (показываем всё как раньше).
+      let postsData: any[] | null = null;
+      let postsError: any = null;
+      {
+        const mk = () =>
+          supabase
+            .from("posts")
+            .select(
+              "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
+            )
+            .eq("city", selectedCity)
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+        const r1 = await mk().or(
+          "moderation_status.eq.active,moderation_status.is.null",
+        );
+        if (!r1.error) {
+          postsData = r1.data as any[] | null;
+        } else {
+          const r2 = await mk();
+          postsData = r2.data as any[] | null;
+          postsError = r2.error ?? null;
+        }
+      }
 
       if (cancelled) return;
 
@@ -708,6 +731,11 @@ export default function Home() {
         console.warn("posts load failed", postsError);
         setPosts([]);
         setCommentsByPostId({});
+        setPostsLoadError(
+          `Не удалось загрузить общий чат. ${String(
+            (postsError as any)?.message ?? postsError,
+          )}`,
+        );
         setPostsLoading(false);
         return;
       }
@@ -765,14 +793,30 @@ export default function Home() {
   // Периодически подтягиваем новые сообщения для общего чата текущего города.
   useEffect(() => {
     const interval = setInterval(async () => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(
-          "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-        )
-        .eq("city", selectedCity)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      let data: any[] | null = null;
+      let error: any = null;
+      {
+        const mk = () =>
+          supabase
+            .from("posts")
+            .select(
+              "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
+            )
+            .eq("city", selectedCity)
+            .order("created_at", { ascending: false })
+            .limit(20);
+
+        const r1 = await mk().or(
+          "moderation_status.eq.active,moderation_status.is.null",
+        );
+        if (!r1.error) {
+          data = r1.data as any[] | null;
+        } else {
+          const r2 = await mk();
+          data = r2.data as any[] | null;
+          error = r2.error ?? null;
+        }
+      }
 
       if (!error && data) {
         setPosts(data as Post[]);
@@ -913,6 +957,8 @@ export default function Home() {
     };
   }, [currentUser, activeChatId, blockedProfileIds]);
 
+  const [generalChatSearch, setGeneralChatSearch] = useState("");
+
   const visiblePosts = useMemo(() => {
     const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
 
@@ -934,6 +980,11 @@ export default function Home() {
         if ((a.current_status ?? null) !== feedFilters.current_status)
           return false;
       }
+      if (feedFilters.online_status) {
+        const online = isOnline(a.last_seen_at ?? null);
+        if (feedFilters.online_status === "online" && !online) return false;
+        if (feedFilters.online_status === "offline" && online) return false;
+      }
       if (feedFilters.age_from != null || feedFilters.age_to != null) {
         const age = typeof a.age === "number" ? a.age : null;
         if (age == null) return false;
@@ -949,6 +1000,22 @@ export default function Home() {
         return ta - tb; // сверху старые, снизу новые
       });
   }, [posts, feedFilters]);
+
+  const searchedVisiblePosts = useMemo(() => {
+    const q = generalChatSearch.trim().toLocaleLowerCase("ru-RU");
+    if (!q) return visiblePosts;
+
+    const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
+
+    return visiblePosts.filter((post) => {
+      const body = String(post.body ?? "").toLocaleLowerCase("ru-RU");
+      if (body.includes(q)) return true;
+      const a = normalizedAuthor(post.author);
+      const authorName = String(a?.full_name ?? "").toLocaleLowerCase("ru-RU");
+      const role = String(a?.role_title ?? "").toLocaleLowerCase("ru-RU");
+      return authorName.includes(q) || role.includes(q);
+    });
+  }, [visiblePosts, generalChatSearch]);
 
   useEffect(() => {
     const el = feedScrollRef.current;
@@ -1041,6 +1108,11 @@ export default function Home() {
       if (feedFilters.current_status) {
         if ((p.current_status ?? null) !== feedFilters.current_status)
           return false;
+      }
+      if (feedFilters.online_status) {
+        const online = isOnline(p.last_seen_at ?? null);
+        if (feedFilters.online_status === "online" && !online) return false;
+        if (feedFilters.online_status === "offline" && online) return false;
       }
       if (feedFilters.age_from != null || feedFilters.age_to != null) {
         const age = typeof p.age === "number" ? p.age : null;
@@ -1588,7 +1660,8 @@ export default function Home() {
             mobileTab === "chat" ? "flex" : "hidden"
           } lg:flex`}
         >
-          <header className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+          <header className="shrink-0 border-b border-gray-200 px-4 py-3">
+            <div className="flex items-start gap-2">
             <svg
               className="h-5 w-5 shrink-0 text-slate-900"
               viewBox="0 0 24 24"
@@ -1599,12 +1672,39 @@ export default function Home() {
             >
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 7.5 7.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
             </svg>
-            <h1 className="min-w-0 font-semibold leading-tight text-slate-900">
-              <span className="block">Общий чат</span>
-              <span className="block truncate text-xs font-normal text-slate-500">
-                {selectedCity}
-              </span>
-            </h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="min-w-0 font-semibold leading-tight text-slate-900">
+                <span className="block">Общий чат</span>
+                <span className="block truncate text-xs font-normal text-slate-500">
+                  {selectedCity}
+                </span>
+              </h1>
+
+              <div className="mt-2 flex items-center gap-2">
+                <label htmlFor="general-chat-search" className="sr-only">
+                  Поиск по сообщениям общего чата
+                </label>
+                <input
+                  id="general-chat-search"
+                  value={generalChatSearch}
+                  onChange={(e) => setGeneralChatSearch(e.target.value.slice(0, 60))}
+                  placeholder="Поиск по сообщениям…"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                />
+                {generalChatSearch.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => setGeneralChatSearch("")}
+                    className="shrink-0 rounded-lg px-2 py-2 text-xs font-semibold text-slate-600 transition hover:bg-gray-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                    aria-label="Очистить поиск"
+                    title="Очистить"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            </div>
           </header>
 
           <div
@@ -1615,6 +1715,9 @@ export default function Home() {
             <p className="py-2 text-sm text-slate-500">Загрузка...</p>
           )}
           {error && <p className="py-2 text-sm text-red-600">{error}</p>}
+          {postsLoadError && (
+            <p className="py-2 text-sm text-red-600">{postsLoadError}</p>
+          )}
 
           {!loading && !postsLoading && posts.length === 0 && (
             <p className="py-2 text-sm text-slate-500">
@@ -1622,10 +1725,19 @@ export default function Home() {
             </p>
           )}
 
+          {!loading &&
+            !postsLoading &&
+            posts.length > 0 &&
+            searchedVisiblePosts.length === 0 && (
+              <p className="py-2 text-sm text-slate-500">
+                Ничего не найдено по запросу «{generalChatSearch.trim()}».
+              </p>
+            )}
+
           {/* Список постов с прокруткой */}
           <div className="space-y-4 py-4">
             <ul className="space-y-1">
-              {visiblePosts.map((post) => {
+              {searchedVisiblePosts.map((post) => {
                 const isExpanded = expandedPosts.has(post.id);
                 const body = post.body || "";
                 const shouldTruncate = body.length > 200;
@@ -2018,6 +2130,36 @@ export default function Home() {
 
                     <div>
                       <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                        Онлайн / оффлайн
+                      </label>
+                      <DropdownSelect
+                        value={feedFilters.online_status ?? ""}
+                        placeholder="Любой"
+                        options={[
+                          { value: "", label: "Любой" },
+                          { value: "online", label: "Онлайн" },
+                          { value: "offline", label: "Оффлайн" },
+                        ]}
+                        onChange={(v) => {
+                          const next: FeedFilters = {
+                            ...feedFilters,
+                            online_status:
+                              v === "online" || v === "offline" ? v : null,
+                          };
+                          setFeedFilters(next);
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem(
+                              "feed_filters",
+                              JSON.stringify(next),
+                            );
+                          }
+                        }}
+                        menuClassName="text-[11px]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-600">
                         Возраст
                       </label>
                       <div className="grid grid-cols-2 gap-2">
@@ -2113,12 +2255,19 @@ export default function Home() {
               )}
               </div>
             </div>
+            {activeProfileOverlay ? (
+              <div
+                className="pointer-events-auto absolute inset-0 z-[1050] backdrop-blur-[2px] transition-[opacity,backdrop-filter] duration-200"
+                aria-hidden
+              />
+            ) : null}
             {mapViewMode === "map" ? (
               <PartnerMap
                 profiles={filteredProfilesForMap}
                 contactProfileIds={contactProfileIds}
                 viewedProfileIds={viewedProfileIds}
                 focusedProfileId={focusedProfileId}
+                currentUserProfileId={currentUser?.profileId ?? null}
                 invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}`}
                 center={mapConfig.center}
                 zoom={mapConfig.zoom}
@@ -2526,6 +2675,7 @@ export default function Home() {
             variant="floating"
             profile={activeProfileOverlay}
             online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
+            viewerProfileId={currentUser?.profileId ?? null}
             style={{
               left: "50%",
               // Keep the popup fully visible between TopBar (8vh) and bottom nav (8vh) on mobile.

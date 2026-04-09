@@ -131,21 +131,26 @@ function getOrCreatePinIcon(cache: Map<string, L.DivIcon>, letter: string) {
 function getOrCreatePinIconColored(
   cache: Map<string, L.DivIcon>,
   letter: string,
-  colorHex: string,
+  fillHex: string,
   borderColorHex: string,
+  options?: { letterColorHex?: string; stemHex?: string },
 ) {
-  const safeColor = escapeHtmlColor(colorHex, PIN_FILL_COLOR);
+  const safeFill = escapeHtmlColor(fillHex, PIN_FILL_COLOR);
   const safeBorderColor = escapeHtmlColor(borderColorHex, PIN_BORDER_COLOR);
-  const key = `${letter}::${safeColor}::${safeBorderColor}`;
+  const letterColorHex = options?.letterColorHex ?? "#FFFFFF";
+  const safeLetterColor = escapeHtmlColor(letterColorHex, "#FFFFFF");
+  const stemHex = options?.stemHex ?? fillHex;
+  const safeStem = escapeHtmlColor(stemHex, safeFill);
+  const key = `${letter}::${safeFill}::${safeBorderColor}::${safeLetterColor}::${safeStem}`;
   let icon = cache.get(key);
   if (!icon) {
     icon = L.divIcon({
       className: "partner-map-div-icon",
       html: `<div class="partner-map-pin-wrap">
-        <div class="partner-map-pin-head" style="background-color:${safeColor};border-color:${safeBorderColor}">
-          <span class="partner-map-pin-letter">${letter}</span>
+        <div class="partner-map-pin-head" style="background-color:${safeFill};border-color:${safeBorderColor}">
+          <span class="partner-map-pin-letter" style="color:${safeLetterColor}">${letter}</span>
         </div>
-        <div class="partner-map-pin-stem" style="background-color:${safeColor}"></div>
+        <div class="partner-map-pin-stem" style="background-color:${safeStem}"></div>
       </div>`,
       iconSize: PIN_ICON_SIZE,
       iconAnchor: PIN_ICON_ANCHOR,
@@ -166,6 +171,8 @@ export type PartnerMapProps = {
   focusedProfileId?: string | null;
   /** Меняйте значение при show/hide контейнера карты (моб. табы и т.п.) */
   invalidateKey?: string;
+  /** Пин текущего пользователя (белая заливка, зелёная обводка и буква) */
+  currentUserProfileId?: string | null;
   center?: LatLngExpression;
   zoom?: number;
   profiles: {
@@ -246,6 +253,7 @@ export function PartnerMap({
   viewedProfileIds,
   focusedProfileId,
   invalidateKey,
+  currentUserProfileId,
   profiles,
   center,
   zoom,
@@ -260,6 +268,10 @@ export function PartnerMap({
     }
     return map;
   }, [profiles]);
+
+  const viewedSet = useMemo(() => {
+    return new Set(viewedProfileIds ?? []);
+  }, [viewedProfileIds]);
 
   useEffect(() => {
     const load = async () => {
@@ -290,7 +302,6 @@ export function PartnerMap({
   void onOpenChat;
   void onToggleContact;
   void contactProfileIds;
-  void viewedProfileIds;
   void focusedProfileId;
   void invalidateKey;
 
@@ -315,6 +326,62 @@ export function PartnerMap({
     return obfByUserId.get(focusedProfileId) ?? null;
   }, [focusedProfileId, obfByUserId]);
 
+  const sortedPoints = useMemo(() => {
+    const ownId =
+      currentUserProfileId != null && currentUserProfileId !== ""
+        ? currentUserProfileId
+        : null;
+
+    const rows = points
+      .map((pt) => {
+        const profile = profileById[pt.user_id];
+        if (!profile) return null;
+
+        const isOwn = ownId != null && profile.id === ownId;
+        // Свой пин не "опускаем" вниз, даже если id вдруг есть в viewedProfileIds.
+        const isViewed = !isOwn && viewedSet.has(profile.id);
+        const rating = profile.rating_count ?? 0;
+        const isFocused =
+          focusedProfileId != null && focusedProfileId === profile.id;
+
+        return {
+          pt,
+          profile,
+          isOwn,
+          isViewed,
+          rating,
+          isFocused,
+        };
+      })
+      .filter(Boolean) as {
+      pt: LocationPoint;
+      profile: PartnerMapProps["profiles"][number];
+      isOwn: boolean;
+      isViewed: boolean;
+      rating: number;
+      isFocused: boolean;
+    }[];
+
+    rows.sort((a, b) => {
+      // Фокусированный всегда выше остальных.
+      const f = Number(b.isFocused) - Number(a.isFocused);
+      if (f !== 0) return f;
+
+      // Непросмотренные выше просмотренных.
+      const v = Number(a.isViewed) - Number(b.isViewed); // false(0) first
+      if (v !== 0) return v;
+
+      // По рейтингу: больше — выше.
+      const r = (b.rating ?? 0) - (a.rating ?? 0);
+      if (r !== 0) return r;
+
+      // Стабильный тайбрейк.
+      return a.profile.id.localeCompare(b.profile.id);
+    });
+
+    return rows;
+  }, [points, profileById, viewedSet, focusedProfileId, currentUserProfileId]);
+
   return (
     <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
       <MapContainer
@@ -337,34 +404,54 @@ export function PartnerMap({
           )}-${points.length}-${(contactProfileIds ?? []).length}`}
         />
 
-        {points.map((p) => {
-          const profile = profileById[p.user_id];
-          if (!profile) return null;
+        {sortedPoints.map(({ pt: p, profile, isOwn, isViewed, rating, isFocused }, idx) => {
           const online = isOnline(profile?.last_seen_at ?? null);
           const initial = pinInitial(profile?.full_name);
-          const isViewed = (viewedProfileIds ?? []).includes(profile.id);
-          const isFocused =
-            focusedProfileId != null && focusedProfileId === profile.id;
-          const pinIcon = getOrCreatePinIconColored(
-            pinIconCacheRef.current,
-            initial,
-            PIN_FILL_COLOR,
-            isFocused
-              ? PIN_FOCUSED_BORDER_COLOR
-              : isViewed
-                ? PIN_VIEWED_BORDER_COLOR
-                : PIN_BORDER_COLOR,
-          );
+
+          const borderColor = isFocused
+            ? PIN_FOCUSED_BORDER_COLOR
+            : isViewed && !isOwn
+              ? PIN_VIEWED_BORDER_COLOR
+              : isOwn
+                ? PIN_FILL_COLOR
+                : PIN_BORDER_COLOR;
+
+          const pinIcon = isOwn
+            ? getOrCreatePinIconColored(
+                pinIconCacheRef.current,
+                initial,
+                PIN_BORDER_COLOR,
+                borderColor,
+                {
+                  letterColorHex: PIN_FILL_COLOR,
+                  stemHex: PIN_FILL_COLOR,
+                },
+              )
+            : getOrCreatePinIconColored(
+                pinIconCacheRef.current,
+                initial,
+                PIN_FILL_COLOR,
+                borderColor,
+              );
           const obf = obfByUserId.get(p.user_id) ?? {
             lat: p.lat,
             lng: p.lng,
           };
+
+          // Leaflet использует zIndexOffset для "слоёв" маркеров.
+          // Чем больше — тем выше отрисовка.
+          const viewedBoost = isViewed ? 0 : 1_000_000;
+          const focusedBoost = isFocused ? 2_000_000 : 0;
+          const ownBoost = isOwn ? 100_000 : 0;
+          const zIndexOffset =
+            focusedBoost + viewedBoost + ownBoost + (rating ?? 0) * 10 + (10_000 - idx);
 
           return (
             <Marker
               key={p.id}
               position={[obf.lat, obf.lng]}
               icon={pinIcon}
+              zIndexOffset={zIndexOffset}
               eventHandlers={{
                 click: () => onOpenProfile?.(profile),
               }}

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export type ProfilePreviewData = {
   id: string;
@@ -25,6 +27,24 @@ function IconX({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconThumbUp({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.3a2 2 0 0 0 2-1.7l1.4-9A2 2 0 0 0 19.7 9H14Z" />
+      <path d="M7 22H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3" />
     </svg>
   );
 }
@@ -139,6 +159,8 @@ type ProfilePreviewCardProps = {
   isBlocked?: boolean;
   onToggleBlock?: () => void;
   blockButtonDisabled?: boolean;
+  /** id профиля текущего пользователя (для лайков/действий) */
+  viewerProfileId?: string | null;
   className?: string;
   style?: React.CSSProperties;
   /** floating = фиксированная карточка на главной; embedded = внутри Leaflet Popup */
@@ -162,6 +184,7 @@ export function ProfilePreviewCard({
   isBlocked,
   onToggleBlock,
   blockButtonDisabled,
+  viewerProfileId,
   className = "",
   style,
   variant = "floating",
@@ -190,6 +213,92 @@ export function ProfilePreviewCard({
       ? `fixed z-[1300] w-[min(100vw-1rem,32rem)] max-h-[min(90vh,640px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${className}`
       : `max-h-[min(70vh,32rem)] box-border w-full min-w-0 overflow-hidden rounded-xl bg-white ${className}`;
 
+  const canLike = useMemo(() => {
+    if (!viewerProfileId) return false;
+    if (viewerProfileId === profile.id) return false;
+    return true;
+  }, [viewerProfileId, profile.id]);
+
+  const [likesCount, setLikesCount] = useState<number | null>(null);
+  const [likedByMe, setLikedByMe] = useState<boolean>(false);
+  const [likesLoading, setLikesLoading] = useState<boolean>(false);
+  const [likesError, setLikesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const loadLikes = async () => {
+      setLikesError(null);
+      setLikesLoading(true);
+      try {
+        const { count, error: countErr } = await supabase
+          .from("profile_likes")
+          .select("id", { count: "exact", head: true })
+          .eq("liked_profile_id", profile.id);
+        if (!alive) return;
+        if (countErr) throw countErr;
+        setLikesCount(count ?? 0);
+
+        if (viewerProfileId) {
+          const { data, error: likedErr } = await supabase
+            .from("profile_likes")
+            .select("id")
+            .eq("liked_profile_id", profile.id)
+            .eq("liker_profile_id", viewerProfileId)
+            .limit(1);
+          if (!alive) return;
+          if (likedErr) throw likedErr;
+          setLikedByMe((data?.length ?? 0) > 0);
+        } else {
+          setLikedByMe(false);
+        }
+      } catch (e: any) {
+        if (!alive) return;
+        setLikesError("Не удалось загрузить лайки");
+        setLikesCount(null);
+        setLikedByMe(false);
+      } finally {
+        if (alive) setLikesLoading(false);
+      }
+    };
+
+    void loadLikes();
+    return () => {
+      alive = false;
+    };
+  }, [profile.id, viewerProfileId]);
+
+  const toggleLike = async () => {
+    if (!canLike || likesLoading) return;
+    setLikesError(null);
+    setLikesLoading(true);
+    try {
+      if (!viewerProfileId) throw new Error("no viewerProfileId");
+
+      if (likedByMe) {
+        const { error } = await supabase
+          .from("profile_likes")
+          .delete()
+          .eq("liker_profile_id", viewerProfileId)
+          .eq("liked_profile_id", profile.id);
+        if (error) throw error;
+        setLikedByMe(false);
+        setLikesCount((c) => (c == null ? c : Math.max(0, c - 1)));
+      } else {
+        const { error } = await supabase.from("profile_likes").insert({
+          liker_profile_id: viewerProfileId,
+          liked_profile_id: profile.id,
+        });
+        if (error) throw error;
+        setLikedByMe(true);
+        setLikesCount((c) => (c == null ? c : c + 1));
+      }
+    } catch (e) {
+      setLikesError("Не удалось поставить лайк");
+    } finally {
+      setLikesLoading(false);
+    }
+  };
+
   return (
     <div
       {...(rootDataAttr ? { "data-profile-card": true } : {})}
@@ -204,18 +313,45 @@ export function ProfilePreviewCard({
     >
       <div className="flex max-h-[inherit] w-full min-w-0 flex-col overflow-hidden">
         <div
-          className={`relative w-full min-w-0 shrink-0 bg-gradient-to-br from-slate-700 to-slate-900 text-white ${headerPad}`}
+          className={`relative w-full min-w-0 shrink-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 text-white ${headerPad}`}
         >
           {onClose ? (
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 z-10 rounded-full p-1 transition-colors hover:bg-white/20"
+              className="absolute right-3 top-3 z-10 rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
               aria-label="Закрыть"
             >
               <IconX className="h-5 w-5" />
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={toggleLike}
+            disabled={!canLike || likesLoading}
+            className={`absolute right-12 top-1/2 z-10 inline-flex min-h-9 -translate-y-1/2 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-60 ${
+              likedByMe ? "bg-emerald-400/20 text-emerald-50 hover:bg-emerald-400/25" : "bg-white/10 text-white hover:bg-white/15"
+            }`}
+            aria-pressed={likedByMe}
+            aria-label={likedByMe ? "Убрать лайк" : "Поставить лайк"}
+            title={
+              !viewerProfileId
+                ? "Войдите, чтобы ставить лайки"
+                : viewerProfileId === profile.id
+                  ? "Нельзя лайкнуть себя"
+                  : likedByMe
+                    ? "Убрать лайк"
+                    : "Поставить лайк"
+            }
+          >
+            <IconThumbUp
+              className={`h-5 w-5 ${likedByMe ? "text-emerald-200" : "text-white"}`}
+            />
+            <span className="tabular-nums">
+              {likesLoading ? "…" : likesCount ?? "—"}
+            </span>
+          </button>
 
           <div className="flex items-start gap-3 sm:gap-4">
             <div
@@ -241,13 +377,13 @@ export function ProfilePreviewCard({
                   <button
                     type="button"
                     onClick={() => onFilterProfession(profile.role_title as string)}
-                    className="mb-2 inline-block max-w-full rounded-md bg-white/20 px-2.5 py-0.5 text-left text-xs font-medium text-white backdrop-blur-sm hover:bg-white/25 hover:underline underline-offset-2"
+                    className="mb-3 inline-flex min-h-9 max-w-full items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-left text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/25 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
                     title="Показать на карте специалистов этой профессии"
                   >
                     <span className="truncate">{profile.role_title}</span>
                   </button>
                 ) : (
-                  <span className="mb-2 inline-block rounded-md bg-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                  <span className="mb-3 inline-flex min-h-9 items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
                     {profile.role_title}
                   </span>
                 )
@@ -351,6 +487,12 @@ export function ProfilePreviewCard({
         </div>
 
         <div className={`w-full min-w-0 shrink-0 space-y-3 border-t border-gray-200 bg-gray-50 ${footerPad}`}>
+          {likesError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700">
+              {likesError}
+            </div>
+          ) : null}
+
           <div className="flex gap-2 sm:gap-3">
             {showContactButton && onToggleContact ? (
               <button

@@ -1,0 +1,14 @@
+---
+description: When you have Figma: translate intent to tokens, not pixels
+alwaysApply: true
+---
+
+## If Figma is provided
+- Ask for: frame link, target breakpoint(s), and any token source (Tailwind config/CSS vars).
+- Match **layout + hierarchy + spacing rhythm** first, not exact pixel positions.
+- Reuse existing components if present (buttons, inputs, cards).
+- Prefer Tailwind theme tokens; avoid hardcoded hex unless no token exists.
+
+## If no Figma (invent design)
+- Propose 2 concise variants (e.g. “clean neutral”, “accented”) and implement the best fit.
+- Keep UI consistent: same radii, same shadows, same spacing scale across the feature.

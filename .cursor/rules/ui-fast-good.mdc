@@ -1,0 +1,25 @@
+---
+description: Fast-but-good UI/UX defaults (Next + Tailwind)
+alwaysApply: true
+---
+
+## Goal
+Ship UI that feels polished without pixel-perfection.
+
+## Default decisions (don’t ask, just do)
+- Prefer **simple layouts** (one primary column, clear hierarchy, generous spacing).
+- Use **8px spacing grid** (`gap-2/4/6/8`, `p-4/6/8`) and avoid random values.
+- Typography: 1–2 font sizes per screen; use `text-sm/base/lg`, `font-medium/semibold`.
+- Colors: neutral base + **one accent**; keep contrast readable; don’t invent many hues.
+- Always include **states**: loading, empty, error, disabled, hover/focus, selected.
+- Mobile-first: ensure it works at **375px** before polishing desktop.
+
+## Interaction rules
+- Click targets \(\ge 40px\) height for primary controls.
+- Every form: inline validation + disabled submit while invalid/submitting.
+- Prefer inline feedback (toasts only for cross-page/global events).
+
+## Output format when generating UI
+Provide:
+- the component/page code
+- a short checklist: states covered + responsive notes

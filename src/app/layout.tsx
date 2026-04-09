@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
-import { TopBar } from "@/components/TopBar";
+import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 
 const geistSans = Geist({
@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <SelectedCityProvider>
           <div className="flex min-h-screen flex-col bg-gray-100">
-            <TopBar />
+            <ConditionalTopBar />
             <div className="flex-1">{children}</div>
           </div>
         </SelectedCityProvider>
