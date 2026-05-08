@@ -8,6 +8,8 @@ import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
 import Image from "next/image";
 
+const LAST_SEEN_PING_MS = 60000;
+
 function IconUsers({ className }: { className?: string }) {
   return (
     <svg
@@ -187,7 +189,7 @@ export function TopBar() {
     };
 
     ping();
-    const interval = setInterval(ping, 30000);
+    const interval = setInterval(ping, LAST_SEEN_PING_MS);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") ping();

@@ -194,6 +194,32 @@ const SORTED_CURRENT_STATUS_OPTIONS: CurrentStatusOption[] = [
   ...CURRENT_STATUS_OPTIONS,
 ].sort((a, b) => a.localeCompare(b, "ru"));
 
+const MAX_INTERESTED_PROFESSIONS = 5;
+
+function normalizeInterestedProfessions(values: string[]) {
+  const unique = new Set<string>();
+  const normalized: string[] = [];
+  for (const raw of values) {
+    const value = (raw ?? "").trim();
+    if (!value) continue;
+    if (unique.has(value)) continue;
+    unique.add(value);
+    normalized.push(value);
+    if (normalized.length >= MAX_INTERESTED_PROFESSIONS) break;
+  }
+  return normalized;
+}
+
+function parseInterestedProfessions(raw: string | null | undefined) {
+  if (!raw) return [];
+  return normalizeInterestedProfessions(raw.split(/\r?\n/));
+}
+
+function serializeInterestedProfessions(values: string[]) {
+  const normalized = normalizeInterestedProfessions(values);
+  return normalized.length > 0 ? normalized.join("\n") : null;
+}
+
 type Profile = {
   id: string;
   full_name: string | null;
@@ -265,6 +291,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [interestedProfessionDraft, setInterestedProfessionDraft] = useState<
+    string | null
+  >(null);
   const baselineSnapshotRef = useRef<string>("");
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -569,6 +598,22 @@ export default function ProfilePage() {
         }
       }
 
+      const interestedProfessionValues = normalizeInterestedProfessions(
+        parseInterestedProfessions(profile.interested_in).map((item) =>
+          maskProfanity(item),
+        ),
+      );
+      for (const profession of interestedProfessionValues) {
+        const exists = professionCatalog.some((p) => p.label === profession);
+        if (!exists) {
+          try {
+            await upsertProfession(profession, []);
+          } catch {
+            // best-effort
+          }
+        }
+      }
+
       // обновляем профиль
       const { error: updateError } = await supabase
         .from("profiles")
@@ -591,7 +636,7 @@ export default function ProfilePage() {
           skills: maskProfanity(profile.skills),
           looking_for: maskProfanity(profile.looking_for),
           resources: maskProfanity(profile.resources),
-          interested_in: maskProfanity(profile.interested_in),
+          interested_in: serializeInterestedProfessions(interestedProfessionValues),
         })
         .eq("id", profile.id);
 
@@ -684,6 +729,11 @@ export default function ProfilePage() {
   const professionLabels = professionCatalog.map((p) => p.label);
   const professionRow = professionCatalog.find((p) => p.label === profile.role_title);
   void professionRow;
+  const interestedProfessionValues = parseInterestedProfessions(
+    profile.interested_in,
+  );
+  const canAddInterestedProfession =
+    interestedProfessionValues.length < MAX_INTERESTED_PROFESSIONS;
 
   const subindustryOptions = (
     industryCatalog.length > 0
@@ -1230,6 +1280,103 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Интересующие профессии */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M20 7h-9a3 3 0 0 0-3 3v9" />
+                <path d="M14 3v4" />
+                <path d="M18 3v4" />
+                <path d="M3 11h7" />
+                <path d="M3 15h7" />
+                <path d="M16 14l1.5 1.5L21 12" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Интересующие профессии
+            </h2>
+          </div>
+          <p className="mb-4 text-xs text-slate-500">
+            Добавьте до 5 профессий, специалисты которых вам интересны.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <DropdownSelect
+              variant="profile"
+              value={interestedProfessionDraft}
+              placeholder="Выберите профессию"
+              searchable
+              searchPlaceholder="Найти профессию"
+              options={professionLabels.map((label) => ({
+                value: label,
+                label,
+              }))}
+              onChange={(v) => setInterestedProfessionDraft(v || null)}
+              disabled={!canAddInterestedProfession}
+            />
+            <button
+              type="button"
+              disabled={!interestedProfessionDraft || !canAddInterestedProfession}
+              onClick={() => {
+                if (!interestedProfessionDraft) return;
+                const nextInterestedIn = serializeInterestedProfessions([
+                  ...interestedProfessionValues,
+                  interestedProfessionDraft,
+                ]);
+                setProfile({ ...profile, interested_in: nextInterestedIn });
+                setInterestedProfessionDraft(null);
+              }}
+              className="h-12 rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:from-[#009966] hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Добавить
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {interestedProfessionValues.length > 0 ? (
+              interestedProfessionValues.map((profession) => (
+                <span
+                  key={profession}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800"
+                >
+                  {profession}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextInterestedIn = serializeInterestedProfessions(
+                        interestedProfessionValues.filter(
+                          (item) => item !== profession,
+                        ),
+                      );
+                      setProfile({ ...profile, interested_in: nextInterestedIn });
+                    }}
+                    className="text-emerald-700 hover:text-emerald-900"
+                    aria-label={`Удалить профессию ${profession}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500">Пока ничего не выбрано.</p>
+            )}
+          </div>
+
+          <p className="mt-3 text-xs text-slate-500">
+            Выбрано {interestedProfessionValues.length}/{MAX_INTERESTED_PROFESSIONS}
+          </p>
         </div>
 
         {/* Локация на карте */}

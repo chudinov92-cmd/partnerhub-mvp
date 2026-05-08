@@ -13,6 +13,7 @@ export type ProfilePreviewData = {
   role_title?: string | null;
   skills?: string | null;
   resources?: string | null;
+  interested_in?: string | null;
   rating_count?: number | null;
 };
 
@@ -194,6 +195,7 @@ export function ProfilePreviewCard({
   const initial = (name[0] || "?").toLocaleUpperCase("ru-RU");
   const aboutItems = splitToBulletItems(profile.skills);
   const resourceItems = splitToBulletItems(profile.resources);
+  const interestedItems = splitToBulletItems(profile.interested_in);
   const hasIndustryBlock = !!(profile.industry?.trim() || profile.subindustry?.trim());
   const rating = profile.rating_count ?? 0;
   const showRating = rating > 0;
@@ -466,6 +468,23 @@ export function ProfilePreviewCard({
               </ul>
             </div>
           ) : null}
+
+          <div className="space-y-2">
+            <div className={`flex items-center gap-2 text-slate-900 ${sectionTitle}`}>
+              <IconBriefcase className="h-4 w-4 shrink-0" />
+              <h3>Интересуют профессии</h3>
+            </div>
+            <ul className="space-y-1.5 pl-6">
+              {(interestedItems.length ? interestedItems : ["Не указано"]).map(
+                (item, index) => (
+                  <li key={index} className={`flex items-start gap-2 ${bodyText}`}>
+                    <span className="mt-0.5 text-gray-400">•</span>
+                    <span className="whitespace-pre-wrap">{item}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
 
           {showRating ? (
             <div className="rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 p-3">

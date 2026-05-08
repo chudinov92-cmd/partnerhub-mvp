@@ -4,8 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { MainMobileNav, type MobileMainTab } from "@/components/MainMobileNav";
-import { ProfilePreviewCard } from "@/components/ProfilePreviewCard";
+import type { MobileMainTab } from "@/components/MainMobileNav";
 import type { PartnerMapProps } from "@/components/PartnerMap";
 import { supabase } from "@/lib/supabaseClient";
 import { maskProfanity } from "@/lib/profanity";
@@ -31,6 +30,14 @@ import type { PostCommentRow } from "@/components/PostComments";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
+  { ssr: false },
+);
+const MainMobileNav = dynamic(
+  () => import("@/components/MainMobileNav").then((m) => m.MainMobileNav),
+  { ssr: false },
+);
+const ProfilePreviewCard = dynamic(
+  () => import("@/components/ProfilePreviewCard").then((m) => m.ProfilePreviewCard),
   { ssr: false },
 );
 
@@ -61,9 +68,13 @@ export type Profile = {
   role_title?: string | null;
   experience_years?: number | null;
   current_status?: string | null;
+  interested_in?: string | null;
 };
 
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const MAX_RELATION_ROWS = 500;
+const MAX_COMMENTS_FETCH = 200;
+const POSTS_POLL_INTERVAL_MS = 15000;
 
 function isOnline(lastSeenAt?: string | null) {
   if (!lastSeenAt) return false;
@@ -363,6 +374,8 @@ export default function Home() {
   const [mapContactsOnly, setMapContactsOnly] = useState(false);
   const router = useRouter();
   const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
+  const postsFingerprintRef = useRef<string>("");
+  const chatMembershipRef = useRef<Set<string>>(new Set());
   const { selectedCity } = useSelectedCity();
   const mapConfig = useMemo(
     () => getMapConfigForCity(selectedCity),
@@ -451,6 +464,7 @@ export default function Home() {
       .from("profile_contacts")
       .select("contact_profile_id")
       .eq("owner_id", currentUser.profileId)
+      .limit(MAX_RELATION_ROWS)
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) {
@@ -478,6 +492,7 @@ export default function Home() {
       .from("profile_views")
       .select("viewed_profile_id")
       .eq("viewer_id", currentUser.profileId)
+      .limit(MAX_RELATION_ROWS)
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) {
@@ -505,6 +520,7 @@ export default function Home() {
       .from("profile_blocks")
       .select("blocked_profile_id")
       .eq("owner_id", currentUser.profileId)
+      .limit(MAX_RELATION_ROWS)
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) {
@@ -536,7 +552,7 @@ export default function Home() {
             supabase
               .from("profiles")
               .select(
-                "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, rating_avg, rating_count",
+                "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count",
               )
               .limit(50),
             user
@@ -577,11 +593,12 @@ export default function Home() {
             const chatIds = Array.from(
               new Set(memberRows.map((m: any) => m.chat_id as string)),
             );
+            chatMembershipRef.current = new Set(chatIds);
 
             const { data: otherRows, error: otherErr } = await supabase
               .from("chat_members")
               .select(
-                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, rating_avg, rating_count)",
+                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, interested_in, rating_avg, rating_count)",
               )
               .in("chat_id", chatIds)
               .neq("user_id", p.id);
@@ -603,6 +620,7 @@ export default function Home() {
                     last_seen_at: prof.last_seen_at ?? null,
                     skills: prof.skills ?? null,
                     resources: prof.resources ?? null,
+                    interested_in: prof.interested_in ?? null,
                     rating_avg: prof.rating_avg,
                     rating_count: prof.rating_count,
                   },
@@ -625,32 +643,35 @@ export default function Home() {
                 string,
                 { at: string; preview: string }
               >();
-              await Promise.all(
-                Array.from(new Set(baseItems.map((i) => i.chatId))).map(
-                  async (chatId) => {
-                    let q = supabase
-                      .from("messages")
-                      .select("created_at, content")
-                      .eq("chat_id", chatId);
-
-                    const otherId = otherProfileIdByChatId.get(chatId);
-                    if (otherId && blockedProfileIds.includes(otherId)) {
-                      q = q.neq("sender_id", otherId);
-                    }
-
-                    const { data: msg } = await q
-                      .order("created_at", { ascending: false })
-                      .limit(1)
-                      .maybeSingle();
-                    if (msg?.created_at) {
-                      lastByChat.set(chatId, {
-                        at: msg.created_at,
-                        preview: String((msg as any).content ?? "").trim(),
-                      });
-                    }
-                  },
-                ),
-              );
+              const { data: lastRows, error: lastErr } = await supabase
+                .from("messages")
+                .select("chat_id, sender_id, created_at, content")
+                .in(
+                  "chat_id",
+                  Array.from(new Set(baseItems.map((i) => i.chatId))),
+                )
+                .order("created_at", { ascending: false })
+                .limit(Math.max(baseItems.length * 5, 100));
+              if (!lastErr && lastRows) {
+                for (const row of lastRows as any[]) {
+                  const chatId = row.chat_id as string;
+                  if (lastByChat.has(chatId)) continue;
+                  const otherId = otherProfileIdByChatId.get(chatId);
+                  if (
+                    otherId &&
+                    blockedProfileIds.includes(otherId) &&
+                    row.sender_id === otherId
+                  ) {
+                    continue;
+                  }
+                  if (row.created_at) {
+                    lastByChat.set(chatId, {
+                      at: row.created_at as string,
+                      preview: String(row.content ?? "").trim(),
+                    });
+                  }
+                }
+              }
 
               const withLast = baseItems
                 .map((i) => {
@@ -674,9 +695,11 @@ export default function Home() {
               setChatList([]);
             }
           } else {
+            chatMembershipRef.current = new Set();
             setChatList([]);
           }
         } else {
+          chatMembershipRef.current = new Set();
           setCurrentUser(null);
           setChatList([]);
         }
@@ -742,6 +765,7 @@ export default function Home() {
 
       setPosts((postsData ?? []) as Post[]);
       const postIds = (postsData ?? []).map((p: any) => p.id as string);
+      postsFingerprintRef.current = postIds.join("|");
       if (postIds.length > 0) {
         const { data: commentsData, error: commentsErr } = await supabase
           .from("post_comments")
@@ -750,7 +774,8 @@ export default function Home() {
           )
           .in("post_id", postIds)
           .order("post_id", { ascending: true })
-          .order("created_at", { ascending: true });
+          .order("created_at", { ascending: true })
+          .limit(MAX_COMMENTS_FETCH);
         if (cancelled) return;
         if (commentsErr) {
           console.warn("post_comments load failed", commentsErr);
@@ -819,8 +844,12 @@ export default function Home() {
       }
 
       if (!error && data) {
-        setPosts(data as Post[]);
-        const ids = (data as Post[]).map((p) => p.id);
+        const nextPosts = data as Post[];
+        const ids = nextPosts.map((p) => p.id);
+        const nextFingerprint = ids.join("|");
+        if (nextFingerprint === postsFingerprintRef.current) return;
+        postsFingerprintRef.current = nextFingerprint;
+        setPosts(nextPosts);
         if (ids.length === 0) {
           setCommentsByPostId({});
           return;
@@ -832,12 +861,13 @@ export default function Home() {
           )
           .in("post_id", ids)
           .order("post_id", { ascending: true })
-          .order("created_at", { ascending: true });
+          .order("created_at", { ascending: true })
+          .limit(MAX_COMMENTS_FETCH);
         if (!cerr && cdata) {
           setCommentsByPostId(groupCommentsByPostId(cdata as PostCommentRow[]));
         }
       }
-    }, 5000);
+    }, POSTS_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [selectedCity]);
@@ -860,13 +890,25 @@ export default function Home() {
           if (blockedProfileIds.includes(msg.sender_id)) return;
 
           try {
-            // Проверяем, что текущий пользователь участник этого чата
-            const { data: members, error } = await supabase
-              .from("chat_members")
-              .select("user_id")
-              .eq("chat_id", (msg as any).chat_id);
-
-            if (error || !members) return;
+            const chatId = (msg as any).chat_id as string;
+            let members: { user_id: string }[] | null = null;
+            if (chatMembershipRef.current.has(chatId)) {
+              members = [
+                { user_id: currentUser.profileId },
+                { user_id: msg.sender_id },
+              ];
+            } else {
+              // Проверяем, что текущий пользователь участник этого чата
+              const { data, error } = await supabase
+                .from("chat_members")
+                .select("user_id")
+                .eq("chat_id", chatId);
+              if (error || !data) return;
+              members = data as { user_id: string }[];
+              if (members.some((m) => m.user_id === currentUser.profileId)) {
+                chatMembershipRef.current.add(chatId);
+              }
+            }
 
             const memberIds = members.map((m) => m.user_id as string);
             if (!memberIds.includes(currentUser.profileId)) return;
@@ -876,7 +918,7 @@ export default function Home() {
               currentUser.profileId;
 
             // Если этот чат сейчас открыт — просто добавляем сообщение в окно
-            if (activeChatId === (msg as any).chat_id) {
+            if (activeChatId === chatId) {
               setChatMessages((prev) => [...prev, msg]);
             } else {
               // Иначе увеличиваем счётчик непрочитанных для собеседника
@@ -915,18 +957,30 @@ export default function Home() {
           if (blockedProfileIds.includes(msg.sender_id)) return;
 
           try {
-            // Проверяем, что текущий пользователь участник этого чата
-            const { data: members, error } = await supabase
-              .from("chat_members")
-              .select("user_id")
-              .eq("chat_id", (msg as any).chat_id);
-
-            if (error || !members) return;
+            const chatId = (msg as any).chat_id as string;
+            let members: { user_id: string }[] | null = null;
+            if (chatMembershipRef.current.has(chatId)) {
+              members = [
+                { user_id: currentUser.profileId },
+                { user_id: msg.sender_id },
+              ];
+            } else {
+              // Проверяем, что текущий пользователь участник этого чата
+              const { data, error } = await supabase
+                .from("chat_members")
+                .select("user_id")
+                .eq("chat_id", chatId);
+              if (error || !data) return;
+              members = data as { user_id: string }[];
+              if (members.some((m) => m.user_id === currentUser.profileId)) {
+                chatMembershipRef.current.add(chatId);
+              }
+            }
 
             const memberIds = members.map((m) => m.user_id as string);
             if (!memberIds.includes(currentUser.profileId)) return;
 
-            if (activeChatId === (msg as any).chat_id) {
+            if (activeChatId === chatId) {
               setChatMessages((prev) =>
                 prev.map((m) => (m.id === msg.id ? (msg as ChatMessage) : m)),
               );
@@ -1399,27 +1453,37 @@ export default function Home() {
     setChatLoading(true);
 
     try {
-      // Ищем существующий личный чат с этим пользователем
-      const { data: chatsData, error: chatsError } = await supabase
-        .from("chats")
-        .select("id, is_group, chat_members(user_id)")
-        .eq("is_group", false);
-
-      if (chatsError) throw chatsError;
-
       let chatId: string | null = null;
+      const { data: myMemberRows, error: myMemberErr } = await supabase
+        .from("chat_members")
+        .select("chat_id")
+        .eq("user_id", currentUser.profileId)
+        .limit(MAX_RELATION_ROWS);
 
-      if (chatsData) {
-        for (const chat of chatsData as any[]) {
-          const members = chat.chat_members as { user_id: string }[];
-          const memberIds = members.map((m) => m.user_id);
-          if (
-            memberIds.includes(currentUser.profileId) &&
-            memberIds.includes(profile.id)
-          ) {
-            chatId = chat.id as string;
-            break;
-          }
+      if (myMemberErr) throw myMemberErr;
+
+      const candidateChatIds = Array.from(
+        new Set((myMemberRows ?? []).map((r: any) => r.chat_id as string)),
+      );
+
+      if (candidateChatIds.length > 0) {
+        const { data: sharedRows, error: sharedErr } = await supabase
+          .from("chat_members")
+          .select("chat_id")
+          .eq("user_id", profile.id)
+          .in("chat_id", candidateChatIds)
+          .limit(1);
+        if (sharedErr) throw sharedErr;
+        const candidate = (sharedRows?.[0] as any)?.chat_id as string | undefined;
+        if (candidate) {
+          const { data: oneChat, error: oneChatErr } = await supabase
+            .from("chats")
+            .select("id")
+            .eq("id", candidate)
+            .eq("is_group", false)
+            .maybeSingle();
+          if (oneChatErr) throw oneChatErr;
+          chatId = (oneChat as any)?.id ?? null;
         }
       }
 
@@ -1450,6 +1514,7 @@ export default function Home() {
       }
 
       setActiveChatId(chatId);
+      if (chatId) chatMembershipRef.current.add(chatId);
 
       // Гарантируем, что чат есть в списке (важно для UI поп-апа и сортировки)
       setChatList((prev) => {

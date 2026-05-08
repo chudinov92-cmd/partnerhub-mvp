@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   MapContainer,
   TileLayer,
@@ -182,6 +183,7 @@ export type PartnerMapProps = {
     industry?: string | null;
     subindustry?: string | null;
     role_title?: string | null;
+    interested_in?: string | null;
     rating_count?: number | null;
     last_seen_at?: string | null;
     skills?: string | null;

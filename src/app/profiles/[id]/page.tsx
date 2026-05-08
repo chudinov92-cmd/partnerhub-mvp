@@ -24,6 +24,14 @@ type PublicProfile = {
   rating_count: number | null;
 };
 
+function splitLines(value: string | null | undefined) {
+  if (!value) return [];
+  return value
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default function PublicProfilePage() {
   const params = useParams<{ id: string }>();
   const profileId = params?.id;
@@ -128,6 +136,7 @@ export default function PublicProfilePage() {
     profile.industry === "Другое" && profile.industry_other
       ? profile.industry_other
       : profile.industry;
+  const interestedProfessionItems = splitLines(profile.interested_in);
 
   return (
     <div className="flex min-h-screen justify-center bg-slate-50 px-3 py-6">
@@ -283,9 +292,16 @@ export default function PublicProfilePage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Какие специалисты интересуют
             </p>
-            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
-              {profile.interested_in || "Не указано"}
-            </p>
+            <ul className="mt-1 space-y-1">
+              {(interestedProfessionItems.length
+                ? interestedProfessionItems
+                : ["Не указано"]
+              ).map((item, index) => (
+                <li key={`${item}-${index}`} className="text-sm text-slate-900">
+                  {item}
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       </div>
