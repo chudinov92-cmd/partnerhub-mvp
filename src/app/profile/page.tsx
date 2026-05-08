@@ -599,8 +599,8 @@ export default function ProfilePage() {
       }
 
       const interestedProfessionValues = normalizeInterestedProfessions(
-        parseInterestedProfessions(profile.interested_in).map((item) =>
-          maskProfanity(item),
+        parseInterestedProfessions(profile.interested_in).map(
+          (item) => maskProfanity(item) ?? "",
         ),
       );
       for (const profession of interestedProfessionValues) {
