@@ -6,6 +6,48 @@ import { supabase } from "@/lib/supabaseClient";
 
 type Mode = "signin" | "signup";
 
+function getAuthErrorMessage(err: unknown) {
+  if (!err) return "Ошибка авторизации";
+
+  if (typeof err === "string") return err;
+
+  if (typeof err === "object") {
+    const maybeError = err as {
+      message?: unknown;
+      error_description?: unknown;
+      code?: unknown;
+      status?: unknown;
+    };
+
+    if (typeof maybeError.message === "string" && maybeError.message.trim()) {
+      if (
+        maybeError.message.toLowerCase().includes("context deadline exceeded")
+      ) {
+        return "Сервис регистрации не успел отправить письмо подтверждения. Проверьте SMTP-настройки Supabase Auth и попробуйте снова.";
+      }
+      return maybeError.message;
+    }
+
+    if (
+      typeof maybeError.error_description === "string" &&
+      maybeError.error_description.trim()
+    ) {
+      return maybeError.error_description;
+    }
+
+    const code =
+      typeof maybeError.code === "string" ? maybeError.code : undefined;
+    const status =
+      typeof maybeError.status === "number" ? maybeError.status : undefined;
+
+    if (code || status) {
+      return `Ошибка авторизации${code ? ` (${code})` : ""}${status ? ` [HTTP ${status}]` : ""}`;
+    }
+  }
+
+  return "Ошибка авторизации";
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -13,7 +55,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-   const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const router = useRouter();
 
   // если уже залогинен, сразу на главную
@@ -58,8 +100,8 @@ export default function AuthPage() {
         if (error) throw error;
         router.push("/");
       }
-    } catch (err: any) {
-      setError(err.message ?? "Ошибка авторизации");
+    } catch (err: unknown) {
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

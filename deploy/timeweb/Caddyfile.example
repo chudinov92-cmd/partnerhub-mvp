@@ -1,0 +1,9 @@
+zeip.ru {
+  encode gzip zstd
+  reverse_proxy 127.0.0.1:3001
+}
+
+supabase.zeip.ru {
+  encode gzip zstd
+  reverse_proxy 127.0.0.1:8443
+}
