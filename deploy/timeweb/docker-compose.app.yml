@@ -1,8 +1,18 @@
+# NEXT_PUBLIC_* подставляются при docker build. Загрузите .env.app при вызове compose:
+#   cd deploy/timeweb
+#   docker compose --env-file .env.app -f docker-compose.app.yml up -d --build
+# Или из корня репо:
+#   docker compose --env-file deploy/timeweb/.env.app -f deploy/timeweb/docker-compose.app.yml up -d --build
+
 services:
   app-web:
     build:
       context: ../../
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
     container_name: app-web
     restart: unless-stopped
     env_file:

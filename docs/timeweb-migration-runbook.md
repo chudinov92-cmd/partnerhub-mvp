@@ -229,11 +229,11 @@ cd /Users/vladimirchudinov/Desktop/my-startup/my-app
 npx web-push generate-vapid-keys
 ```
 
-Пересборка приложения на сервере:
+Пересборка приложения на сервере (обязательно `--env-file`, иначе `NEXT_PUBLIC_*` не попадут в `next build` и push на клиенте сломается):
 
 ```bash
 cd /root/zeip/my-app
-docker compose -f deploy/timeweb/docker-compose.app.yml up -d --build
+docker compose --env-file deploy/timeweb/.env.app -f deploy/timeweb/docker-compose.app.yml up -d --build
 ```
 
 Проверка: два аккаунта, включить push в «Мои чаты», отправить сообщение — уведомление; клик открывает чат по `/?chat=` с id профиля отправителя.
