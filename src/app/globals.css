@@ -25,6 +25,21 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/**
+ * Высота основного стека карты: минус TopBar (3.5rem + safe-top).
+ * 100dvh — видимая область в iOS Safari; fallback на 100vh.
+ */
+.zeip-main-stack {
+  height: calc(100vh - env(safe-area-inset-top, 0px) - 3.5rem);
+  max-height: calc(100vh - env(safe-area-inset-top, 0px) - 3.5rem);
+}
+@supports (height: 100dvh) {
+  .zeip-main-stack {
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - 3.5rem);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 3.5rem);
+  }
+}
+
 /* Leaflet: кастомные пины (как в макете Figma) */
 .leaflet-div-icon.partner-map-div-icon {
   background: transparent !important;

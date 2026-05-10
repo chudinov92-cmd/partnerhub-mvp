@@ -234,7 +234,8 @@ export function TopBar() {
     fullName?.trim()?.[0]?.toUpperCase() ?? "П";
 
   return (
-    <header className="sticky top-0 z-[1500] grid h-[8vh] min-h-0 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-gray-200 bg-white px-3 py-0 shadow-sm md:px-4">
+    <header className="sticky top-0 z-[1500] shrink-0 border-b border-gray-200 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm">
+      <div className="grid h-14 min-h-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 md:px-4">
       <Link
         href="/"
         className="flex min-w-0 items-center gap-2 justify-self-start"
@@ -352,6 +353,7 @@ export function TopBar() {
             </Link>
           )}
         </div>
+      </div>
       </div>
     </header>
   );

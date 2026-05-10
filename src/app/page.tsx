@@ -1734,8 +1734,8 @@ export default function Home() {
     mobileTab === "my-chats" || mobileTab === "contacts";
 
   return (
-    <div className="flex h-[calc(100vh-8vh)] flex-col overflow-hidden bg-gray-100">
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[8vh] lg:flex-row lg:pb-0">
+    <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:flex-row lg:pb-0">
         {/* Левая колонка: лента запросов, как список чата */}
         <section
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
@@ -2764,11 +2764,11 @@ export default function Home() {
             viewerProfileId={currentUser?.profileId ?? null}
             style={{
               left: "50%",
-              // Keep the popup fully visible between TopBar (8vh) and bottom nav (8vh) on mobile.
-              top: "calc(8vh + env(safe-area-inset-top) + 8px)",
+              // Keep the popup fully visible between TopBar (3.5rem) and bottom nav (3.5rem) on mobile.
+              top: "calc(3.5rem + env(safe-area-inset-top, 0px) + 8px)",
               transform: "translateX(-50%)",
               maxHeight:
-                "calc(100vh - 8vh - 8vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px)",
+                "calc(100vh - 3.5rem - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)",
             }}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}
