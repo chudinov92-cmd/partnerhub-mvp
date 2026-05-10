@@ -91,6 +91,14 @@ body {
     0 8px 10px -6px rgb(15 23 42 / 0.1);
 }
 
+/* Отступ контролов от края карты — иначе overflow-hidden + скругление обрезают zoom «+» */
+.leaflet-container.zeip-partner-map .leaflet-top {
+  top: 0.5rem;
+}
+.leaflet-container.zeip-partner-map .leaflet-left {
+  left: 0.5rem;
+}
+
 /* Zoom +/- на карте: скругление как у кнопок MainMobileNav (rounded-lg) */
 .leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar {
   border-radius: 0.5rem;

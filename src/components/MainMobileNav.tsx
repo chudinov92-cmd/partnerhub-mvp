@@ -129,7 +129,7 @@ export function MainMobileNav({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[1400] border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom,0px)] shadow-lg lg:hidden"
+      className="fixed bottom-0 left-0 right-0 z-[1400] border-t border-gray-200 bg-white shadow-lg lg:hidden"
       aria-label="Основная навигация"
     >
       <div className="flex h-14 items-stretch justify-around px-2">
@@ -156,6 +156,11 @@ export function MainMobileNav({
           </button>
         ))}
       </div>
+      <div
+        className="bg-white"
+        style={{ height: "env(safe-area-inset-bottom, 0px)" }}
+        aria-hidden
+      />
     </nav>
   );
 }
