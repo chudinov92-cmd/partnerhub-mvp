@@ -13,6 +13,7 @@ import {
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
+import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { maskProfanity } from "@/lib/profanity";
 import {
   getIndustryLabelsForSelect,
@@ -781,6 +782,8 @@ export default function ProfilePage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-emerald-600">{success}</p>}
+
+        {!loading && profile ? <PushNotificationsSettings /> : null}
 
         {/* Группа 1: Имя / Страна / Город */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

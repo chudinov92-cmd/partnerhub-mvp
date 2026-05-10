@@ -158,3 +158,82 @@ bash scripts/migration/restore_postgres.sh "<TARGET_DB_URL>" "./backups/target-b
 - Keep only anon/publishable key in `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Rotate any leaked keys.
 - Keep scheduled backups for DB and Supabase volumes.
+
+## 11) Post-migration operations (close remaining todos)
+
+Server login from Mac:
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+ssh root@186.246.2.104
+```
+
+Validate SMTP env before recreating auth:
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+chmod +x scripts/migration/check_smtp_env.sh
+ssh root@186.246.2.104 "bash -s" <<'EOF'
+set -e
+cd /root/zeip/my-app
+bash scripts/migration/check_smtp_env.sh /root/zeip/supabase-stack/.env
+cd /root/zeip/supabase-stack
+docker compose up -d --force-recreate auth kong
+docker compose ps
+EOF
+```
+
+Install daily backup cron on server:
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+chmod +x scripts/migration/backup_self_hosted_supabase.sh scripts/migration/install_backup_cron.sh
+ssh root@186.246.2.104 "bash -s" <<'EOF'
+set -e
+cd /root/zeip/my-app
+bash scripts/migration/install_backup_cron.sh /root/zeip/my-app
+EOF
+```
+
+Final healthcheck:
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+chmod +x scripts/migration/healthcheck_timeweb.sh
+bash scripts/migration/healthcheck_timeweb.sh "https://zeip.ru" "https://supabase.zeip.ru"
+```
+
+## 12) Web Push (личные сообщения)
+
+Скрипт в репозитории: [`supabase/sql/2026-05-08-web-push.sql`](../supabase/sql/2026-05-08-web-push.sql). Выполнить **целиком** в SQL Editor self-hosted Supabase (`https://supabase.zeip.ru` → SQL).
+
+После выполнения задать секрет (совпадает с `INTERNAL_PUSH_SECRET` в `.env.app`):
+
+```sql
+update public.app_config
+set value = '<длинная_случайная_строка>'
+where key = 'push_internal_secret';
+```
+
+Проверить URL диспетчера:
+
+```sql
+select key, value from public.app_config;
+-- push_dispatch_url: https://zeip.ru/api/push/dispatch
+```
+
+На сервере в `deploy/timeweb/.env.app` заполнить переменные из шаблона [`deploy/timeweb/.env.app.example`](../deploy/timeweb/.env.app.example). VAPID:
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+npx web-push generate-vapid-keys
+```
+
+Пересборка приложения на сервере:
+
+```bash
+cd /root/zeip/my-app
+docker compose -f deploy/timeweb/docker-compose.app.yml up -d --build
+```
+
+Проверка: два аккаунта, включить push в «Мои чаты», отправить сообщение — уведомление; клик открывает чат по `/?chat=` с id профиля отправителя.

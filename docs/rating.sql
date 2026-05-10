@@ -139,13 +139,15 @@ language plpgsql
 as $$
 declare
   d date;
+  new_id bigint;
 begin
   d := public.day_msk(p_ts);
   insert into public.rating_daily_events(profile_id, event_type, day_msk)
   values (p_profile_id, p_event_type, d)
-  on conflict (profile_id, event_type, day_msk) do nothing;
+  on conflict (profile_id, event_type, day_msk) do nothing
+  returning id into new_id;
 
-  if found then
+  if new_id is not null then
     update public.profiles
       set rating_count = coalesce(rating_count, 0) + 1
     where id = p_profile_id;

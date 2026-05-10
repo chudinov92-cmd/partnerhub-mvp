@@ -27,6 +27,7 @@ import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
 import type { PostCommentRow } from "@/components/PostComments";
+import { PushOptInBanner } from "@/components/PushOptInBanner";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -376,6 +377,8 @@ export default function Home() {
   const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
   const postsFingerprintRef = useRef<string>("");
   const chatMembershipRef = useRef<Set<string>>(new Set());
+  /** Сброс эффекта открытия чата по ?chat= после router.replace / SW. */
+  const [chatDeepLinkNonce, setChatDeepLinkNonce] = useState(0);
   const { selectedCity } = useSelectedCity();
   const mapConfig = useMemo(
     () => getMapConfigForCity(selectedCity),
@@ -802,18 +805,32 @@ export default function Home() {
     setCreateError(null);
   }, [selectedCity]);
 
-  // Автооткрытие чата, если пришли с параметром ?chat=profileId
   useEffect(() => {
-    if (!currentUser || !profiles.length) return;
-    if (typeof window === "undefined") return;
+    const handler = (e: MessageEvent) => {
+      const d = e.data as { type?: string; profileId?: string };
+      if (d?.type === "ZEIP_OPEN_CHAT" && typeof d.profileId === "string") {
+        router.replace(`/?chat=${encodeURIComponent(d.profileId)}`);
+        setChatDeepLinkNonce((n) => n + 1);
+      }
+    };
+    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener("message", handler);
+      return () => navigator.serviceWorker.removeEventListener("message", handler);
+    }
+  }, [router]);
+
+  // Автооткрытие чата: ?chat=<profiles.id собеседника>
+  useEffect(() => {
+    if (!currentUser || !profiles.length || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const chatProfileId = params.get("chat");
     if (!chatProfileId) return;
     const p = profiles.find((pr) => pr.id === chatProfileId);
     if (p) {
-      openChatWithProfile(p);
+      void openChatWithProfile(p);
     }
-  }, [currentUser, profiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- открываем только при смене списков/URL-nonce
+  }, [currentUser, profiles, chatDeepLinkNonce]);
 
   // Периодически подтягиваем новые сообщения для общего чата текущего города.
   useEffect(() => {
@@ -2472,6 +2489,10 @@ export default function Home() {
               </button>
             ) : null}
           </div>
+
+          {currentUser && !contactsOnlyMode ? (
+            <PushOptInBanner hasSession />
+          ) : null}
 
           {!loading && filteredChatList.length === 0 && (
             <p className="px-4 py-2 text-sm text-slate-500">

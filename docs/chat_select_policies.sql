@@ -67,6 +67,8 @@ begin
 end $$;
 
 -- CHAT_MEMBERS: readable only if current user is a member of the same chat.
+-- ВАЖНО: нельзя в USING делать SELECT из chat_members — бесконечная рекурсия RLS.
+-- Используйте функцию user_is_member_of_chat(uuid); см. supabase/sql/2026-05-10-fix-chat-members-rls-recursion.sql
 do $$
 begin
   if not exists (
@@ -80,14 +82,7 @@ begin
       on public.chat_members
       for select
       to authenticated
-      using (
-        exists (
-          select 1
-          from public.chat_members cm2
-          where cm2.chat_id = chat_members.chat_id
-            and cm2.user_id = public.current_profile_id_auth()
-        )
-      );
+      using (public.user_is_member_of_chat(chat_id));
   end if;
 end $$;
 

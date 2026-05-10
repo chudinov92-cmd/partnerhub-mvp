@@ -30,5 +30,9 @@ select 'public.profile_views', count(*)::bigint from public.profile_views
 union all
 select 'public.profile_blocks', count(*)::bigint from public.profile_blocks
 union all
+select 'public.push_subscriptions', count(*)::bigint from public.push_subscriptions
+union all
+select 'public.app_config', count(*)::bigint from public.app_config
+union all
 select 'public.profile_likes', count(*)::bigint from public.profile_likes
 order by table_name;

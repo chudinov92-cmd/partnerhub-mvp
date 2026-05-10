@@ -42,3 +42,10 @@ For single-server Timeweb deployment with self-hosted Supabase (`zeip.ru` + `sup
 - runbook: `docs/timeweb-migration-runbook.md`
 - migration scripts: `scripts/migration/*`
 - app compose template: `deploy/timeweb/docker-compose.app.yml`
+- post-migration scripts:
+  - `scripts/migration/check_smtp_env.sh`
+  - `scripts/migration/backup_self_hosted_supabase.sh`
+  - `scripts/migration/install_backup_cron.sh`
+  - `scripts/migration/healthcheck_timeweb.sh`
+
+**Web Push (уведомления о личных сообщениях):** SQL `supabase/sql/2026-05-08-web-push.sql` — см. раздел **§12** в `docs/timeweb-migration-runbook.md`; в `.env.local` / `.env.app` нужны VAPID + `SUPABASE_SERVICE_ROLE_KEY` + `INTERNAL_PUSH_SECRET`.
