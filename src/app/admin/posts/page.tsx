@@ -84,15 +84,20 @@ export default function AdminPostsPage() {
     setBusyId(postId);
     setError(null);
     try {
-      const { error: updErr } = await supabase
-        .from("posts")
-        .update({
+      const res = await fetch("/api/admin/posts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          post_id: postId,
           moderation_status: nextStatus,
           moderation_reason: reason,
-          moderated_at: new Date().toISOString(),
-        })
-        .eq("id", postId);
-      if (updErr) throw updErr;
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "Не удалось изменить статус поста.");
+
+      const moderatedAt = new Date().toISOString();
       setRows((prev) =>
         prev.map((x) =>
           x.id === postId
@@ -100,17 +105,11 @@ export default function AdminPostsPage() {
                 ...x,
                 moderation_status: nextStatus,
                 moderation_reason: reason,
-                moderated_at: new Date().toISOString(),
+                moderated_at: moderatedAt,
               }
             : x,
         ),
       );
-      await supabase.from("admin_audit_log").insert({
-        action: "posts.set_moderation_status",
-        target_type: "post",
-        target_id: postId,
-        payload: { next_status: nextStatus, reason },
-      });
     } catch (e: any) {
       setError(e?.message ?? "Не удалось изменить статус поста.");
     } finally {
@@ -123,15 +122,15 @@ export default function AdminPostsPage() {
     setBusyId(postId);
     setError(null);
     try {
-      const { error: delErr } = await supabase.from("posts").delete().eq("id", postId);
-      if (delErr) throw delErr;
-      setRows((prev) => prev.filter((x) => x.id !== postId));
-      await supabase.from("admin_audit_log").insert({
-        action: "posts.hard_delete",
-        target_type: "post",
-        target_id: postId,
-        payload: {},
+      const qs = `post_id=${encodeURIComponent(postId)}`;
+      const res = await fetch(`/api/admin/posts?${qs}`, {
+        method: "DELETE",
+        credentials: "include",
       });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "Не удалось удалить пост.");
+
+      setRows((prev) => prev.filter((x) => x.id !== postId));
     } catch (e: any) {
       setError(e?.message ?? "Не удалось удалить пост.");
     } finally {

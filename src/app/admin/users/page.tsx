@@ -86,21 +86,21 @@ export default function AdminUsersPage() {
     setBusyId(u.id);
     setError(null);
     try {
-      const { error: updErr } = await supabase
-        .from("profiles")
-        .update({ is_blocked: !u.is_blocked })
-        .eq("id", u.id);
-      if (updErr) throw updErr;
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          profile_id: u.id,
+          is_blocked: !u.is_blocked,
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "Не удалось изменить блокировку пользователя.");
+
       setRows((prev) =>
         prev.map((x) => (x.id === u.id ? { ...x, is_blocked: !x.is_blocked } : x)),
       );
-      // best-effort audit
-      await supabase.from("admin_audit_log").insert({
-        action: "profiles.toggle_block",
-        target_type: "profile",
-        target_id: u.id,
-        payload: { next_is_blocked: !u.is_blocked },
-      });
     } catch (e: any) {
       setError(e?.message ?? "Не удалось изменить блокировку пользователя.");
     } finally {

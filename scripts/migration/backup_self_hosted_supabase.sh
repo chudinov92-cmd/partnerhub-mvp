@@ -9,6 +9,8 @@ fi
 
 STACK_DIR="$1"
 OUT_DIR="${2:-/root/zeip/backups/daily}"
+# Сколько последних дампов оставить в OUT_DIR после успешного бэкапа (ротация).
+KEEP_BACKUPS="${KEEP_BACKUPS:-14}"
 TS="$(date +%F_%H-%M-%S)"
 
 if [[ ! -d "$STACK_DIR" ]]; then
@@ -40,3 +42,19 @@ docker cp "supabase-db:/tmp/supabase_${TS}.dump" "$OUT_FILE"
 docker exec supabase-db rm -f "/tmp/supabase_${TS}.dump"
 
 echo "Backup completed: $OUT_FILE"
+
+# Ротация: оставить только KEEP_BACKUPS последних supabase_*.dump (по mtime).
+if [[ "${KEEP_BACKUPS}" =~ ^[0-9]+$ ]] && [[ "${KEEP_BACKUPS}" -gt 0 ]]; then
+  tmp="$(mktemp)"
+  find "$OUT_DIR" -maxdepth 1 -type f -name 'supabase_*.dump' -printf '%T@\t%p\n' 2>/dev/null \
+    | sort -rn \
+    | awk -v k="$KEEP_BACKUPS" -F'\t' 'NR > k {print $2}' >"$tmp" || true
+  if [[ -s "$tmp" ]]; then
+    while read -r oldf; do
+      [[ -z "$oldf" ]] && continue
+      echo "Rotating away old backup: $oldf"
+      rm -f "$oldf"
+    done <"$tmp"
+  fi
+  rm -f "$tmp"
+fi

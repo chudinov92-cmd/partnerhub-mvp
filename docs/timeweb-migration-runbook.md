@@ -237,3 +237,19 @@ docker compose --env-file deploy/timeweb/.env.app -f deploy/timeweb/docker-compo
 ```
 
 Проверка: два аккаунта, включить push в «Мои чаты», отправить сообщение — уведомление; клик открывает чат по `/?chat=` с id профиля отправителя.
+
+## 13) Дисковое место (диагностика и очистка)
+
+Связанное: [`deploy/timeweb/README-disk-maintenance.md`](../deploy/timeweb/README-disk-maintenance.md), скрипт [`scripts/migration/timeweb_disk_maintenance.sh`](../scripts/migration/timeweb_disk_maintenance.sh).
+
+С Mac (`YOUR_IP` замените на хост VPS):
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+chmod +x scripts/migration/timeweb_disk_maintenance.sh
+ssh root@YOUR_IP 'bash -s' < scripts/migration/timeweb_disk_maintenance.sh diagnose
+```
+
+Подробнее: команды `docker-prune`, `rotate-backups`, `print-log-limits-json`, `system-cleanup` описаны в `README-disk-maintenance.md`.
+
+Ежедневный бэкап Supabase (`backup_self_hosted_supabase.sh`) после успеха оставляет не более **`KEEP_BACKUPS`** файлов `supabase_*.dump` (по умолчанию `14`; задать в cron строке переменную окружения перед вызовом скрипта при необходимости).

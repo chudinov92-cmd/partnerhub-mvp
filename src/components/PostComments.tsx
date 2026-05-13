@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Profile } from "@/app/page";
+import type { Profile } from "@/types";
 
 export type PostCommentRow = {
   id: string;

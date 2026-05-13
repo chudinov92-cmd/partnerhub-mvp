@@ -121,12 +121,13 @@ function EmptyState({
   );
 }
 
-export default function AboutPage({
+export default async function AboutPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const state = (searchParams?.state ?? "default") as AboutState;
+  const sp = (await searchParams) ?? {};
+  const state = (sp.state ?? "default") as AboutState;
   if (state === "error") {
     throw new Error("About page error state");
   }

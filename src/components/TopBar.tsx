@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { authGetUser, authOnAuthStateChange, authSignOut } from "@/services/authService";
+import {
+  countContactsForOwner,
+  fetchTopBarProfile,
+  updateProfileLastSeen,
+} from "@/services/profileService";
 import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
 import Image from "next/image";
@@ -91,7 +96,7 @@ export function TopBar() {
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await authGetUser();
 
         if (!user) {
           setIsAuthed(false);
@@ -102,13 +107,7 @@ export function TopBar() {
 
         setIsAuthed(true);
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
-
-        const p = profile as { id: string; full_name: string | null } | null;
+        const p = await fetchTopBarProfile(user.id);
         const name = p?.full_name ?? null;
         setFullName(name);
         setMyProfileId(p?.id ?? null);
@@ -121,7 +120,7 @@ export function TopBar() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = authOnAuthStateChange(async (_event, session) => {
       if (session?.user) {
         load();
       } else {
@@ -142,17 +141,9 @@ export function TopBar() {
       setContactCount(0);
       return;
     }
-    supabase
-      .from("profile_contacts")
-      .select("contact_profile_id", { count: "exact", head: true })
-      .eq("owner_id", myProfileId)
-      .then(({ count, error }) => {
-        if (error) {
-          setContactCount(0);
-          return;
-        }
-        setContactCount(count ?? 0);
-      });
+    countContactsForOwner(myProfileId)
+      .then((n) => setContactCount(n))
+      .catch(() => setContactCount(0));
   }, [myProfileId]);
 
   useEffect(() => {
@@ -179,10 +170,7 @@ export function TopBar() {
       if (typeof document !== "undefined" && document.visibilityState !== "visible")
         return;
       try {
-        await supabase
-          .from("profiles")
-          .update({ last_seen_at: new Date().toISOString() })
-          .eq("id", myProfileId);
+        await updateProfileLastSeen(myProfileId);
       } catch {
         // best-effort
       }
@@ -331,7 +319,7 @@ export function TopBar() {
                     type="button"
                     onClick={async () => {
                       setMenuOpen(false);
-                      await supabase.auth.signOut();
+                      await authSignOut();
                       setIsAuthed(false);
                       setFullName(null);
                       setMyProfileId(null);

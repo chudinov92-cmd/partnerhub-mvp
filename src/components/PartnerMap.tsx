@@ -11,7 +11,7 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
-import { supabase } from "@/lib/supabaseClient";
+import { fetchActiveLocations } from "@/services/profileService";
 
 type LocationPoint = {
   id: string;
@@ -277,23 +277,15 @@ export function PartnerMap({
 
   useEffect(() => {
     const load = async () => {
-      const { data, error } = await supabase
-        .from("locations")
-        .select("id, user_id, lat, lng, city")
-        .eq("is_active", true)
-        .limit(200);
-
-      if (!error && data) {
-        const normalized: LocationPoint[] = (data as any[]).map((row) => ({
-          id: row.id,
-          user_id: row.user_id,
-          lat: row.lat,
-          lng: row.lng,
-          city: row.city ?? null,
-        }));
-
-        setPoints(normalized);
-      }
+      const pts = await fetchActiveLocations(200);
+      const normalized: LocationPoint[] = pts.map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        lat: row.lat,
+        lng: row.lng,
+        city: row.city ?? null,
+      }));
+      setPoints(normalized);
     };
 
     load();

@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import {
+  fetchProfileLikeCount,
+  fetchViewerHasLiked,
+  insertProfileLike,
+  removeProfileLike,
+} from "@/services/profileService";
 
 export type ProfilePreviewData = {
   id: string;
@@ -232,24 +237,14 @@ export function ProfilePreviewCard({
       setLikesError(null);
       setLikesLoading(true);
       try {
-        const { count, error: countErr } = await supabase
-          .from("profile_likes")
-          .select("id", { count: "exact", head: true })
-          .eq("liked_profile_id", profile.id);
+        const cnt = await fetchProfileLikeCount(profile.id);
         if (!alive) return;
-        if (countErr) throw countErr;
-        setLikesCount(count ?? 0);
+        setLikesCount(cnt);
 
         if (viewerProfileId) {
-          const { data, error: likedErr } = await supabase
-            .from("profile_likes")
-            .select("id")
-            .eq("liked_profile_id", profile.id)
-            .eq("liker_profile_id", viewerProfileId)
-            .limit(1);
+          const liked = await fetchViewerHasLiked(profile.id, viewerProfileId);
           if (!alive) return;
-          if (likedErr) throw likedErr;
-          setLikedByMe((data?.length ?? 0) > 0);
+          setLikedByMe(liked);
         } else {
           setLikedByMe(false);
         }
@@ -277,20 +272,11 @@ export function ProfilePreviewCard({
       if (!viewerProfileId) throw new Error("no viewerProfileId");
 
       if (likedByMe) {
-        const { error } = await supabase
-          .from("profile_likes")
-          .delete()
-          .eq("liker_profile_id", viewerProfileId)
-          .eq("liked_profile_id", profile.id);
-        if (error) throw error;
+        await removeProfileLike(viewerProfileId, profile.id);
         setLikedByMe(false);
         setLikesCount((c) => (c == null ? c : Math.max(0, c - 1)));
       } else {
-        const { error } = await supabase.from("profile_likes").insert({
-          liker_profile_id: viewerProfileId,
-          liked_profile_id: profile.id,
-        });
-        if (error) throw error;
+        await insertProfileLike(viewerProfileId, profile.id);
         setLikedByMe(true);
         setLikesCount((c) => (c == null ? c : c + 1));
       }

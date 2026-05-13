@@ -4,30 +4,51 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import type { MobileMainTab } from "@/components/MainMobileNav";
 import type { PartnerMapProps } from "@/components/PartnerMap";
-import { supabase } from "@/lib/supabaseClient";
+import { deleteBlock, insertBlock } from "@/services/contactService";
+import {
+  formatChatListPreview,
+  openOrEnsurePrivateChat,
+  fetchRecentMessages,
+  updateMessageContent,
+  insertMessage,
+} from "@/services/chatService";
+import {
+  updatePostBody,
+  insertPost as insertFeedPost,
+  insertPostComment,
+} from "@/services/feedService";
+import type {
+  Post,
+  Profile,
+  FeedFilters,
+  ChatMessage,
+  ChatListItem,
+} from "@/types";
+import { DEFAULT_FEED_FILTERS } from "@/types";
 import { maskProfanity } from "@/lib/profanity";
 import {
   getProfessionLabelsForSelect,
-  loadProfessionCatalog,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
 import { DropdownSelect } from "@/components/DropdownSelect";
 import {
   getIndustryLabelsForSelect,
   getSubindustryLabelsForSelect,
-  loadIndustryCatalog,
-  loadSubindustryCatalog,
   type IndustryCatalogRow,
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
 import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
-import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
 import type { PostCommentRow } from "@/components/PostComments";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
+import { useAuth } from "@/hooks/useAuth";
+import { useContacts } from "@/hooks/useContacts";
+import { useMobileNav } from "@/hooks/useMobileNav";
+import { useFeed } from "@/hooks/useFeed";
+import { useProfiles } from "@/hooks/useProfiles";
+import { useChatMessagesRealtime } from "@/hooks/useChat";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -42,60 +63,13 @@ const ProfilePreviewCard = dynamic(
   { ssr: false },
 );
 
-type Post = {
-  id: string;
-  body: string | null;
-  city: string | null;
-  created_at: string;
-  edited_at?: string | null;
-  author_id: string;
-  // Структура автора приходит из Supabase как вложенный объект/массив,
-  // для простоты типизируем как any и обрабатываем на уровне рендера.
-  author: any;
-};
-
-export type Profile = {
-  id: string;
-  full_name: string | null;
-  age?: number | null;
-  city: string | null;
-  rating_avg: number | null;
-  rating_count: number | null;
-  last_seen_at?: string | null;
-  skills?: string | null;
-  resources?: string | null;
-  industry?: string | null;
-  subindustry?: string | null;
-  role_title?: string | null;
-  experience_years?: number | null;
-  current_status?: string | null;
-  interested_in?: string | null;
-};
-
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
-const MAX_RELATION_ROWS = 500;
-const MAX_COMMENTS_FETCH = 200;
-const POSTS_POLL_INTERVAL_MS = 15000;
 
 function isOnline(lastSeenAt?: string | null) {
   if (!lastSeenAt) return false;
   const t = new Date(lastSeenAt).getTime();
   if (Number.isNaN(t)) return false;
   return Date.now() - t <= ONLINE_WINDOW_MS;
-}
-
-type ChatListItem = {
-  chatId: string;
-  profile: Profile;
-  lastMessageAt: string | null;
-  /** Текст последнего сообщения в чате (для превью в списке) */
-  lastMessagePreview: string | null;
-};
-
-function formatChatListPreview(content: string | null | undefined): string | null {
-  const s = (content ?? "").replace(/\s+/g, " ").trim();
-  if (!s) return null;
-  return s.length > 30 ? `${s.slice(0, 30)}...` : s;
 }
 
 const INDUSTRY_OPTIONS = [
@@ -126,18 +100,6 @@ function sortWithOtherLast(items: readonly string[]) {
   const other = "Другое";
   const rest = items.filter((x) => x !== other).slice().sort(sortRuAsc);
   return items.includes(other) ? [...rest, other] : rest;
-}
-
-function groupCommentsByPostId(
-  rows: PostCommentRow[],
-): Record<string, PostCommentRow[]> {
-  const byPost: Record<string, PostCommentRow[]> = {};
-  for (const row of rows) {
-    const pid = row.post_id;
-    if (!byPost[pid]) byPost[pid] = [];
-    byPost[pid].push(row);
-  }
-  return byPost;
 }
 
 const SORTED_INDUSTRY_OPTIONS = sortWithOtherLast(INDUSTRY_OPTIONS);
@@ -279,54 +241,7 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
   ],
 };
 
-type FeedFilters = {
-  profession: string | null;
-  industry: string | null;
-  subindustry: string | null;
-  current_status: string | null;
-  online_status: "online" | "offline" | null;
-  age_from: number | null;
-  age_to: number | null;
-};
-
-const DEFAULT_FEED_FILTERS: FeedFilters = {
-  profession: null,
-  industry: null,
-  subindustry: null,
-  current_status: null,
-  online_status: null,
-  age_from: null,
-  age_to: null,
-};
-
-type CurrentUser = {
-  profileId: string;
-  fullName: string | null;
-  city: string | null;
-  isBlocked: boolean;
-};
-
-type ChatMessage = {
-  id: string;
-  content: string;
-  sender_id: string;
-  created_at: string;
-  edited_at?: string | null;
-};
-
 export default function Home() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [commentsByPostId, setCommentsByPostId] = useState<
-    Record<string, PostCommentRow[]>
-  >({});
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [chatList, setChatList] = useState<ChatListItem[]>([]);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  /** Лента общего чата грузится отдельно по выбранному в шапке городу (или «Россия»). */
-  const [postsLoading, setPostsLoading] = useState(true);
-  const [postsLoadError, setPostsLoadError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
   );
@@ -357,6 +272,7 @@ export default function Home() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
+  const [generalChatSearch, setGeneralChatSearch] = useState("");
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
@@ -365,21 +281,55 @@ export default function Home() {
   const [focusedProfileId, setFocusedProfileId] = useState<string | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
-  const [viewedProfileIds, setViewedProfileIds] = useState<string[]>([]);
-  const [blockedProfileIds, setBlockedProfileIds] = useState<string[]>([]);
   const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
     Record<string, boolean>
   >({});
-  const [contactsOnlyMode, setContactsOnlyMode] = useState(false);
-  const [mapContactsOnly, setMapContactsOnly] = useState(false);
   const router = useRouter();
-  const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
-  const postsFingerprintRef = useRef<string>("");
-  const chatMembershipRef = useRef<Set<string>>(new Set());
+  const {
+    contactsOnlyMode,
+    mapContactsOnly,
+    mobileTab,
+    handleMobileTab,
+    resetContactsMode,
+    setMobileTab,
+  } = useMobileNav();
+
+  const {
+    profiles,
+    chatList,
+    setChatList,
+    currentUser,
+    loading,
+    error,
+    chatMembershipRef,
+  } = useAuth([]);
+
+  const {
+    contactProfileIds,
+    viewedProfileIds,
+    blockedProfileIds,
+    setBlockedProfileIds,
+    toggleContact,
+    markProfileViewed,
+  } = useContacts(currentUser);
+
+  const { selectedCity } = useSelectedCity();
+
+  const {
+    posts,
+    setPosts,
+    commentsByPostId,
+    setCommentsByPostId,
+    postsLoading,
+    postsLoadError,
+    postsFingerprintRef,
+  } = useFeed(selectedCity);
+
+  const { professionCatalog, industryCatalog, subindustryCatalog } =
+    useProfiles();
+
   /** Сброс эффекта открытия чата по ?chat= после router.replace / SW. */
   const [chatDeepLinkNonce, setChatDeepLinkNonce] = useState(0);
-  const { selectedCity } = useSelectedCity();
   const mapConfig = useMemo(
     () => getMapConfigForCity(selectedCity),
     [selectedCity],
@@ -389,56 +339,6 @@ export default function Home() {
     const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
-
-  // режим "Контакты" включаем через query-param ?contacts=1
-  // (Next router меняет URL через history.pushState, поэтому слушаем изменения location.search)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const read = () => {
-      const params = new URLSearchParams(window.location.search);
-      setContactsOnlyMode(params.get("contacts") === "1");
-      setMapContactsOnly(params.get("mapContacts") === "1");
-    };
-
-    read();
-
-    const onLocationChange = () => read();
-
-    const origPush = history.pushState;
-    const origReplace = history.replaceState;
-
-    history.pushState = function (
-      this: History,
-      ...args: Parameters<History["pushState"]>
-    ) {
-      const ret = origPush.apply(this, args as any);
-      window.dispatchEvent(new Event("locationchange"));
-      return ret;
-    } as any;
-    history.replaceState = function (
-      this: History,
-      ...args: Parameters<History["replaceState"]>
-    ) {
-      const ret = origReplace.apply(this, args as any);
-      window.dispatchEvent(new Event("locationchange"));
-      return ret;
-    } as any;
-
-    window.addEventListener("popstate", onLocationChange);
-    window.addEventListener("locationchange", onLocationChange);
-
-    return () => {
-      history.pushState = origPush;
-      history.replaceState = origReplace;
-      window.removeEventListener("popstate", onLocationChange);
-      window.removeEventListener("locationchange", onLocationChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (contactsOnlyMode) setMobileTab("contacts");
-  }, [contactsOnlyMode]);
 
   // подгружаем сохранённые фильтры ленты
   useEffect(() => {
@@ -455,349 +355,6 @@ export default function Home() {
       // ignore
     }
   }, []);
-
-  // загрузка контактов текущего пользователя
-  useEffect(() => {
-    if (!currentUser?.profileId) {
-      setContactProfileIds([]);
-      return;
-    }
-    let alive = true;
-    supabase
-      .from("profile_contacts")
-      .select("contact_profile_id")
-      .eq("owner_id", currentUser.profileId)
-      .limit(MAX_RELATION_ROWS)
-      .then(({ data, error }) => {
-        if (!alive) return;
-        if (error) {
-          console.error("Failed to load contacts", error);
-          setContactProfileIds([]);
-          return;
-        }
-        const ids =
-          (data as any[] | null)?.map((r) => r.contact_profile_id) ?? [];
-        setContactProfileIds(ids);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [currentUser?.profileId]);
-
-  // загрузка просмотренных профилей текущего пользователя
-  useEffect(() => {
-    if (!currentUser?.profileId) {
-      setViewedProfileIds([]);
-      return;
-    }
-    let alive = true;
-    supabase
-      .from("profile_views")
-      .select("viewed_profile_id")
-      .eq("viewer_id", currentUser.profileId)
-      .limit(MAX_RELATION_ROWS)
-      .then(({ data, error }) => {
-        if (!alive) return;
-        if (error) {
-          console.error("Failed to load views", error);
-          setViewedProfileIds([]);
-          return;
-        }
-        const ids =
-          (data as any[] | null)?.map((r) => r.viewed_profile_id) ?? [];
-        setViewedProfileIds(ids);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [currentUser?.profileId]);
-
-  // загрузка блокировок текущего пользователя
-  useEffect(() => {
-    if (!currentUser?.profileId) {
-      setBlockedProfileIds([]);
-      return;
-    }
-    let alive = true;
-    supabase
-      .from("profile_blocks")
-      .select("blocked_profile_id")
-      .eq("owner_id", currentUser.profileId)
-      .limit(MAX_RELATION_ROWS)
-      .then(({ data, error }) => {
-        if (!alive) return;
-        if (error) {
-          console.error("Failed to load blocks", error);
-          setBlockedProfileIds([]);
-          return;
-        }
-        const ids =
-          (data as any[] | null)?.map((r) => r.blocked_profile_id) ?? [];
-        setBlockedProfileIds(ids);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [currentUser?.profileId]);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setError(null);
-        setLoading(true);
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        const [{ data: profilesData, error: profilesError }, currentProfileResult] =
-          await Promise.all([
-            supabase
-              .from("profiles")
-              .select(
-                "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count",
-              )
-              .limit(50),
-            user
-              ? supabase
-                  .from("profiles")
-                  .select("id, full_name, city, is_blocked")
-                  .eq("auth_user_id", user.id)
-                  .maybeSingle()
-              : Promise.resolve({ data: null, error: null }),
-          ] as const);
-
-        if (profilesError) throw profilesError;
-
-        const allProfiles = (profilesData ?? []) as Profile[];
-        setProfiles(allProfiles);
-
-        if (user && !currentProfileResult.error && currentProfileResult.data) {
-          const p = currentProfileResult.data as {
-            id: string;
-            full_name: string | null;
-            city: string | null;
-            is_blocked: boolean | null;
-          };
-          setCurrentUser({
-            profileId: p.id,
-            fullName: p.full_name,
-            city: p.city,
-            isBlocked: !!p.is_blocked,
-          });
-
-          // загружаем только те профили, с кем у текущего пользователя есть чаты
-          const { data: memberRows, error: memberErr } = await supabase
-            .from("chat_members")
-            .select("chat_id")
-            .eq("user_id", p.id);
-
-          if (!memberErr && memberRows && memberRows.length > 0) {
-            const chatIds = Array.from(
-              new Set(memberRows.map((m: any) => m.chat_id as string)),
-            );
-            chatMembershipRef.current = new Set(chatIds);
-
-            const { data: otherRows, error: otherErr } = await supabase
-              .from("chat_members")
-              .select(
-                "chat_id, user_id, profiles(id, full_name, city, industry, subindustry, role_title, last_seen_at, skills, resources, interested_in, rating_avg, rating_count)",
-              )
-              .in("chat_id", chatIds)
-              .neq("user_id", p.id);
-
-            if (!otherErr && otherRows) {
-              const map = new Map<string, { chatId: string; profile: Profile }>();
-              (otherRows as any[]).forEach((row) => {
-                const prof = row.profiles as any;
-                if (!prof) return;
-                map.set(prof.id as string, {
-                  chatId: row.chat_id as string,
-                  profile: {
-                    id: prof.id,
-                    full_name: prof.full_name,
-                    city: prof.city,
-                    industry: prof.industry,
-                    subindustry: prof.subindustry,
-                    role_title: prof.role_title,
-                    last_seen_at: prof.last_seen_at ?? null,
-                    skills: prof.skills ?? null,
-                    resources: prof.resources ?? null,
-                    interested_in: prof.interested_in ?? null,
-                    rating_avg: prof.rating_avg,
-                    rating_count: prof.rating_count,
-                  },
-                });
-              });
-
-              const baseItems: ChatListItem[] = Array.from(map.values()).map(
-                (v) => ({
-                  chatId: v.chatId,
-                  profile: v.profile,
-                  lastMessageAt: null,
-                  lastMessagePreview: null,
-                }),
-              );
-
-              const otherProfileIdByChatId = new Map<string, string>();
-              baseItems.forEach((i) => otherProfileIdByChatId.set(i.chatId, i.profile.id));
-
-              const lastByChat = new Map<
-                string,
-                { at: string; preview: string }
-              >();
-              const { data: lastRows, error: lastErr } = await supabase
-                .from("messages")
-                .select("chat_id, sender_id, created_at, content")
-                .in(
-                  "chat_id",
-                  Array.from(new Set(baseItems.map((i) => i.chatId))),
-                )
-                .order("created_at", { ascending: false })
-                .limit(Math.max(baseItems.length * 5, 100));
-              if (!lastErr && lastRows) {
-                for (const row of lastRows as any[]) {
-                  const chatId = row.chat_id as string;
-                  if (lastByChat.has(chatId)) continue;
-                  const otherId = otherProfileIdByChatId.get(chatId);
-                  if (
-                    otherId &&
-                    blockedProfileIds.includes(otherId) &&
-                    row.sender_id === otherId
-                  ) {
-                    continue;
-                  }
-                  if (row.created_at) {
-                    lastByChat.set(chatId, {
-                      at: row.created_at as string,
-                      preview: String(row.content ?? "").trim(),
-                    });
-                  }
-                }
-              }
-
-              const withLast = baseItems
-                .map((i) => {
-                  const last = lastByChat.get(i.chatId);
-                  return {
-                    ...i,
-                    lastMessageAt: last?.at ?? null,
-                    lastMessagePreview: last?.preview
-                      ? last.preview
-                      : null,
-                  };
-                })
-                .sort((a, b) => {
-                  const at = a.lastMessageAt ?? "";
-                  const bt = b.lastMessageAt ?? "";
-                  return bt.localeCompare(at);
-                });
-
-              setChatList(withLast);
-            } else {
-              setChatList([]);
-            }
-          } else {
-            chatMembershipRef.current = new Set();
-            setChatList([]);
-          }
-        } else {
-          chatMembershipRef.current = new Set();
-          setCurrentUser(null);
-          setChatList([]);
-        }
-
-      } catch (err: any) {
-        setError(err.message ?? "Не удалось загрузить данные");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, []);
-
-  // Общий чат привязан к выбранному в шапке городу; «Россия» — отдельная лента (city = 'Россия').
-  useEffect(() => {
-    let cancelled = false;
-    setPostsLoading(true);
-    setPostsLoadError(null);
-
-    (async () => {
-      // Если колонка moderation_status ещё не добавлена в БД, запрос с фильтром упадёт.
-      // Делаем fallback на старую схему (показываем всё как раньше).
-      let postsData: any[] | null = null;
-      let postsError: any = null;
-      {
-        const mk = () =>
-          supabase
-            .from("posts")
-            .select(
-              "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-            )
-            .eq("city", selectedCity)
-            .order("created_at", { ascending: false })
-            .limit(20);
-
-        const r1 = await mk().or(
-          "moderation_status.eq.active,moderation_status.is.null",
-        );
-        if (!r1.error) {
-          postsData = r1.data as any[] | null;
-        } else {
-          const r2 = await mk();
-          postsData = r2.data as any[] | null;
-          postsError = r2.error ?? null;
-        }
-      }
-
-      if (cancelled) return;
-
-      if (postsError) {
-        console.warn("posts load failed", postsError);
-        setPosts([]);
-        setCommentsByPostId({});
-        setPostsLoadError(
-          `Не удалось загрузить общий чат. ${String(
-            (postsError as any)?.message ?? postsError,
-          )}`,
-        );
-        setPostsLoading(false);
-        return;
-      }
-
-      setPosts((postsData ?? []) as Post[]);
-      const postIds = (postsData ?? []).map((p: any) => p.id as string);
-      postsFingerprintRef.current = postIds.join("|");
-      if (postIds.length > 0) {
-        const { data: commentsData, error: commentsErr } = await supabase
-          .from("post_comments")
-          .select(
-            "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
-          )
-          .in("post_id", postIds)
-          .order("post_id", { ascending: true })
-          .order("created_at", { ascending: true })
-          .limit(MAX_COMMENTS_FETCH);
-        if (cancelled) return;
-        if (commentsErr) {
-          console.warn("post_comments load failed", commentsErr);
-          setCommentsByPostId({});
-        } else if (commentsData) {
-          setCommentsByPostId(
-            groupCommentsByPostId(commentsData as PostCommentRow[]),
-          );
-        }
-      } else {
-        setCommentsByPostId({});
-      }
-      setPostsLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCity]);
 
   useEffect(() => {
     setEditingPostId(null);
@@ -832,203 +389,15 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- открываем только при смене списков/URL-nonce
   }, [currentUser, profiles, chatDeepLinkNonce]);
 
-  // Периодически подтягиваем новые сообщения для общего чата текущего города.
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      let data: any[] | null = null;
-      let error: any = null;
-      {
-        const mk = () =>
-          supabase
-            .from("posts")
-            .select(
-              "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-            )
-            .eq("city", selectedCity)
-            .order("created_at", { ascending: false })
-            .limit(20);
-
-        const r1 = await mk().or(
-          "moderation_status.eq.active,moderation_status.is.null",
-        );
-        if (!r1.error) {
-          data = r1.data as any[] | null;
-        } else {
-          const r2 = await mk();
-          data = r2.data as any[] | null;
-          error = r2.error ?? null;
-        }
-      }
-
-      if (!error && data) {
-        const nextPosts = data as Post[];
-        const ids = nextPosts.map((p) => p.id);
-        const nextFingerprint = ids.join("|");
-        if (nextFingerprint === postsFingerprintRef.current) return;
-        postsFingerprintRef.current = nextFingerprint;
-        setPosts(nextPosts);
-        if (ids.length === 0) {
-          setCommentsByPostId({});
-          return;
-        }
-        const { data: cdata, error: cerr } = await supabase
-          .from("post_comments")
-          .select(
-            "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
-          )
-          .in("post_id", ids)
-          .order("post_id", { ascending: true })
-          .order("created_at", { ascending: true })
-          .limit(MAX_COMMENTS_FETCH);
-        if (!cerr && cdata) {
-          setCommentsByPostId(groupCommentsByPostId(cdata as PostCommentRow[]));
-        }
-      }
-    }, POSTS_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [selectedCity]);
-
-  // Реальное время для личных сообщений
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const channel = supabase
-      .channel("messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
-          const msg = payload.new as ChatMessage & { chat_id: string };
-
-          // Игнорируем свои же сообщения (мы их уже добавили локально)
-          if (msg.sender_id === currentUser.profileId) return;
-          // Игнорируем сообщения от пользователей, которых мы заблокировали
-          if (blockedProfileIds.includes(msg.sender_id)) return;
-
-          try {
-            const chatId = (msg as any).chat_id as string;
-            let members: { user_id: string }[] | null = null;
-            if (chatMembershipRef.current.has(chatId)) {
-              members = [
-                { user_id: currentUser.profileId },
-                { user_id: msg.sender_id },
-              ];
-            } else {
-              // Проверяем, что текущий пользователь участник этого чата
-              const { data, error } = await supabase
-                .from("chat_members")
-                .select("user_id")
-                .eq("chat_id", chatId);
-              if (error || !data) return;
-              members = data as { user_id: string }[];
-              if (members.some((m) => m.user_id === currentUser.profileId)) {
-                chatMembershipRef.current.add(chatId);
-              }
-            }
-
-            const memberIds = members.map((m) => m.user_id as string);
-            if (!memberIds.includes(currentUser.profileId)) return;
-
-            const otherId =
-              memberIds.find((id) => id !== currentUser.profileId) ??
-              currentUser.profileId;
-
-            // Если этот чат сейчас открыт — просто добавляем сообщение в окно
-            if (activeChatId === chatId) {
-              setChatMessages((prev) => [...prev, msg]);
-            } else {
-              // Иначе увеличиваем счётчик непрочитанных для собеседника
-              setUnreadByUser((prev) => ({
-                ...prev,
-                [otherId]: (prev[otherId] || 0) + 1,
-              }));
-            }
-
-            // Поднимаем чат вверх в списке и обновляем превью
-            setChatList((prev) => {
-              const chatId = (msg as any).chat_id as string;
-              const idx = prev.findIndex((x) => x.chatId === chatId);
-              if (idx < 0) return prev;
-              const next = [...prev];
-              const item = {
-                ...next[idx],
-                lastMessageAt: msg.created_at,
-                lastMessagePreview: String(msg.content ?? "").trim(),
-              };
-              next.splice(idx, 1);
-              return [item, ...next];
-            });
-          } catch {
-            // тихо игнорируем ошибки realtime-обработчика
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        async (payload) => {
-          const msg = payload.new as ChatMessage & { chat_id: string };
-
-          // Игнорируем апдейты от заблокированных пользователей
-          if (blockedProfileIds.includes(msg.sender_id)) return;
-
-          try {
-            const chatId = (msg as any).chat_id as string;
-            let members: { user_id: string }[] | null = null;
-            if (chatMembershipRef.current.has(chatId)) {
-              members = [
-                { user_id: currentUser.profileId },
-                { user_id: msg.sender_id },
-              ];
-            } else {
-              // Проверяем, что текущий пользователь участник этого чата
-              const { data, error } = await supabase
-                .from("chat_members")
-                .select("user_id")
-                .eq("chat_id", chatId);
-              if (error || !data) return;
-              members = data as { user_id: string }[];
-              if (members.some((m) => m.user_id === currentUser.profileId)) {
-                chatMembershipRef.current.add(chatId);
-              }
-            }
-
-            const memberIds = members.map((m) => m.user_id as string);
-            if (!memberIds.includes(currentUser.profileId)) return;
-
-            if (activeChatId === chatId) {
-              setChatMessages((prev) =>
-                prev.map((m) => (m.id === msg.id ? (msg as ChatMessage) : m)),
-              );
-            }
-
-            // Обновляем превью последнего сообщения в списке чатов, если редактировали последнее
-            setChatList((prev) => {
-              const chatId = (msg as any).chat_id as string;
-              const idx = prev.findIndex((x) => x.chatId === chatId);
-              if (idx < 0) return prev;
-              const next = [...prev];
-              const item = {
-                ...next[idx],
-                lastMessagePreview: String((msg as any).content ?? "").trim(),
-              };
-              next[idx] = item;
-              return next;
-            });
-          } catch {
-            // ignore
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser, activeChatId, blockedProfileIds]);
-
-  const [generalChatSearch, setGeneralChatSearch] = useState("");
+  useChatMessagesRealtime({
+    currentUser,
+    activeChatId,
+    blockedProfileIds,
+    chatMembershipRef,
+    setChatMessages,
+    setUnreadByUser,
+    setChatList,
+  });
 
   const visiblePosts = useMemo(() => {
     const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
@@ -1096,52 +465,6 @@ export default function Home() {
       el.scrollTop = el.scrollHeight;
     });
   }, [visiblePosts, loading, postsLoading, feedFilters]);
-
-  const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
-    [],
-  );
-  const [industryCatalog, setIndustryCatalog] = useState<IndustryCatalogRow[]>([]);
-  const [subindustryCatalog, setSubindustryCatalog] = useState<
-    SubindustryCatalogRow[]
-  >([]);
-
-  useEffect(() => {
-    let alive = true;
-    loadProfessionCatalog()
-      .then((rows) => {
-        if (!alive) return;
-        setProfessionCatalog(rows);
-      })
-      .catch(() => {
-        // best-effort: keep UI functional even if catalog table isn't set up yet
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    loadIndustryCatalog()
-      .then((rows) => {
-        if (!alive) return;
-        setIndustryCatalog(rows);
-      })
-      .catch((e) => {
-        console.error("Failed to load industry_catalog", e);
-      });
-    loadSubindustryCatalog()
-      .then((rows) => {
-        if (!alive) return;
-        setSubindustryCatalog(rows);
-      })
-      .catch((e) => {
-        console.error("Failed to load subindustry_catalog", e);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const selectedProfessionRow = useMemo(() => {
     if (!feedFilters.profession) return null;
@@ -1211,59 +534,6 @@ export default function Home() {
     [unreadByUser],
   );
 
-  const resetContactsMode = () => {
-    if (typeof window === "undefined") return;
-    // Update UI immediately; URL listener will confirm via next event.
-    setContactsOnlyMode(false);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("contacts");
-    window.history.replaceState({}, "", url.toString());
-    window.dispatchEvent(new Event("locationchange"));
-  };
-
-  const handleMobileTab = (t: MobileMainTab) => {
-    setMobileTab(t);
-    if (t === "contacts") {
-      router.push("/?contacts=1");
-      return;
-    }
-    if (contactsOnlyMode) resetContactsMode();
-  };
-
-  const toggleContact = async (profileId: string) => {
-    if (!currentUser?.profileId) return;
-    if (profileId === currentUser.profileId) return;
-
-    const isIn = contactProfileIds.includes(profileId);
-    setContactProfileIds((prev) =>
-      isIn ? prev.filter((x) => x !== profileId) : [...prev, profileId],
-    );
-
-    try {
-      if (isIn) {
-        const { error } = await supabase
-          .from("profile_contacts")
-          .delete()
-          .eq("owner_id", currentUser.profileId)
-          .eq("contact_profile_id", profileId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("profile_contacts").insert({
-          owner_id: currentUser.profileId,
-          contact_profile_id: profileId,
-        });
-        if (error) throw error;
-      }
-      notifyProfileContactsChanged();
-    } catch (e) {
-      console.error("Failed to toggle contact", e);
-      setContactProfileIds((prev) =>
-        isIn ? [...prev, profileId] : prev.filter((x) => x !== profileId),
-      );
-      notifyProfileContactsChanged();
-    }
-  };
-
   const toggleBlock = async (profileId: string) => {
     if (!currentUser?.profileId) return;
     if (profileId === currentUser.profileId) return;
@@ -1281,18 +551,9 @@ export default function Home() {
 
     try {
       if (isBlocked) {
-        const { error } = await supabase
-          .from("profile_blocks")
-          .delete()
-          .eq("owner_id", currentUser.profileId)
-          .eq("blocked_profile_id", profileId);
-        if (error) throw error;
+        await deleteBlock(currentUser.profileId, profileId);
       } else {
-        const { error } = await supabase.from("profile_blocks").insert({
-          owner_id: currentUser.profileId,
-          blocked_profile_id: profileId,
-        });
-        if (error) throw error;
+        await insertBlock(currentUser.profileId, profileId);
       }
     } catch (e) {
       console.error("Failed to toggle block", e);
@@ -1301,24 +562,6 @@ export default function Home() {
       );
     } finally {
       setBlockBusyByProfileId((prev) => ({ ...prev, [profileId]: false }));
-    }
-  };
-
-  const markProfileViewed = async (profileId: string) => {
-    if (!currentUser?.profileId) return;
-    if (profileId === currentUser.profileId) return;
-    if (viewedProfileIds.includes(profileId)) return;
-
-    setViewedProfileIds((prev) => [...prev, profileId]);
-    try {
-      const { error } = await supabase.from("profile_views").insert({
-        viewer_id: currentUser.profileId,
-        viewed_profile_id: profileId,
-      });
-      if (error) throw error;
-    } catch (e) {
-      console.error("Failed to mark profile viewed", e);
-      setViewedProfileIds((prev) => prev.filter((x) => x !== profileId));
     }
   };
 
@@ -1389,14 +632,7 @@ export default function Home() {
       const maskedBody = maskProfanity(newPostBody.trim()) ?? "";
       const body = maskedBody.slice(0, 1000);
       if (editingPostId) {
-        const { data, error } = await supabase
-          .from("posts")
-          .update({ body })
-          .eq("id", editingPostId)
-          .select(
-            "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-          )
-          .single();
+        const { data, error } = await updatePostBody(editingPostId, body);
         if (error) throw error;
 
         setPosts((prev) =>
@@ -1405,19 +641,11 @@ export default function Home() {
         setEditingPostId(null);
         setNewPostBody("");
       } else {
-        const { data, error } = await supabase
-          .from("posts")
-          .insert({
-            author_id: currentUser.profileId,
-            title: "Общий чат",
-            body,
-            city: selectedCity,
-          })
-          .select(
-            "id, body, city, created_at, edited_at, author_id, author:profiles(full_name, age, role_title, last_seen_at, current_status, industry, subindustry)",
-          )
-          .single();
-
+        const { data, error } = await insertFeedPost({
+          authorId: currentUser.profileId,
+          body,
+          city: selectedCity,
+        });
         if (error) throw error;
 
         setPosts((prev) => {
@@ -1439,17 +667,11 @@ export default function Home() {
     if (!masked) {
       throw new Error("Пустой текст.");
     }
-    const { data, error } = await supabase
-      .from("post_comments")
-      .insert({
-        post_id: postId,
-        author_id: currentUser.profileId,
-        body: masked,
-      })
-      .select(
-        "id, post_id, author_id, body, created_at, author:profiles(full_name, role_title, last_seen_at)",
-      )
-      .single();
+    const { data, error } = await insertPostComment({
+      postId,
+      authorId: currentUser.profileId,
+      body: masked,
+    });
     if (error) throw error;
     if (data) {
       setCommentsByPostId((prev) => ({
@@ -1470,68 +692,13 @@ export default function Home() {
     setChatLoading(true);
 
     try {
-      let chatId: string | null = null;
-      const { data: myMemberRows, error: myMemberErr } = await supabase
-        .from("chat_members")
-        .select("chat_id")
-        .eq("user_id", currentUser.profileId)
-        .limit(MAX_RELATION_ROWS);
-
-      if (myMemberErr) throw myMemberErr;
-
-      const candidateChatIds = Array.from(
-        new Set((myMemberRows ?? []).map((r: any) => r.chat_id as string)),
+      const chatId = await openOrEnsurePrivateChat(
+        currentUser.profileId,
+        profile.id,
       );
 
-      if (candidateChatIds.length > 0) {
-        const { data: sharedRows, error: sharedErr } = await supabase
-          .from("chat_members")
-          .select("chat_id")
-          .eq("user_id", profile.id)
-          .in("chat_id", candidateChatIds)
-          .limit(1);
-        if (sharedErr) throw sharedErr;
-        const candidate = (sharedRows?.[0] as any)?.chat_id as string | undefined;
-        if (candidate) {
-          const { data: oneChat, error: oneChatErr } = await supabase
-            .from("chats")
-            .select("id")
-            .eq("id", candidate)
-            .eq("is_group", false)
-            .maybeSingle();
-          if (oneChatErr) throw oneChatErr;
-          chatId = (oneChat as any)?.id ?? null;
-        }
-      }
-
-      // Если чата нет — создаём
-      if (!chatId) {
-        const { data: newChat, error: createChatError } = await supabase
-          .from("chats")
-          .insert({
-            is_group: false,
-            title: null,
-            created_by: currentUser.profileId,
-          })
-          .select("id")
-          .single();
-
-        if (createChatError) throw createChatError;
-
-        chatId = (newChat as any).id as string;
-
-        const { error: membersError } = await supabase
-          .from("chat_members")
-          .insert([
-            { chat_id: chatId, user_id: currentUser.profileId },
-            { chat_id: chatId, user_id: profile.id },
-          ]);
-
-        if (membersError) throw membersError;
-      }
-
       setActiveChatId(chatId);
-      if (chatId) chatMembershipRef.current.add(chatId);
+      chatMembershipRef.current.add(chatId);
 
       // Гарантируем, что чат есть в списке (важно для UI поп-апа и сортировки)
       setChatList((prev) => {
@@ -1546,23 +713,13 @@ export default function Home() {
         return [item, ...prev];
       });
 
-      // Загружаем последние 5 сообщений
-      let msgsQuery = supabase
-        .from("messages")
-        .select("id, content, sender_id, created_at, edited_at")
-        .eq("chat_id", chatId);
+      const excludeSenderIds = blockedProfileIds.includes(profile.id)
+        ? [profile.id]
+        : undefined;
+      const normalized = await fetchRecentMessages(chatId, {
+        excludeSenderIds,
+      });
 
-      if (blockedProfileIds.includes(profile.id)) {
-        msgsQuery = msgsQuery.neq("sender_id", profile.id);
-      }
-
-      const { data: msgsData, error: msgsError } = await msgsQuery
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (msgsError) throw msgsError;
-
-      const normalized = (msgsData ?? []).reverse() as ChatMessage[];
       setChatMessages(normalized);
       setEditingMessageId(null);
       setChatInput("");
@@ -1603,12 +760,10 @@ export default function Home() {
       const content = chatInput.trim().slice(0, 1000);
 
       if (editingMessageId) {
-        const { data, error } = await supabase
-          .from("messages")
-          .update({ content })
-          .eq("id", editingMessageId)
-          .select("id, content, sender_id, created_at, edited_at")
-          .single();
+        const { data, error } = await updateMessageContent(
+          editingMessageId,
+          content,
+        );
         if (error) throw error;
 
         setChatMessages((prev) =>
@@ -1631,16 +786,11 @@ export default function Home() {
           return next;
         });
       } else {
-        const { data, error } = await supabase
-          .from("messages")
-          .insert({
-            chat_id: activeChatId,
-            sender_id: currentUser.profileId,
-            content,
-          })
-          .select("id, content, sender_id, created_at, edited_at")
-          .single();
-
+        const { data, error } = await insertMessage({
+          chatId: activeChatId,
+          senderId: currentUser.profileId,
+          content,
+        });
         if (error) throw error;
 
         setChatMessages((prev) => [...prev, data as ChatMessage]);
