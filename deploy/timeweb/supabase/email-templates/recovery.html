@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Восстановление пароля</title>
+</head>
+<body style="font-family: system-ui, -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #111;">
+  <p>Для восстановления пароля перейдите по <a href="{{ .ConfirmationURL }}">ссылке</a>.</p>
+  {{ if .Token }}
+  <p>Либо введите код:</p>
+  <p style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">{{ .Token }}</p>
+  {{ end }}
+</body>
+</html>

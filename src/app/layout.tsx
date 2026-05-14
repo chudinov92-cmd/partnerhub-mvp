@@ -30,7 +30,7 @@ export default function RootLayout({
       <body className="font-sans antialiased text-slate-900">
         <PushBootstrap />
         <SelectedCityProvider>
-          <div className="flex min-h-screen flex-col bg-gray-100">
+          <div className="flex min-h-screen flex-col bg-gray-100" style={{ minHeight: '100dvh' }}>
             <ConditionalTopBar />
             <div className="flex-1">{children}</div>
           </div>

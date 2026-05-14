@@ -92,6 +92,32 @@ const INDUSTRY_OPTIONS = [
 
 type Industry = (typeof INDUSTRY_OPTIONS)[number];
 
+function usePreventBodyScroll() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    html.style.overscrollBehavior = 'none';
+    body.style.overscrollBehavior = 'none';
+
+    let rafId: number;
+    const poll = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      rafId = requestAnimationFrame(poll);
+    };
+    rafId = requestAnimationFrame(poll);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      html.style.overflow = '';
+      body.style.overflow = '';
+      html.style.overscrollBehavior = '';
+      body.style.overscrollBehavior = '';
+    };
+  }, []);
+}
+
 function sortRuAsc(a: string, b: string) {
   return a.localeCompare(b, "ru");
 }
@@ -242,6 +268,8 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
 };
 
 export default function Home() {
+  usePreventBodyScroll();
+
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
   );

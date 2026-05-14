@@ -33,6 +33,44 @@ export function DropdownSelect({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [searchActive, setSearchActive] = useState(false);
+  const isTouchRef = useRef(false);
+
+  useEffect(() => {
+    isTouchRef.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }, []);
+
+  useEffect(() => {
+    if (!open) { setSearchActive(false); return; }
+    if (!searchable || !searchInputRef.current) return;
+    if (!isTouchRef.current) {
+      searchInputRef.current.focus({ preventScroll: true });
+    }
+  }, [open, searchable]);
+
+  useEffect(() => {
+    if (searchActive && searchInputRef.current) {
+      searchInputRef.current.focus({ preventScroll: true });
+    }
+  }, [searchActive]);
+
+  useEffect(() => {
+    if (!open) return;
+    const listEl = listRef.current;
+    if (!listEl) return;
+
+    const blurOnTouch = () => {
+      const inputEl = searchInputRef.current;
+      if (inputEl && document.activeElement === inputEl) {
+        inputEl.blur();
+      }
+    };
+
+    listEl.addEventListener('touchstart', blurOnTouch, { passive: true });
+    return () => listEl.removeEventListener('touchstart', blurOnTouch);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +85,7 @@ export function DropdownSelect({
 
     document.addEventListener("mousedown", onDocMouseDown);
     document.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.removeEventListener("mousedown", onDocMouseDown);
       document.removeEventListener("keydown", onKeyDown);
@@ -54,7 +93,9 @@ export function DropdownSelect({
   }, [open]);
 
   useEffect(() => {
-    if (!open) setSearch("");
+    if (!open) {
+      setSearch("");
+    }
   }, [open]);
 
   const labelByValue = useMemo(() => {
@@ -105,28 +146,49 @@ export function DropdownSelect({
             (isProfile ? "border-gray-200" : "border-slate-200") +
             (menuClassName ?? "")
           }
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            if (searchInputRef.current && document.activeElement === searchInputRef.current && e.target !== searchInputRef.current) {
+              searchInputRef.current.blur();
+            }
+          }}
         >
           {searchable ? (
             <div className="px-2 pb-1">
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchPlaceholder ?? "Найти"}
-                className={
-                  // iOS Safari auto-zooms on inputs with font-size < 16px.
-                  // Use 16px on mobile, keep compact size on >= sm.
-                  "h-9 w-full rounded-full border px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none sm:h-7 sm:px-2 sm:text-[11px] sm:text-slate-700 " +
-                  (isProfile
-                    ? "border-gray-200 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-                    : "border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-400")
-                }
-              />
+              {isTouchRef.current && !searchActive ? (
+                <div
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => setSearchActive(true)}
+                  className={
+                    "h-9 w-full rounded-full border px-3 flex items-center text-base text-slate-400 sm:h-7 sm:px-2 sm:text-[11px] " +
+                    (isProfile ? "border-gray-200" : "border-slate-200")
+                  }
+                >
+                  {searchPlaceholder ?? "Найти"}
+                </div>
+              ) : (
+                <input
+                  ref={searchInputRef}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={searchPlaceholder ?? "Найти"}
+                  className={
+                    "h-9 w-full rounded-full border px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none sm:h-7 sm:px-2 sm:text-[11px] sm:text-slate-700 " +
+                    (isProfile
+                      ? "border-gray-200 focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                      : "border-slate-200 focus:border-sky-400 focus:ring-1 focus:ring-sky-400")
+                  }
+                />
+              )}
             </div>
           ) : null}
 
-          <div className="max-h-[560px] overflow-y-auto">
+          <div
+            ref={listRef}
+            className="overflow-y-auto"
+            style={{ maxHeight: 'min(560px, 40vh)', overscrollBehavior: 'contain' }}
+          >
             {visibleOptions.length === 0 ? (
               <p className="px-2 py-1 text-[11px] text-slate-400">
                 Ничего не найдено
