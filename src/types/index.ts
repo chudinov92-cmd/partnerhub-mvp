@@ -26,6 +26,8 @@ export type Profile = {
   experience_years?: number | null;
   current_status?: string | null;
   interested_in?: string | null;
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
 };
 
 export type FeedFilters = {
