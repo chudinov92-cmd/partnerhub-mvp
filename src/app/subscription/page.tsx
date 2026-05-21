@@ -25,8 +25,9 @@ const FREE_FEATURES = [
 
 const PRO_FEATURES = [
   {
-    text: "Выделение пина на карте цветом",
-    highlight: PRO_ACCENT,
+    text: "Выделение пина на карте",
+    badgeLabel: "цветом",
+    badgeColor: PRO_ACCENT,
   },
   "Приоритет в поиске и на карте (выше Free, внутри Pro — по рейтингу)",
   "Общий чат города: можно писать",
@@ -268,20 +269,22 @@ export default function SubscriptionPage() {
                 <ul className="flex-1 space-y-3 text-sm text-slate-700">
                   {PRO_FEATURES.map((item) => {
                     const text = typeof item === "string" ? item : item.text;
-                    const highlight =
-                      typeof item === "string" ? null : item.highlight;
+                    const badgeLabel =
+                      typeof item === "string" ? null : item.badgeLabel;
+                    const badgeColor =
+                      typeof item === "string" ? null : item.badgeColor;
                     return (
                       <li key={text} className="flex gap-2">
                         <IconCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                         <span>
-                          {highlight ? (
+                          {badgeLabel && badgeColor ? (
                             <>
                               {text}{" "}
                               <span
-                                className="inline-block rounded px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-900"
-                                style={{ backgroundColor: highlight }}
+                                className="inline-block rounded px-1.5 py-0.5 text-xs font-semibold text-slate-900"
+                                style={{ backgroundColor: badgeColor }}
                               >
-                                {highlight}
+                                {badgeLabel}
                               </span>
                             </>
                           ) : (
