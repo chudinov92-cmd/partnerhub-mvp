@@ -19,6 +19,8 @@ export type CurrentProfileRow = {
   full_name: string | null;
   city: string | null;
   is_blocked: boolean | null;
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
 };
 
 export async function fetchCurrentUserProfileRow(
@@ -26,7 +28,7 @@ export async function fetchCurrentUserProfileRow(
 ): Promise<CurrentProfileRow | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, city, is_blocked")
+    .select("id, full_name, city, is_blocked, is_pro, pro_expires_at")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
   if (error) throw error;

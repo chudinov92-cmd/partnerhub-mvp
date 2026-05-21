@@ -7,6 +7,21 @@ export type SubscriptionStatus = {
   expiresAt: string | null;
 };
 
+export type ProProfileFields = {
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
+};
+
+/** Активная подписка Pro: флаг и (пустая дата или дата в будущем). */
+export function isActiveProProfile(row: ProProfileFields | null | undefined): boolean {
+  if (!row) return false;
+  const expiresAt = row.pro_expires_at ?? null;
+  const isProFlag = Boolean(row.is_pro);
+  const notExpired =
+    !expiresAt || new Date(expiresAt).getTime() > Date.now();
+  return isProFlag && notExpired;
+}
+
 export async function getSubscriptionStatus(
   profileId: string,
 ): Promise<SubscriptionStatus> {
@@ -18,18 +33,11 @@ export async function getSubscriptionStatus(
 
   if (error) throw error;
 
-  const row = data as {
-    is_pro?: boolean | null;
-    pro_expires_at?: string | null;
-  } | null;
-
+  const row = data as ProProfileFields | null;
   const expiresAt = row?.pro_expires_at ?? null;
-  const isProFlag = Boolean(row?.is_pro);
-  const notExpired =
-    !expiresAt || new Date(expiresAt).getTime() > Date.now();
 
   return {
-    isPro: isProFlag && notExpired,
+    isPro: isActiveProProfile(row),
     expiresAt,
   };
 }

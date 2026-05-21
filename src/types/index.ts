@@ -55,6 +55,7 @@ export type CurrentUser = {
   fullName: string | null;
   city: string | null;
   isBlocked: boolean;
+  isPro: boolean;
 };
 
 export type ChatMessage = {

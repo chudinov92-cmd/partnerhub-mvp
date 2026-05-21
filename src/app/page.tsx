@@ -638,6 +638,9 @@ export default function Home() {
     }).format(d);
   };
 
+  const canWriteGeneralChat =
+    !!currentUser && currentUser.isPro && !currentUser.isBlocked;
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -646,6 +649,12 @@ export default function Home() {
     }
     if (currentUser.isBlocked) {
       setCreateError("Ваш аккаунт заблокирован. Публикация недоступна.");
+      return;
+    }
+    if (!currentUser.isPro) {
+      setCreateError(
+        "Писать в общий чат доступно только с подпиской Pro. Оформите Pro в разделе «Подписка».",
+      );
       return;
     }
     if (!newPostBody.trim()) {
@@ -1078,7 +1087,8 @@ export default function Home() {
                             {post.created_at ? formatDateTime(post.created_at) : ""}
                             {post.edited_at ? " · изменено" : ""}
                           </span>
-                          {currentUser?.profileId &&
+                          {canWriteGeneralChat &&
+                          currentUser?.profileId &&
                           post.author_id === currentUser.profileId ? (
                             <button
                               type="button"
@@ -1112,69 +1122,88 @@ export default function Home() {
           </div>
           </div>
 
-          {/* Форма нового сообщения */}
-          <form
-            onSubmit={handleCreatePost}
-            className="mt-auto space-y-2 border-t border-gray-200 bg-gray-50 p-4"
-          >
-            <textarea
-              value={newPostBody}
-              onChange={(e) =>
-                setNewPostBody(e.target.value.slice(0, 1000))
-              }
-              rows={3}
-              placeholder={
-                currentUser
-                  ? "Напиши, кого или что ты ищешь…"
-                  : "Войди, чтобы написать сообщение…"
-              }
-              className="min-h-[80px] w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!creating && newPostBody.trim()) {
-                    handleCreatePost(e as any);
-                  }
-                }
-              }}
-            />
-            {editingPostId ? (
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] text-amber-600">
-                  Режим редактирования
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingPostId(null);
-                    setNewPostBody("");
-                  }}
-                  className="text-[11px] font-medium text-slate-600 hover:underline"
+          {/* Форма нового сообщения / заглушка Free */}
+          {currentUser && !canWriteGeneralChat ? (
+            <div className="mt-auto space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
+              <p className="text-xs text-slate-700">
+                {currentUser.isBlocked
+                  ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
+                  : "На тарифе Free общий чат доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
+              </p>
+              {!currentUser.isBlocked ? (
+                <Link
+                  href="/subscription"
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
                 >
-                  Отмена
+                  Оформить Pro
+                </Link>
+              ) : null}
+            </div>
+          ) : (
+            <form
+              onSubmit={handleCreatePost}
+              className="mt-auto space-y-2 border-t border-gray-200 bg-gray-50 p-4"
+            >
+              <textarea
+                value={newPostBody}
+                onChange={(e) =>
+                  setNewPostBody(e.target.value.slice(0, 1000))
+                }
+                rows={3}
+                placeholder={
+                  currentUser
+                    ? "Напиши, кого или что ты ищешь…"
+                    : "Войди, чтобы написать сообщение…"
+                }
+                disabled={!!currentUser && !canWriteGeneralChat}
+                className="min-h-[80px] w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-slate-50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (!creating && newPostBody.trim() && canWriteGeneralChat) {
+                      handleCreatePost(e as any);
+                    }
+                  }
+                }}
+              />
+              {editingPostId ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-amber-600">
+                    Режим редактирования
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPostId(null);
+                      setNewPostBody("");
+                    }}
+                    className="text-[11px] font-medium text-slate-600 hover:underline"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  {newPostBody.length}/1000
+                </span>
+                <button
+                  type="submit"
+                  disabled={creating || (!!currentUser && !canWriteGeneralChat)}
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
+                >
+                  {creating
+                    ? "Отправляем..."
+                    : editingPostId
+                      ? "Сохранить"
+                      : "Отправить"}
                 </button>
               </div>
-            ) : null}
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">
-                {newPostBody.length}/1000
-              </span>
-              <button
-                type="submit"
-                disabled={creating}
-                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
-              >
-                {creating
-                  ? "Отправляем..."
-                  : editingPostId
-                    ? "Сохранить"
-                    : "Отправить"}
-              </button>
-            </div>
-            {createError && (
-              <p className="text-[11px] text-red-600">{createError}</p>
-            )}
-          </form>
+              {createError && (
+                <p className="text-[11px] text-red-600">{createError}</p>
+              )}
+            </form>
+          )}
         </section>
 
         {/* Центр: карта во всю высоту */}
@@ -1827,7 +1856,7 @@ export default function Home() {
                     {chatMessages.map((m) => (
                       <div
                         key={m.id}
-                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-[12px] ${
+                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${
                           m.sender_id === currentUser?.profileId
                             ? "ml-auto bg-[#009966] text-white"
                             : "mr-auto bg-slate-50/70 text-slate-900"
@@ -1835,7 +1864,7 @@ export default function Home() {
                       >
                         <p>{m.content}</p>
                         <div
-                          className={`mt-1 flex items-center justify-between gap-2 text-[10px] ${
+                          className={`mt-1 flex items-center justify-between gap-2 text-xs ${
                             m.sender_id === currentUser?.profileId
                               ? "text-white/80"
                               : "text-slate-400"

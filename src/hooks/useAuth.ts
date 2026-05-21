@@ -7,6 +7,7 @@ import {
   fetchProfilesForMap,
 } from "@/services/profileService";
 import { loadPrivateChatSidebar } from "@/services/chatService";
+import { isActiveProProfile } from "@/services/subscriptionService";
 import type { ChatListItem, CurrentUser, Profile } from "@/types";
 
 /**
@@ -44,6 +45,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
               fullName: profileRow.full_name,
               city: profileRow.city,
               isBlocked: !!profileRow.is_blocked,
+              isPro: isActiveProProfile(profileRow),
             });
 
             const sidebar = await loadPrivateChatSidebar(
