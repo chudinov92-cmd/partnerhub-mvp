@@ -47,6 +47,7 @@ import {
 import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
+import { RUSSIA_LABEL } from "@/data/cities";
 import type { PostCommentRow } from "@/components/PostComments";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
 import { useAuth } from "@/hooks/useAuth";
@@ -348,6 +349,7 @@ export default function Home() {
   } = useContacts(currentUser);
 
   const { selectedCity } = useSelectedCity();
+  const isRussiaChat = selectedCity === RUSSIA_LABEL;
 
   const {
     posts,
@@ -970,7 +972,7 @@ export default function Home() {
               <h1 className="min-w-0 font-semibold leading-tight text-slate-900">
                 <span className="block">Общий чат</span>
                 <span className="block truncate text-xs font-normal text-slate-500">
-                  {selectedCity}
+                  {isRussiaChat ? "Для всей России" : selectedCity}
                 </span>
               </h1>
 
@@ -1015,7 +1017,9 @@ export default function Home() {
 
           {!loading && !postsLoading && posts.length === 0 && (
             <p className="py-2 text-sm text-slate-500">
-              В чате «{selectedCity}» пока нет сообщений. Напишите первым.
+              {isRussiaChat
+                ? "В общероссийском чате пока нет сообщений. Напишите первым."
+                : `В чате «${selectedCity}» пока нет сообщений. Напишите первым.`}
             </p>
           )}
 
@@ -1155,7 +1159,9 @@ export default function Home() {
               <p className="text-xs text-slate-700">
                 {currentUser.isBlocked
                   ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
-                  : "На тарифе Free общий чат доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
+                  : isRussiaChat
+                    ? "Это общероссийский чат. На тарифе Free доступен только просмотр. Оформите Pro, чтобы писать сообщения."
+                    : "На тарифе Free чат города доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
               </p>
               {!currentUser.isBlocked ? (
                 <Link
