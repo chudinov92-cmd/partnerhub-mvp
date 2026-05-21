@@ -311,12 +311,12 @@ export function TopBar() {
                       setMenuOpen(false);
                       router.push("/subscription");
                     }}
-                    className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-amber-700 hover:bg-amber-50"
+                    className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
                   >
-                    <span className="rounded bg-[#FDE047] px-1 text-[10px] font-bold text-slate-900">
-                      PRO
-                    </span>
                     Подписка
+                    <span className="rounded bg-[#FDE047] px-1 text-[10px] font-bold text-slate-900">
+                      Pro
+                    </span>
                   </button>
                   <button
                     type="button"
