@@ -7,7 +7,7 @@ export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count",
+      "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at",
     )
     .limit(limit);
   if (error) throw error;

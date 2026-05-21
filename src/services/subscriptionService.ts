@@ -12,6 +12,10 @@ export type ProProfileFields = {
   pro_expires_at?: string | null;
 };
 
+export const PRO_PIN_COLOR = "#FDE047";
+export const FREE_DM_PARTNERS_PER_DAY = 5;
+export const PRO_DM_PARTNERS_PER_DAY = 50;
+
 /** Активная подписка Pro: флаг и (пустая дата или дата в будущем). */
 export function isActiveProProfile(row: ProProfileFields | null | undefined): boolean {
   if (!row) return false;
@@ -20,6 +24,13 @@ export function isActiveProProfile(row: ProProfileFields | null | undefined): bo
   const notExpired =
     !expiresAt || new Date(expiresAt).getTime() > Date.now();
   return isProFlag && notExpired;
+}
+
+/** Алиас для UI (профиль в ленте / на карте). */
+export const isProActive = isActiveProProfile;
+
+export function getDmPartnersDailyLimit(isPro: boolean): number {
+  return isPro ? PRO_DM_PARTNERS_PER_DAY : FREE_DM_PARTNERS_PER_DAY;
 }
 
 export async function getSubscriptionStatus(

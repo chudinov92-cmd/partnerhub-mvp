@@ -12,7 +12,13 @@ import {
   fetchRecentMessages,
   updateMessageContent,
   insertMessage,
+  getUniqueChatPartnersToday,
 } from "@/services/chatService";
+import {
+  getDmPartnersDailyLimit,
+  isActiveProProfile,
+} from "@/services/subscriptionService";
+import { AdBanner } from "@/components/AdBanner";
 import {
   updatePostBody,
   insertPost as insertFeedPost,
@@ -729,6 +735,25 @@ export default function Home() {
     setChatLoading(true);
 
     try {
+      const limit = getDmPartnersDailyLimit(currentUser.isPro);
+      const partnersToday = await getUniqueChatPartnersToday(
+        currentUser.profileId,
+      );
+      if (
+        !partnersToday.has(profile.id) &&
+        partnersToday.size >= limit
+      ) {
+        setChatError(
+          `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
+            currentUser.isPro
+              ? ""
+              : "Оформите Pro для лимита 50."
+          }`.trim(),
+        );
+        setChatLoading(false);
+        return;
+      }
+
       const chatId = await openOrEnsurePrivateChat(
         currentUser.profileId,
         profile.id,
@@ -1121,6 +1146,8 @@ export default function Home() {
             </ul>
           </div>
           </div>
+
+          {currentUser && !currentUser.isPro ? <AdBanner /> : null}
 
           {/* Форма нового сообщения / заглушка Free */}
           {currentUser && !canWriteGeneralChat ? (
@@ -1583,16 +1610,18 @@ export default function Home() {
                     Профили
                   </p>
                   <p className="text-xs text-slate-500">
-                    Сортировка: рейтинг по убыванию
+                    Сортировка: Pro выше, затем рейтинг
                   </p>
                 </div>
                 <div className="space-y-2 p-3">
                   {filteredProfilesForMap
                     .slice()
-                    .sort(
-                      (a, b) =>
-                        (b.rating_count ?? 0) - (a.rating_count ?? 0),
-                    )
+                    .sort((a, b) => {
+                      const aPro = Number(isActiveProProfile(a));
+                      const bPro = Number(isActiveProProfile(b));
+                      if (bPro !== aPro) return bPro - aPro;
+                      return (b.rating_count ?? 0) - (a.rating_count ?? 0);
+                    })
                     .map((p) => {
                       const name = p.full_name || "Пользователь";
                       const initial = (name[0] || "?").toUpperCase();

@@ -12,6 +12,10 @@ import {
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import { fetchActiveLocations } from "@/services/profileService";
+import {
+  isActiveProProfile,
+  PRO_PIN_COLOR,
+} from "@/services/subscriptionService";
 
 type LocationPoint = {
   id: string;
@@ -188,6 +192,8 @@ export type PartnerMapProps = {
     last_seen_at?: string | null;
     skills?: string | null;
     resources?: string | null;
+    is_pro?: boolean | null;
+    pro_expires_at?: string | null;
   }[];
 };
 
@@ -337,6 +343,7 @@ export function PartnerMap({
         const rating = profile.rating_count ?? 0;
         const isFocused =
           focusedProfileId != null && focusedProfileId === profile.id;
+        const isPro = isActiveProProfile(profile);
 
         return {
           pt,
@@ -345,6 +352,7 @@ export function PartnerMap({
           isViewed,
           rating,
           isFocused,
+          isPro,
         };
       })
       .filter(Boolean) as {
@@ -354,12 +362,17 @@ export function PartnerMap({
       isViewed: boolean;
       rating: number;
       isFocused: boolean;
+      isPro: boolean;
     }[];
 
     rows.sort((a, b) => {
       // Фокусированный всегда выше остальных.
       const f = Number(b.isFocused) - Number(a.isFocused);
       if (f !== 0) return f;
+
+      // Pro выше Free (внутри группы — по рейтингу).
+      const proRank = Number(b.isPro) - Number(a.isPro);
+      if (proRank !== 0) return proRank;
 
       // Непросмотренные выше просмотренных.
       const v = Number(a.isViewed) - Number(b.isViewed); // false(0) first
@@ -398,9 +411,10 @@ export function PartnerMap({
           )}-${points.length}-${(contactProfileIds ?? []).length}`}
         />
 
-        {sortedPoints.map(({ pt: p, profile, isOwn, isViewed, rating, isFocused }, idx) => {
+        {sortedPoints.map(({ pt: p, profile, isOwn, isViewed, rating, isFocused, isPro }, idx) => {
           const online = isOnline(profile?.last_seen_at ?? null);
           const initial = pinInitial(profile?.full_name);
+          const pinFill = !isOwn && isPro ? PRO_PIN_COLOR : PIN_FILL_COLOR;
 
           const borderColor = isFocused
             ? PIN_FOCUSED_BORDER_COLOR
@@ -424,7 +438,7 @@ export function PartnerMap({
             : getOrCreatePinIconColored(
                 pinIconCacheRef.current,
                 initial,
-                PIN_FILL_COLOR,
+                pinFill,
                 borderColor,
               );
           const obf = obfByUserId.get(p.user_id) ?? {
@@ -434,11 +448,17 @@ export function PartnerMap({
 
           // Leaflet использует zIndexOffset для "слоёв" маркеров.
           // Чем больше — тем выше отрисовка.
+          const proBoost = isPro && !isOwn ? 500_000 : 0;
           const viewedBoost = isViewed ? 0 : 1_000_000;
           const focusedBoost = isFocused ? 2_000_000 : 0;
           const ownBoost = isOwn ? 100_000 : 0;
           const zIndexOffset =
-            focusedBoost + viewedBoost + ownBoost + (rating ?? 0) * 10 + (10_000 - idx);
+            focusedBoost +
+            proBoost +
+            viewedBoost +
+            ownBoost +
+            (rating ?? 0) * 10 +
+            (10_000 - idx);
 
           return (
             <Marker

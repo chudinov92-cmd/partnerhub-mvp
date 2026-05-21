@@ -302,3 +302,46 @@ export function subscribeToMessagesRealtime(
 export function unsubscribeChannel(ch: RealtimeChannel) {
   void supabase.removeChannel(ch);
 }
+
+/** Начало текущих суток по Москве (UTC instant для фильтра created_at). */
+function startOfTodayMskIso(): string {
+  const mskOffsetMs = 3 * 60 * 60 * 1000;
+  const mskNow = new Date(Date.now() + mskOffsetMs);
+  const y = mskNow.getUTCFullYear();
+  const m = mskNow.getUTCMonth();
+  const d = mskNow.getUTCDate();
+  const midnightMskAsUtc = Date.UTC(y, m, d, 0, 0, 0, 0);
+  return new Date(midnightMskAsUtc - mskOffsetMs).toISOString();
+}
+
+/**
+ * Уникальные собеседники, которым текущий пользователь отправил сообщение с начала суток (МСК).
+ */
+export async function getUniqueChatPartnersToday(
+  myProfileId: string,
+): Promise<Set<string>> {
+  const since = startOfTodayMskIso();
+  const { data: msgs, error } = await supabase
+    .from("messages")
+    .select("chat_id")
+    .eq("sender_id", myProfileId)
+    .gte("created_at", since);
+
+  if (error) throw error;
+
+  const chatIds = Array.from(
+    new Set(
+      (msgs ?? [])
+        .map((row) => (row as { chat_id: string }).chat_id)
+        .filter(Boolean),
+    ),
+  );
+
+  const peers = new Set<string>();
+  for (const chatId of chatIds) {
+    const members = await fetchChatMemberUserIds(chatId);
+    const peer = members.find((m) => m.user_id !== myProfileId)?.user_id;
+    if (peer) peers.add(peer);
+  }
+  return peers;
+}
