@@ -56,6 +56,7 @@ import { useMobileNav } from "@/hooks/useMobileNav";
 import { useFeed } from "@/hooks/useFeed";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useChatMessagesRealtime } from "@/hooks/useChat";
+import { useMobileKeyboardInset } from "@/hooks/useMobileKeyboardInset";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -77,6 +78,13 @@ function isOnline(lastSeenAt?: string | null) {
   const t = new Date(lastSeenAt).getTime();
   if (Number.isNaN(t)) return false;
   return Date.now() - t <= ONLINE_WINDOW_MS;
+}
+
+function scrollComposerIntoView(el: HTMLElement | null) {
+  if (!el) return;
+  requestAnimationFrame(() => {
+    el.scrollIntoView({ block: "end", behavior: "smooth" });
+  });
 }
 
 const INDUSTRY_OPTIONS = [
@@ -276,6 +284,7 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
 
 export default function Home() {
   usePreventBodyScroll();
+  const keyboardInset = useMobileKeyboardInset();
 
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
@@ -955,6 +964,9 @@ export default function Home() {
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
             mobileTab === "chat" ? "flex" : "hidden"
           } lg:flex`}
+          style={
+            keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined
+          }
         >
           <header className="shrink-0 border-b border-gray-200 px-4 py-3">
             <div className="flex items-start gap-2">
@@ -1151,11 +1163,15 @@ export default function Home() {
           </div>
           </div>
 
-          {currentUser && !currentUser.isPro ? <AdBanner /> : null}
+          {currentUser && !currentUser.isPro ? (
+            <div className="shrink-0">
+              <AdBanner />
+            </div>
+          ) : null}
 
           {/* Форма нового сообщения / заглушка Free */}
           {currentUser && !canWriteGeneralChat ? (
-            <div className="mt-auto space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
+            <div className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
               <p className="text-xs text-slate-700">
                 {currentUser.isBlocked
                   ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
@@ -1175,7 +1191,7 @@ export default function Home() {
           ) : (
             <form
               onSubmit={handleCreatePost}
-              className="mt-auto space-y-2 border-t border-gray-200 bg-gray-50 p-4"
+              className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-gray-50 p-4"
             >
               <textarea
                 value={newPostBody}
@@ -1190,6 +1206,7 @@ export default function Home() {
                 }
                 disabled={!!currentUser && !canWriteGeneralChat}
                 className="min-h-[80px] w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-slate-50"
+                onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -1820,7 +1837,8 @@ export default function Home() {
         {activeChatUser && (
           <div
             ref={chatWindowRef}
-            className="pointer-events-auto fixed inset-0 z-[1600] flex flex-col overflow-hidden bg-white lg:top-16 lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[380px] lg:w-[min(100vw-1rem,24rem)] lg:max-w-sm lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
+            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-16 lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[380px] lg:w-[min(100vw-1rem,24rem)] lg:max-w-sm lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
+            style={{ bottom: keyboardInset }}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2.5">
               <div className="min-w-0">
@@ -1939,7 +1957,7 @@ export default function Home() {
 
               <form
                 onSubmit={handleSendChatMessage}
-                className="mt-1 space-y-1 border-t border-slate-200 pt-2"
+                className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2"
               >
                 <textarea
                   value={chatInput}
@@ -1949,6 +1967,7 @@ export default function Home() {
                   rows={4}
                   placeholder="Напишите сообщение…"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
+                  onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
