@@ -39,9 +39,33 @@ function describeAuthObject(err: object): string {
   return chunks.length > 0 ? chunks.join("; ") : "";
 }
 
+function isInvalidLoginCredentials(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+
+  const row = err as { code?: unknown; message?: unknown };
+  const code =
+    typeof row.code === "string" ? row.code.toLowerCase() : "";
+  if (code === "invalid_credentials" || code === "invalid_grant") {
+    return true;
+  }
+
+  const msg =
+    typeof row.message === "string" ? row.message.toLowerCase() : "";
+  return (
+    msg.includes("invalid login credentials") ||
+    msg.includes("invalid email or password") ||
+    msg.includes("wrong password") ||
+    msg.includes("incorrect email or password")
+  );
+}
+
 function getAuthErrorMessage(err: unknown) {
   const redirectHint =
     "Если адрес уже в списке redirect, посмотрите логи: на сервере в каталоге supabase-stack выполните docker compose logs auth --tail 100 (ошибки SMTP GoTrue там виднее). На localhost добавьте в ADDITIONAL_REDIRECT_URLS строку http://localhost:3000/auth/reset-password.";
+
+  if (isInvalidLoginCredentials(err)) {
+    return "Неверный логин или пароль";
+  }
 
   if (!err) return "Ошибка авторизации";
 
