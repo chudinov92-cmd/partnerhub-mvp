@@ -63,7 +63,7 @@ export function CityDropdown({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Найти город"
-              className="h-7 w-full rounded-full border border-gray-200 px-2 text-[11px] text-slate-700 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+              className="h-9 w-full rounded-full border border-gray-200 px-3 text-base text-slate-900 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966] sm:h-7 sm:px-2 sm:text-[11px] sm:text-slate-700"
             />
           </div>
           <div className="max-h-[560px] overflow-y-auto px-1 pb-1">

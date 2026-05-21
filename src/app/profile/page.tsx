@@ -825,7 +825,7 @@ export default function ProfilePage() {
                     })
                   }
                   maxLength={25}
-                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                 />
               </div>
               <div>
@@ -846,7 +846,7 @@ export default function ProfilePage() {
                       age: raw === "" ? null : Number.isFinite(n) ? n : null,
                     });
                   }}
-                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                 />
               </div>
             </div>
@@ -863,7 +863,7 @@ export default function ProfilePage() {
                   onChange={(e) =>
                     setProfile({ ...profile, country: e.target.value })
                   }
-                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                 />
               </div>
               <div>
@@ -1072,7 +1072,7 @@ export default function ProfilePage() {
                         }
                         maxLength={40}
                         placeholder="Введите название"
-                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                       />
                     </div>
                   )}
@@ -1123,7 +1123,7 @@ export default function ProfilePage() {
                       }
                       maxLength={40}
                       placeholder="Введите название"
-                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                     />
                   </div>
                 )}
@@ -1161,7 +1161,7 @@ export default function ProfilePage() {
                           }
                           maxLength={40}
                           placeholder="Введите название"
-                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                         />
                       </div>
                     )}
@@ -1183,7 +1183,7 @@ export default function ProfilePage() {
                         experience_years: e.target.value ? Number(e.target.value) : null,
                       })
                     }
-                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                   />
                 </div>
 
@@ -1254,7 +1254,7 @@ export default function ProfilePage() {
                 }
                 maxLength={600}
                 rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
               <div className="mt-1 text-right text-[11px] text-slate-400">
                 {(profile.skills ?? "").length}/600
@@ -1276,7 +1276,7 @@ export default function ProfilePage() {
                 }
                 maxLength={600}
                 rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
               />
               <div className="mt-1 text-right text-[11px] text-slate-400">
                 {(profile.resources ?? "").length}/600
