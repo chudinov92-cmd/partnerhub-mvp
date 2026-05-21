@@ -56,7 +56,7 @@ import { useMobileNav } from "@/hooks/useMobileNav";
 import { useFeed } from "@/hooks/useFeed";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useChatMessagesRealtime } from "@/hooks/useChat";
-import { useMobileKeyboardInset } from "@/hooks/useMobileKeyboardInset";
+import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -82,9 +82,9 @@ function isOnline(lastSeenAt?: string | null) {
 
 function scrollComposerIntoView(el: HTMLElement | null) {
   if (!el) return;
-  requestAnimationFrame(() => {
-    el.scrollIntoView({ block: "end", behavior: "smooth" });
-  });
+  const run = () => el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  requestAnimationFrame(run);
+  window.setTimeout(run, 350);
 }
 
 const INDUSTRY_OPTIONS = [
@@ -284,7 +284,17 @@ const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
 
 export default function Home() {
   usePreventBodyScroll();
-  const keyboardInset = useMobileKeyboardInset();
+  const { offsetTop: vvTop, height: vvHeight, keyboardInset } =
+    useVisualViewportLayout();
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setIsMobileLayout(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(
     () => new Set(),
@@ -1838,7 +1848,17 @@ export default function Home() {
           <div
             ref={chatWindowRef}
             className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-16 lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[380px] lg:w-[min(100vw-1rem,24rem)] lg:max-w-sm lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
-            style={{ bottom: keyboardInset }}
+            style={
+              isMobileLayout
+                ? {
+                    top: vvTop,
+                    height: vvHeight,
+                    left: 0,
+                    right: 0,
+                    bottom: "auto",
+                  }
+                : undefined
+            }
           >
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2.5">
               <div className="min-w-0">
@@ -1895,10 +1915,10 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-hidden px-3 py-2">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               <div
                 ref={chatScrollRef}
-                className="mb-2 flex-1 overflow-y-auto space-y-2"
+                className="mb-2 min-h-0 flex-1 overflow-y-auto space-y-2"
               >
                 {chatLoading ? (
                   <p className="text-xs text-slate-500">
@@ -1957,14 +1977,14 @@ export default function Home() {
 
               <form
                 onSubmit={handleSendChatMessage}
-                className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2"
+                className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1"
               >
                 <textarea
                   value={chatInput}
                   onChange={(e) =>
                     setChatInput(e.target.value.slice(0, 1000))
                   }
-                  rows={4}
+                  rows={isMobileLayout ? 2 : 4}
                   placeholder="Напишите сообщение…"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
                   onFocus={(e) => scrollComposerIntoView(e.currentTarget)}

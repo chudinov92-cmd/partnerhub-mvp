@@ -2,23 +2,41 @@
 
 import { useEffect, useState } from "react";
 
+export type VisualViewportLayout = {
+  /** Смещение visual viewport сверху (Safari URL-bar и т.п.) */
+  offsetTop: number;
+  /** Высота видимой области */
+  height: number;
+  /** Перекрытие снизу клавиатурой */
+  keyboardInset: number;
+};
+
+const defaultLayout = (): VisualViewportLayout => ({
+  offsetTop: 0,
+  height: typeof window !== "undefined" ? window.innerHeight : 0,
+  keyboardInset: 0,
+});
+
 /**
- * Высота перекрытия снизу при открытой клавиатуре (iOS/Android visualViewport).
- * 0 — клавиатура закрыта.
+ * Раскладка visualViewport для мобильной клавиатуры (iOS Safari / Chrome).
  */
-export function useMobileKeyboardInset(): number {
-  const [inset, setInset] = useState(0);
+export function useVisualViewportLayout(): VisualViewportLayout {
+  const [layout, setLayout] = useState<VisualViewportLayout>(defaultLayout);
 
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
     const update = () => {
-      const overlap = Math.max(
+      const keyboardInset = Math.max(
         0,
         window.innerHeight - vv.height - vv.offsetTop,
       );
-      setInset(Math.round(overlap));
+      setLayout({
+        offsetTop: Math.round(vv.offsetTop),
+        height: Math.round(vv.height),
+        keyboardInset: Math.round(keyboardInset),
+      });
     };
 
     update();
@@ -33,5 +51,10 @@ export function useMobileKeyboardInset(): number {
     };
   }, []);
 
-  return inset;
+  return layout;
+}
+
+/** @deprecated Используйте useVisualViewportLayout().keyboardInset */
+export function useMobileKeyboardInset(): number {
+  return useVisualViewportLayout().keyboardInset;
 }
