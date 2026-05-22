@@ -27,6 +27,23 @@ run_sql_migration "${ROOT}/supabase/sql/2026-05-21-support.sql" "support"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-21-chats-insert-rls.sql" "chats-insert-rls"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-22-ensure-private-chat-rpc.sql" "ensure-private-chat-rpc"
 
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "ОШИБКА: нет файла ${ENV_FILE}"
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+set -a
+source "${ENV_FILE}"
+set +a
+
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID SUPABASE_SERVICE_ROLE_KEY; do
+  if [[ -z "${!var:-}" ]] || [[ "${!var}" == REPLACE_* ]]; then
+    echo "ОШИБКА: в ${ENV_FILE} не задано или плейсхолдер: ${var}"
+    exit 1
+  fi
+done
+
 echo "=== docker build (with .env.app) ==="
 cd "${ROOT}/deploy/timeweb"
 docker compose --env-file .env.app -f docker-compose.app.yml build --no-cache
