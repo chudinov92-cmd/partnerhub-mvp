@@ -1,18 +1,16 @@
 import { processLock } from "@supabase/auth-js";
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 /**
- * В браузере по умолчанию GoTrue использует Navigator LockManager; при таймауте
- * включается steal и Chrome/Safari могут кинуть «Lock broken by another request…»
- * (Strict Mode, быстрый reload). processLock — только в рамках вкладки, без steal.
- * На сервере window нет — опции не передаём, остаётся штатный lockNoOp.
+ * Браузерный клиент с cookie-сессией (нужно для middleware /admin и SSR).
+ * Раньше использовался createClient → localStorage, middleware не видел вход.
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    ...(typeof window !== "undefined" ? { lock: processLock } : {}),
+    lock: processLock,
   },
 });
 

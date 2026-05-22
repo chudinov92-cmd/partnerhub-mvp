@@ -11,13 +11,21 @@ cd "${ROOT}"
 echo "=== git pull ==="
 git pull
 
-if [[ -f "${ROOT}/supabase/sql/2026-05-20-subscription.sql" ]]; then
-  echo "=== migration subscription ==="
-  docker exec -i supabase-db psql -U supabase_admin -d postgres \
-    < "${ROOT}/supabase/sql/2026-05-20-subscription.sql" || \
-  docker exec -i supabase-db psql -U postgres -d postgres \
-    < "${ROOT}/supabase/sql/2026-05-20-subscription.sql" || true
-fi
+run_sql_migration() {
+  local file="$1"
+  local label="$2"
+  if [[ ! -f "${file}" ]]; then
+    return 0
+  fi
+  echo "=== migration ${label} ==="
+  docker exec -i supabase-db psql -U supabase_admin -d postgres < "${file}" || \
+  docker exec -i supabase-db psql -U postgres -d postgres < "${file}" || true
+}
+
+run_sql_migration "${ROOT}/supabase/sql/2026-05-20-subscription.sql" "subscription"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-21-support.sql" "support"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-21-chats-insert-rls.sql" "chats-insert-rls"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-22-ensure-private-chat-rpc.sql" "ensure-private-chat-rpc"
 
 echo "=== docker build (with .env.app) ==="
 cd "${ROOT}/deploy/timeweb"

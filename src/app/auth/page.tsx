@@ -167,6 +167,14 @@ function getAuthErrorMessage(err: unknown) {
   return `Не удалось выполнить запрос к Auth (${keys.length ? `поля: ${keys.join(", ")}` : "нет полей"}, без текста ошибки). ${redirectHint}`;
 }
 
+/** Безопасный путь после входа (?redirect=/admin/support). */
+function getPostAuthRedirectPath(): string {
+  if (typeof window === "undefined") return "/";
+  const raw = new URLSearchParams(window.location.search).get("redirect");
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -188,7 +196,12 @@ export default function AuthPage() {
         router.replace("/auth/reset-password");
         return;
       }
-      router.replace("/");
+      const target = getPostAuthRedirectPath();
+      if (target.startsWith("/admin")) {
+        window.location.replace(target);
+        return;
+      }
+      router.replace(target);
     };
     void check();
   }, [router]);
@@ -239,7 +252,14 @@ export default function AuthPage() {
           password,
         });
         if (error) throw error;
-        router.push("/");
+        await supabase.auth.getSession();
+        const target = getPostAuthRedirectPath();
+        if (target.startsWith("/admin")) {
+          window.location.assign(target);
+        } else {
+          router.push(target);
+          router.refresh();
+        }
       }
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));

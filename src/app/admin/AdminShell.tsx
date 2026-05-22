@@ -90,6 +90,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     const role = admin?.role ?? null;
     const base = [
       { href: "/admin/users", label: "Пользователи", min: "support" as AdminRole },
+      { href: "/admin/support", label: "Поддержка", min: "support" as AdminRole },
       { href: "/admin/posts", label: "Общий чат", min: "moderator" as AdminRole },
       { href: "/admin/reports", label: "Репорты", min: "support" as AdminRole },
       { href: "/admin/analytics", label: "Аналитика", min: "support" as AdminRole },

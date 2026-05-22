@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
 import { authGetUser, authOnAuthStateChange, authSignOut } from "@/services/authService";
 import {
   countContactsForOwner,
@@ -44,6 +45,16 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mapContactsActive, setMapContactsActive] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+
+  const openSupport = () => {
+    setMenuOpen(false);
+    if (pathname === "/") {
+      window.dispatchEvent(new CustomEvent(OPEN_SUPPORT_CHAT_EVENT));
+      return;
+    }
+    router.push("/?support=1");
+  };
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -320,6 +331,13 @@ export function TopBar() {
                   </button>
                   <button
                     type="button"
+                    onClick={openSupport}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    Поддержка
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setMenuOpen(false);
                       router.push("/about");
@@ -346,12 +364,21 @@ export function TopBar() {
               )}
             </>
           ) : (
-            <Link
-              href="/auth"
-              className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-            >
-              Войти
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openSupport}
+                className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-gray-100"
+              >
+                Поддержка
+              </button>
+              <Link
+                href="/auth"
+                className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+              >
+                Войти
+              </Link>
+            </div>
           )}
         </div>
       </div>

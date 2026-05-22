@@ -13,7 +13,20 @@ import {
   updateMessageContent,
   insertMessage,
   getUniqueChatPartnersToday,
+  fetchSupportProfile,
+  getSupportProfileId,
+  isChatClosed,
+  reopenChat,
 } from "@/services/chatService";
+import {
+  formatAppealMessage,
+  getSupportProfileIdFromEnv,
+  isAppealMessage,
+  OPEN_SUPPORT_CHAT_EVENT,
+  getErrorMessage,
+  SUPPORT_STUB_PROFILE,
+} from "@/lib/support";
+import { SupportAppealCard } from "@/components/SupportAppealCard";
 import {
   getDmPartnersDailyLimit,
   isActiveProProfile,
@@ -325,6 +338,16 @@ export default function Home() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
+  const [supportProfileId, setSupportProfileId] = useState<string | null>(
+    () => getSupportProfileIdFromEnv(),
+  );
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [supportFieldErrors, setSupportFieldErrors] = useState<{
+    subject?: string;
+    description?: string;
+  }>({});
+  const [activeChatIsClosed, setActiveChatIsClosed] = useState(false);
   const [unreadByUser, setUnreadByUser] = useState<Record<string, number>>({});
   const [generalChatSearch, setGeneralChatSearch] = useState("");
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -385,6 +408,34 @@ export default function Home() {
 
   /** Сброс эффекта открытия чата по ?chat= после router.replace / SW. */
   const [chatDeepLinkNonce, setChatDeepLinkNonce] = useState(0);
+  const [supportDeepLinkNonce, setSupportDeepLinkNonce] = useState(0);
+
+  const isSupportChat =
+    Boolean(supportProfileId) &&
+    activeChatUser?.id === supportProfileId;
+
+  const showSupportAppealForm =
+    isSupportChat &&
+    Boolean(currentUser) &&
+    (chatMessages.length === 0 || activeChatIsClosed) &&
+    !editingMessageId;
+
+  const resetSupportComposer = () => {
+    setSupportSubject("");
+    setSupportDescription("");
+    setSupportFieldErrors({});
+  };
+
+  const closeChatWindow = () => {
+    setActiveChatUser(null);
+    setActiveChatId(null);
+    setChatMessages([]);
+    setChatError(null);
+    setActiveChatIsClosed(false);
+    resetSupportComposer();
+    setEditingMessageId(null);
+    setChatInput("");
+  };
   const mapConfig = useMemo(
     () => getMapConfigForCity(selectedCity),
     [selectedCity],
@@ -431,6 +482,15 @@ export default function Home() {
     }
   }, [router]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    void getSupportProfileId()
+      .then((id) => setSupportProfileId(id))
+      .catch(() => {
+        /* env или SQL ещё не применены */
+      });
+  }, [currentUser]);
+
   // Автооткрытие чата: ?chat=<profiles.id собеседника>
   useEffect(() => {
     if (!currentUser || !profiles.length || typeof window === "undefined") return;
@@ -444,6 +504,37 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- открываем только при смене списков/URL-nonce
   }, [currentUser, profiles, chatDeepLinkNonce]);
 
+  // Открытие поддержки: ?support=1 (ссылка) или событие zeip:open-support (клик в TopBar на главной)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const clearSupportQuery = () => {
+      const next = new URLSearchParams(window.location.search);
+      if (!next.has("support")) return;
+      next.delete("support");
+      const qs = next.toString();
+      router.replace(qs ? `/?${qs}` : "/");
+    };
+
+    const runFromQuery = async () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("support") !== "1") return;
+      await openSupportChat();
+      clearSupportQuery();
+    };
+
+    const runFromEvent = () => {
+      void openSupportChat();
+    };
+
+    void runFromQuery();
+    window.addEventListener(OPEN_SUPPORT_CHAT_EVENT, runFromEvent);
+    return () => {
+      window.removeEventListener(OPEN_SUPPORT_CHAT_EVENT, runFromEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, supportDeepLinkNonce]);
+
   useChatMessagesRealtime({
     currentUser,
     activeChatId,
@@ -453,6 +544,11 @@ export default function Home() {
     setUnreadByUser,
     setChatList,
   });
+
+  useEffect(() => {
+    if (!isSupportChat || !activeChatId) return;
+    void isChatClosed(activeChatId).then(setActiveChatIsClosed);
+  }, [chatMessages.length, isSupportChat, activeChatId]);
 
   const visiblePosts = useMemo(() => {
     const normalizedAuthor = (a: any) => (Array.isArray(a) ? a[0] : a);
@@ -745,6 +841,86 @@ export default function Home() {
     }
   };
 
+  const openSupportChat = async () => {
+    resetSupportComposer();
+    setChatError(null);
+    setChatLoading(true);
+    setEditingMessageId(null);
+    setChatInput("");
+
+    const envId = getSupportProfileIdFromEnv();
+    const supportStub: Profile = {
+      id: envId ?? SUPPORT_STUB_PROFILE.id,
+      full_name: SUPPORT_STUB_PROFILE.full_name,
+      city: null,
+      rating_avg: null,
+      rating_count: null,
+    };
+    setActiveChatUser(supportStub);
+    if (envId) setSupportProfileId(envId);
+
+    try {
+      if (!currentUser) {
+        setActiveChatId(null);
+        setChatMessages([]);
+        setActiveChatIsClosed(false);
+        return;
+      }
+
+      const envSupportId = getSupportProfileIdFromEnv();
+      const profile: Profile = envSupportId
+        ? {
+            id: envSupportId,
+            full_name: "Поддержка",
+            city: null,
+            rating_avg: null,
+            rating_count: null,
+          }
+        : await fetchSupportProfile();
+      setSupportProfileId(profile.id);
+      setActiveChatUser(profile);
+
+      const chatId = await openOrEnsurePrivateChat(
+        currentUser.profileId,
+        profile.id,
+      );
+      setActiveChatId(chatId);
+      chatMembershipRef.current.add(chatId);
+
+      setChatList((prev) => {
+        const exists = prev.some((x) => x.chatId === chatId);
+        if (exists) return prev;
+        return [
+          {
+            chatId,
+            profile,
+            lastMessageAt: null,
+            lastMessagePreview: null,
+          },
+          ...prev,
+        ];
+      });
+
+      let closed = false;
+      try {
+        closed = await isChatClosed(chatId);
+      } catch {
+        closed = false;
+      }
+      setActiveChatIsClosed(closed);
+
+      const normalized = await fetchRecentMessages(chatId);
+      setChatMessages(normalized);
+      setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
+    } catch (err: unknown) {
+      setChatError(
+        getErrorMessage(err, "Не удалось открыть поддержку."),
+      );
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const openChatWithProfile = async (profile: Profile) => {
     if (!currentUser) {
       setChatError("Нужно войти, чтобы отправлять сообщения.");
@@ -754,25 +930,32 @@ export default function Home() {
     setActiveChatUser(profile);
     setChatError(null);
     setChatLoading(true);
+    resetSupportComposer();
 
     try {
-      const limit = getDmPartnersDailyLimit(currentUser.isPro);
-      const partnersToday = await getUniqueChatPartnersToday(
-        currentUser.profileId,
-      );
-      if (
-        !partnersToday.has(profile.id) &&
-        partnersToday.size >= limit
-      ) {
-        setChatError(
-          `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
-            currentUser.isPro
-              ? ""
-              : "Оформите Pro для лимита 50."
-          }`.trim(),
+      const sid =
+        supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
+      const isSupportPeer = sid != null && profile.id === sid;
+
+      if (!isSupportPeer) {
+        const limit = getDmPartnersDailyLimit(currentUser.isPro);
+        const partnersToday = await getUniqueChatPartnersToday(
+          currentUser.profileId,
         );
-        setChatLoading(false);
-        return;
+        if (
+          !partnersToday.has(profile.id) &&
+          partnersToday.size >= limit
+        ) {
+          setChatError(
+            `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
+              currentUser.isPro
+                ? ""
+                : "Оформите Pro для лимита 50."
+            }`.trim(),
+          );
+          setChatLoading(false);
+          return;
+        }
       }
 
       const chatId = await openOrEnsurePrivateChat(
@@ -782,6 +965,12 @@ export default function Home() {
 
       setActiveChatId(chatId);
       chatMembershipRef.current.add(chatId);
+
+      if (isSupportPeer) {
+        setActiveChatIsClosed(await isChatClosed(chatId));
+      } else {
+        setActiveChatIsClosed(false);
+      }
 
       // Гарантируем, что чат есть в списке (важно для UI поп-апа и сортировки)
       setChatList((prev) => {
@@ -827,8 +1016,73 @@ export default function Home() {
     });
   };
 
+  const handleSendSupportAppeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !activeChatId || !isSupportChat) return;
+    if (currentUser.isBlocked) {
+      setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
+      return;
+    }
+
+    const subject = supportSubject.trim();
+    const description = supportDescription.trim();
+    const fieldErrors: { subject?: string; description?: string } = {};
+    if (!subject) {
+      fieldErrors.subject = "Укажите тему обращения.";
+    }
+    if (!description) {
+      fieldErrors.description = "Укажите описание проблемы.";
+    }
+    setSupportFieldErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) {
+      setChatError("Заполните тему и описание, чтобы отправить обращение.");
+      return;
+    }
+
+    setChatSending(true);
+    setChatError(null);
+
+    try {
+      const content = formatAppealMessage(subject, description);
+      const { data, error } = await insertMessage({
+        chatId: activeChatId,
+        senderId: currentUser.profileId,
+        content,
+      });
+      if (error) throw error;
+
+      await reopenChat(activeChatId);
+      setActiveChatIsClosed(false);
+      setChatMessages((prev) => [...prev, data as ChatMessage]);
+      resetSupportComposer();
+
+      const preview = formatChatListPreview(content);
+      setChatList((prev) => {
+        const idx = prev.findIndex((x) => x.chatId === activeChatId);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        const item = {
+          ...next[idx],
+          lastMessageAt: (data as ChatMessage).created_at,
+          lastMessagePreview: preview,
+        };
+        next.splice(idx, 1);
+        return [item, ...next];
+      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Не удалось отправить обращение.";
+      setChatError(msg);
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (showSupportAppealForm) return;
     if (!currentUser || !activeChatId || !chatInput.trim()) return;
     if (currentUser.isBlocked) {
       setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
@@ -919,19 +1173,13 @@ export default function Home() {
       if (target?.closest?.("[data-profile-card]")) return;
       if (!chatWindowRef.current) return;
       if (!chatWindowRef.current.contains(event.target as Node)) {
-        setActiveChatUser(null);
-        setActiveChatId(null);
-        setChatMessages([]);
-        setChatError(null);
+        closeChatWindow();
       }
     };
 
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActiveChatUser(null);
-        setActiveChatId(null);
-        setChatMessages([]);
-        setChatError(null);
+        closeChatWindow();
       }
     };
 
@@ -1862,53 +2110,66 @@ export default function Home() {
           >
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/40 px-3 py-2.5">
               <div className="min-w-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveProfileOverlay(activeChatUser);
-                    void markProfileViewed(activeChatUser.id);
-                  }}
-                  title={
-                    isOnline(activeChatUser.last_seen_at ?? null)
-                      ? "Онлайн"
-                      : "Оффлайн"
-                  }
-                  className="group flex w-full min-w-0 items-start gap-2 text-left"
-                >
-                  <div className="relative shrink-0">
-                    <div className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full bg-slate-900 text-sm font-medium text-white">
-                      {(activeChatUser.full_name?.[0] || "?").toUpperCase()}
-                      <div
-                        className={`pointer-events-none absolute bottom-0 right-0 z-[1] box-border h-4 w-4 rounded-full border-2 border-white ${
-                          isOnline(activeChatUser.last_seen_at ?? null)
-                            ? "bg-emerald-500"
-                            : "bg-gray-400"
-                        }`}
-                        aria-hidden
-                      />
+                {isSupportChat ? (
+                  <div className="flex min-w-0 items-start gap-2">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-medium text-white">
+                      П
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900">
+                        Поддержка
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {activeChatIsClosed
+                          ? "Обращение закрыто — можно отправить новое"
+                          : "Служба поддержки Zeip"}
+                      </p>
                     </div>
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600">
-                      {activeChatUser.full_name || "Без имени"}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveProfileOverlay(activeChatUser);
+                      void markProfileViewed(activeChatUser.id);
+                    }}
+                    title={
+                      isOnline(activeChatUser.last_seen_at ?? null)
+                        ? "Онлайн"
+                        : "Оффлайн"
+                    }
+                    className="group flex w-full min-w-0 items-start gap-2 text-left"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="relative flex h-10 w-10 items-center justify-center overflow-visible rounded-full bg-slate-900 text-sm font-medium text-white">
+                        {(activeChatUser.full_name?.[0] || "?").toUpperCase()}
+                        <div
+                          className={`pointer-events-none absolute bottom-0 right-0 z-[1] box-border h-4 w-4 rounded-full border-2 border-white ${
+                            isOnline(activeChatUser.last_seen_at ?? null)
+                              ? "bg-emerald-500"
+                              : "bg-gray-400"
+                          }`}
+                          aria-hidden
+                        />
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      {activeChatUser.role_title ||
-                        activeChatUser.city ||
-                        "Профессия не указана"}
-                    </p>
-                  </div>
-                </button>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900 group-hover:text-emerald-600">
+                        {activeChatUser.full_name || "Без имени"}
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {activeChatUser.role_title ||
+                          activeChatUser.city ||
+                          "Профессия не указана"}
+                      </p>
+                    </div>
+                  </button>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveChatUser(null);
-                  setActiveChatId(null);
-                  setChatMessages([]);
-                  setChatError(null);
-                }}
+                onClick={closeChatWindow}
                 className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 ✕
@@ -1924,47 +2185,79 @@ export default function Home() {
                   <p className="text-xs text-slate-500">
                     Загружаем сообщения...
                   </p>
+                ) : !currentUser && isSupportChat ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-4 text-sm text-slate-700">
+                    <p>Чтобы написать в поддержку, войдите в аккаунт.</p>
+                    <Link
+                      href="/auth"
+                      className="mt-3 inline-flex rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                    >
+                      Войти
+                    </Link>
+                  </div>
                 ) : (
                   <>
-                    {chatMessages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${
-                          m.sender_id === currentUser?.profileId
-                            ? "ml-auto bg-[#009966] text-white"
-                            : "mr-auto bg-slate-50/70 text-slate-900"
-                        }`}
-                      >
-                        <p>{m.content}</p>
-                        <div
-                          className={`mt-1 flex items-center justify-between gap-2 text-xs ${
-                            m.sender_id === currentUser?.profileId
-                              ? "text-white/80"
-                              : "text-slate-400"
-                          }`}
-                        >
-                          <span className="truncate">
-                            {m.created_at ? formatDateTime(m.created_at) : ""}
-                            {m.edited_at ? " · изменено" : ""}
-                          </span>
-                          {m.sender_id === currentUser?.profileId ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingMessageId(m.id);
-                                setChatInput(m.content ?? "");
-                              }}
-                              className="shrink-0 underline-offset-2 hover:underline"
+                    {(() => {
+                      let appealCounter = 0;
+                      return chatMessages.map((m) => {
+                        const isOwn =
+                          m.sender_id === currentUser?.profileId;
+                        const isAppeal =
+                          isSupportChat && isAppealMessage(m.content);
+                        if (isAppeal) appealCounter += 1;
+                        return (
+                          <div
+                            key={m.id}
+                            className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm ${
+                              isOwn
+                                ? "ml-auto bg-[#009966] text-white"
+                                : "mr-auto bg-slate-50/70 text-slate-900"
+                            }`}
+                          >
+                            {isAppeal ? (
+                              <SupportAppealCard
+                                content={m.content}
+                                appealIndex={appealCounter}
+                                isOwn={isOwn}
+                              />
+                            ) : (
+                              <p>{m.content}</p>
+                            )}
+                            <div
+                              className={`mt-1 flex items-center justify-between gap-2 text-xs ${
+                                isOwn
+                                  ? "text-white/80"
+                                  : "text-slate-400"
+                              }`}
                             >
-                              Изменить
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
+                              <span className="truncate">
+                                {m.created_at
+                                  ? formatDateTime(m.created_at)
+                                  : ""}
+                                {m.edited_at ? " · изменено" : ""}
+                              </span>
+                              {isOwn && !isAppeal ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingMessageId(m.id);
+                                    setChatInput(m.content ?? "");
+                                  }}
+                                  className="shrink-0 underline-offset-2 hover:underline"
+                                >
+                                  Изменить
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                     {chatMessages.length === 0 && !chatLoading && (
                       <p className="text-xs text-slate-400">
-                        Пока нет сообщений. Напишите что‑нибудь первым.
+                        {isSupportChat
+                          ? "Опишите проблему ниже — мы ответим в этом чате."
+                          : "Пока нет сообщений. Напишите что‑нибудь первым."}
                       </p>
                     )}
                   </>
@@ -1975,62 +2268,127 @@ export default function Home() {
                 <p className="mb-1 text-[11px] text-red-600">{chatError}</p>
               )}
 
-              <form
-                onSubmit={handleSendChatMessage}
-                className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1"
-              >
-                <textarea
-                  value={chatInput}
-                  onChange={(e) =>
-                    setChatInput(e.target.value.slice(0, 1000))
-                  }
-                  rows={isMobileLayout ? 2 : 4}
-                  placeholder="Напишите сообщение…"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                  onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (!chatSending && chatInput.trim()) {
-                        handleSendChatMessage(e as any);
-                      }
-                    }
-                  }}
-                />
-                {editingMessageId ? (
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-amber-600">
-                      Режим редактирования
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingMessageId(null);
-                        setChatInput("");
+              {currentUser && showSupportAppealForm ? (
+                <form
+                  onSubmit={handleSendSupportAppeal}
+                  className="mt-1 shrink-0 space-y-2 border-t border-slate-200 bg-white pt-2 pb-1"
+                >
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                      Тема обращения
+                    </label>
+                    <input
+                      type="text"
+                      value={supportSubject}
+                      onChange={(e) => {
+                        setSupportSubject(e.target.value.slice(0, 200));
+                        setSupportFieldErrors((prev) => ({
+                          ...prev,
+                          subject: undefined,
+                        }));
                       }}
-                      className="text-[11px] font-medium text-slate-600 hover:underline"
+                      placeholder="Кратко опишите суть"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
+                      onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                    />
+                    {supportFieldErrors.subject ? (
+                      <p className="mt-1 text-[11px] text-red-600">
+                        {supportFieldErrors.subject}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">
+                      Описание проблемы
+                    </label>
+                    <textarea
+                      value={supportDescription}
+                      onChange={(e) => {
+                        setSupportDescription(e.target.value.slice(0, 2000));
+                        setSupportFieldErrors((prev) => ({
+                          ...prev,
+                          description: undefined,
+                        }));
+                      }}
+                      rows={isMobileLayout ? 3 : 4}
+                      placeholder="Подробности, шаги, что ожидали увидеть"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
+                      onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                    />
+                    {supportFieldErrors.description ? (
+                      <p className="mt-1 text-[11px] text-red-600">
+                        {supportFieldErrors.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={chatSending}
+                      className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
                     >
-                      Отмена
+                      {chatSending ? "Отправляем..." : "Отправить обращение"}
                     </button>
                   </div>
-                ) : null}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400">
-                    {chatInput.length}/1000
-                  </span>
-                  <button
-                    type="submit"
-                    disabled={chatSending || !chatInput.trim()}
-                    className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
-                  >
-                    {chatSending
-                      ? "Отправляем..."
-                      : editingMessageId
-                        ? "Сохранить"
-                        : "Отправить"}
-                  </button>
-                </div>
-              </form>
+                </form>
+              ) : currentUser ? (
+                <form
+                  onSubmit={handleSendChatMessage}
+                  className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1"
+                >
+                  <textarea
+                    value={chatInput}
+                    onChange={(e) =>
+                      setChatInput(e.target.value.slice(0, 1000))
+                    }
+                    rows={isMobileLayout ? 2 : 4}
+                    placeholder="Напишите сообщение…"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
+                    onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!chatSending && chatInput.trim()) {
+                          handleSendChatMessage(e as React.FormEvent);
+                        }
+                      }
+                    }}
+                  />
+                  {editingMessageId ? (
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] text-amber-600">
+                        Режим редактирования
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMessageId(null);
+                          setChatInput("");
+                        }}
+                        className="text-[11px] font-medium text-slate-600 hover:underline"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400">
+                      {chatInput.length}/1000
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={chatSending || !chatInput.trim()}
+                      className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
+                    >
+                      {chatSending
+                        ? "Отправляем..."
+                        : editingMessageId
+                          ? "Сохранить"
+                          : "Отправить"}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
             </div>
           </div>
         )}
