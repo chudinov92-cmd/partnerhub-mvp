@@ -18,5 +18,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env.app
+    environment:
+      GEOIP_DB_PATH: ${GEOIP_DB_PATH:-/data/GeoLite2-City.mmdb}
+    volumes:
+      - ${GEOIP_HOST_PATH:-/root/zeip/geoip/GeoLite2-City.mmdb}:/data/GeoLite2-City.mmdb:ro
     ports:
       - "127.0.0.1:3001:3000"

@@ -3,6 +3,7 @@ import "./globals.css";
 import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { PushBootstrap } from "@/components/PushBootstrap";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
+import { InitialCityResolver } from "@/components/InitialCityResolver";
 export const metadata: Metadata = {
   title: "Zeip",
   description: "Zeip — платформа для поиска партнеров и команд по городам.",
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className="font-sans antialiased text-slate-900">
         <PushBootstrap />
         <SelectedCityProvider>
+          <InitialCityResolver />
           <div className="flex min-h-screen flex-col bg-gray-100" style={{ minHeight: '100dvh' }}>
             <ConditionalTopBar />
             <div className="flex-1">{children}</div>

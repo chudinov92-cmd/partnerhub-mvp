@@ -28,6 +28,16 @@ run_sql_migration "${ROOT}/supabase/sql/2026-05-21-chats-insert-rls.sql" "chats-
 run_sql_migration "${ROOT}/supabase/sql/2026-05-22-ensure-private-chat-rpc.sql" "ensure-private-chat-rpc"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-25-useful-contacts.sql" "useful-contacts"
 
+GEOIP_DB="${GEOIP_HOST_PATH:-/root/zeip/geoip/GeoLite2-City.mmdb}"
+if [[ ! -f "${GEOIP_DB}" ]]; then
+  echo "=== geolite2: база не найдена (${GEOIP_DB}) ==="
+  if [[ -f "${ROOT}/deploy/timeweb/scripts/update-geolite2.sh" ]]; then
+    echo "Попытка скачать GeoLite2-City (нужны MAXMIND_* в .env.app)..."
+    bash "${ROOT}/deploy/timeweb/scripts/update-geolite2.sh" || \
+      echo "WARN: GeoIP недоступен — /api/geo/detect-city вернёт city:null, fallback Пермь"
+  fi
+fi
+
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"
   exit 1

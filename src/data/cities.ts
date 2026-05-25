@@ -128,3 +128,13 @@ export const SORTED_CITY_OPTIONS = [...CITY_OPTIONS].sort((a, b) =>
 export function normalizeCityQuery(raw: string) {
   return (raw ?? "").trim().toLowerCase();
 }
+
+const CITY_OPTIONS_SET = new Set<string>(CITY_OPTIONS);
+
+/** Город из справочника Zeip (CITY_OPTIONS). */
+export function isZeipCity(
+  city: string | null | undefined,
+): city is (typeof CITY_OPTIONS)[number] {
+  const trimmed = (city ?? "").trim();
+  return trimmed.length > 0 && CITY_OPTIONS_SET.has(trimmed);
+}
