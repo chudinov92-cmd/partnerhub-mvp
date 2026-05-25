@@ -1,6 +1,0 @@
-# Cron: обновление GeoLite2 раз в месяц (1-е число, 04:15 UTC)
-# Установка на VPS:
-#   crontab -e
-#   15 4 1 * * /root/zeip/my-app/deploy/timeweb/scripts/update-geolite2.sh >> /var/log/geolite2-update.log 2>&1
-
-15 4 1 * * root /root/zeip/my-app/deploy/timeweb/scripts/update-geolite2.sh >> /var/log/geolite2-update.log 2>&1

@@ -9,17 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
-export const SELECTED_CITY_STORAGE_KEY = "selected_city";
-export const DEFAULT_SELECTED_CITY = "Пермь";
+import { RUSSIA_LABEL } from "@/data/cities";
 
 type SelectedCityContextValue = {
   selectedCity: string;
   setSelectedCity: (city: string) => void;
-  cityInitDone: boolean;
-  cityResolving: boolean;
-  setCityInitDone: (done: boolean) => void;
-  setCityResolving: (resolving: boolean) => void;
 };
 
 const SelectedCityContext = createContext<SelectedCityContextValue | null>(
@@ -27,36 +21,25 @@ const SelectedCityContext = createContext<SelectedCityContextValue | null>(
 );
 
 export function SelectedCityProvider({ children }: { children: ReactNode }) {
-  const [selectedCity, setSelectedCityState] = useState(DEFAULT_SELECTED_CITY);
-  const [cityInitDone, setCityInitDone] = useState(false);
-  const [cityResolving, setCityResolving] = useState(false);
+  const [selectedCity, setSelectedCityState] = useState(RUSSIA_LABEL);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(SELECTED_CITY_STORAGE_KEY);
-    if (saved) {
-      setSelectedCityState(saved);
-      setCityInitDone(true);
-    }
+    const saved = window.localStorage.getItem("selected_city");
+    if (saved) setSelectedCityState(saved);
+    else setSelectedCityState(RUSSIA_LABEL);
   }, []);
 
   const setSelectedCity = useCallback((city: string) => {
     setSelectedCityState(city);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(SELECTED_CITY_STORAGE_KEY, city);
+      window.localStorage.setItem("selected_city", city);
     }
   }, []);
 
   const value = useMemo(
-    () => ({
-      selectedCity,
-      setSelectedCity,
-      cityInitDone,
-      cityResolving,
-      setCityInitDone,
-      setCityResolving,
-    }),
-    [selectedCity, setSelectedCity, cityInitDone, cityResolving],
+    () => ({ selectedCity, setSelectedCity }),
+    [selectedCity, setSelectedCity],
   );
 
   return (

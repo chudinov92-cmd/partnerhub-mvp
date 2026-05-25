@@ -481,7 +481,7 @@ export const CITY_VIEWS: Record<string, CityViewConfig> = {
   },
 };
 
-const DEFAULT_CITY = "Пермь";
+const DEFAULT_CITY = "Россия";
 
 export function getMapConfigForCity(selectedCity: string | null | undefined) {
   const key = (selectedCity || DEFAULT_CITY).trim() || DEFAULT_CITY;
@@ -490,7 +490,7 @@ export function getMapConfigForCity(selectedCity: string | null | undefined) {
     if (process.env.NODE_ENV === "development") {
       console.warn(`[cityMapViews] unknown city "${key}", fallback ${DEFAULT_CITY}`);
     }
-    return CITY_VIEWS[DEFAULT_CITY] ?? { center: [58.01, 56.25], zoom: 12 };
+    return CITY_VIEWS[DEFAULT_CITY] ?? { center: [61, 90], zoom: 3 };
   }
   return cfg;
 }
