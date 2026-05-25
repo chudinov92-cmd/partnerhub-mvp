@@ -80,7 +80,7 @@ export function PushOptInBanner({ hasSession }: Props) {
           href="/profile"
           className="font-medium text-[#009966] underline-offset-2 hover:underline"
         >
-          Настроить в профиле
+          Отключить в профиле
         </Link>
       </div>
     );

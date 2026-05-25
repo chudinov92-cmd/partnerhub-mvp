@@ -390,7 +390,7 @@ export function PartnerMap({
   }, [points, profileById, viewedSet, focusedProfileId, currentUserProfileId]);
 
   return (
-    <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-sm">
+    <div className="h-full min-h-0 w-full overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
       <MapContainer
         className="zeip-partner-map"
         center={effectiveCenter}

@@ -334,6 +334,8 @@ export default function Home() {
   const [recommendedNotice, setRecommendedNotice] = useState<string | null>(
     null,
   );
+  const [recommendedEmptyDismissed, setRecommendedEmptyDismissed] =
+    useState(false);
   const hasActiveFeedFilters = Boolean(
     feedFilters.profession ||
       feedFilters.industry ||
@@ -375,6 +377,7 @@ export default function Home() {
     useState<Profile | null>(null);
   const [focusedProfileId, setFocusedProfileId] = useState<string | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
+  const recommendedEmptyBannerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
     Record<string, boolean>
@@ -740,6 +743,41 @@ export default function Home() {
     !recommendedLoading &&
     recommendedProfiles !== null &&
     recommendedProfilesAll.length === 0;
+
+  const showRecommendedEmptyBanner =
+    feedFilters.recommendedContacts &&
+    !recommendedLoading &&
+    mapViewMode === "map" &&
+    (showRecommendedEmptyRussiaPrompt || showRecommendedEmptyAll) &&
+    !recommendedEmptyDismissed;
+
+  useEffect(() => {
+    setRecommendedEmptyDismissed(false);
+  }, [feedFilters.recommendedContacts, selectedCity, recommendedProfiles]);
+
+  useEffect(() => {
+    if (!showRecommendedEmptyBanner) return;
+
+    const dismiss = () => setRecommendedEmptyDismissed(true);
+
+    const handleClick = (event: MouseEvent) => {
+      if (!recommendedEmptyBannerRef.current) return;
+      if (!recommendedEmptyBannerRef.current.contains(event.target as Node)) {
+        dismiss();
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") dismiss();
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [showRecommendedEmptyBanner]);
 
   const handleToggleRecommended = async () => {
     if (feedFilters.recommendedContacts) {
@@ -1574,7 +1612,7 @@ export default function Home() {
                 rows={3}
                 placeholder={
                   currentUser
-                    ? "Напиши, кого или что ты ищешь…"
+                    ? "Введите сообщение"
                     : "Войди, чтобы написать сообщение…"
                 }
                 disabled={!!currentUser && !canWriteGeneralChat}
@@ -1976,12 +2014,31 @@ export default function Home() {
                 aria-hidden
               />
             ) : null}
-            {feedFilters.recommendedContacts &&
-            !recommendedLoading &&
-            mapViewMode === "map" ? (
-              <>
+            {showRecommendedEmptyBanner ? (
+              <div
+                ref={recommendedEmptyBannerRef}
+                role="alertdialog"
+                aria-labelledby="recommended-empty-title"
+                className="pointer-events-auto absolute inset-x-4 top-20 z-[1050] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-700 shadow-lg backdrop-blur-sm"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <p
+                    id="recommended-empty-title"
+                    className="font-medium text-slate-900"
+                  >
+                    Рекомендованные контакты
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRecommendedEmptyDismissed(true)}
+                    className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                    aria-label="Закрыть"
+                  >
+                    ✕
+                  </button>
+                </div>
                 {showRecommendedEmptyRussiaPrompt ? (
-                  <div className="pointer-events-auto absolute inset-x-4 top-20 z-[1050] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-700 shadow-lg backdrop-blur-sm">
+                  <>
                     <p>
                       В вашем городе пока нет пользователей, интересующихся вашей
                       профессией. Хотите посмотреть по всей России?
@@ -1993,17 +2050,14 @@ export default function Home() {
                     >
                       Открыть всю Россию
                     </button>
-                  </div>
-                ) : null}
-                {showRecommendedEmptyAll ? (
-                  <div className="pointer-events-auto absolute inset-x-4 top-20 z-[1050] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-700 shadow-lg backdrop-blur-sm">
-                    <p>
-                      К сожалению, сейчас нет пользователей, интересующихся вашей
-                      профессией. Мы сообщим вам, когда такие пользователи появятся.
-                    </p>
-                  </div>
-                ) : null}
-              </>
+                  </>
+                ) : (
+                  <p>
+                    К сожалению, сейчас нет пользователей, интересующихся вашей
+                    профессией. Мы сообщим вам, когда такие пользователи появятся.
+                  </p>
+                )}
+              </div>
             ) : null}
             {mapViewMode === "map" ? (
               <PartnerMap
