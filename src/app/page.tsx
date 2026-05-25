@@ -62,6 +62,7 @@ import {
 import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
+import { logMapSearchEvent } from "@/services/analyticsService";
 import { RUSSIA_LABEL } from "@/data/cities";
 import type { PostCommentRow } from "@/components/PostComments";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
@@ -1997,7 +1998,17 @@ export default function Home() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setFeedFiltersOpen(false)}
+                        onClick={() => {
+                          const profession = (feedFilters.profession ?? "").trim();
+                          if (profession) {
+                            void logMapSearchEvent({
+                              target_profession: profession,
+                              city_context: selectedCity,
+                              filters_json: feedFilters,
+                            });
+                          }
+                          setFeedFiltersOpen(false);
+                        }}
                         className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700"
                       >
                         Поиск

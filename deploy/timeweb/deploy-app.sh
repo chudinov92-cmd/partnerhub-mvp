@@ -27,6 +27,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-05-21-support.sql" "support"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-21-chats-insert-rls.sql" "chats-insert-rls"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-22-ensure-private-chat-rpc.sql" "ensure-private-chat-rpc"
 run_sql_migration "${ROOT}/supabase/sql/2026-05-25-useful-contacts.sql" "useful-contacts"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-25-profession-demand-analytics.sql" "profession-demand-analytics"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

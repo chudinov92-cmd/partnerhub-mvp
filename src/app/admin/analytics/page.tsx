@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { ProfessionDemandAnalytics } from "@/components/admin/ProfessionDemandAnalytics";
 
 type MetricCardProps = {
   title: string;
@@ -211,6 +212,8 @@ export default function AdminAnalyticsPage() {
             Нет данных.
           </div>
         )}
+
+        <ProfessionDemandAnalytics />
       </div>
     </AdminShell>
   );
