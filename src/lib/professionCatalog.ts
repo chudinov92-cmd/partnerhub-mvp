@@ -83,19 +83,44 @@ async function seedCatalogIfEmptyAuthenticated() {
   if (seedErr) return;
 }
 
+function readCachedProfessionCatalog(): {
+  rows: ProfessionCatalogRow[] | null;
+  lastFetchedUtcMs: number | null;
+} {
+  if (typeof window === "undefined") {
+    return { rows: null, lastFetchedUtcMs: null };
+  }
+
+  let rows: ProfessionCatalogRow[] | null = null;
+  const cached = window.localStorage.getItem(LS_KEY);
+  if (cached) {
+    try {
+      rows = JSON.parse(cached) as ProfessionCatalogRow[];
+    } catch {
+      // ignore cache parse errors
+    }
+  }
+
+  let lastFetchedUtcMs: number | null = null;
+  const fetchedAtRaw = window.localStorage.getItem(LS_FETCHED_AT_KEY);
+  if (fetchedAtRaw) {
+    const parsed = Number(fetchedAtRaw);
+    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
+  }
+
+  return { rows, lastFetchedUtcMs };
+}
+
 export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
   const nowUtc = msNow();
-  let cachedRows: ProfessionCatalogRow[] | null = null;
+  const { rows: cachedRows, lastFetchedUtcMs } = readCachedProfessionCatalog();
 
-  if (typeof window !== "undefined") {
-    const cached = window.localStorage.getItem(LS_KEY);
-    if (cached) {
-      try {
-        cachedRows = JSON.parse(cached) as ProfessionCatalogRow[];
-      } catch {
-        // ignore cache parse errors
-      }
-    }
+  if (
+    cachedRows &&
+    cachedRows.length > 0 &&
+    !shouldRefreshAt4amMsk(lastFetchedUtcMs, nowUtc)
+  ) {
+    return cachedRows;
   }
 
   try {

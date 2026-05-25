@@ -6,6 +6,7 @@ import {
   unsubscribeChannel,
   fetchChatMemberUserIds,
 } from "@/services/chatService";
+import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import type { ChatMessage, ChatListItem, CurrentUser } from "@/types";
 
 /** Realtime-канал сообщений для личных чатов. */
@@ -73,6 +74,8 @@ export function useChatMessagesRealtime(opts: {
               [otherId]: (prev[otherId] || 0) + 1,
             }));
           }
+
+          notifyUsefulContactsChanged();
 
           setChatList((prev) => {
             const idx = prev.findIndex((x) => x.chatId === chatId);

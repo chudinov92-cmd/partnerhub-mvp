@@ -11,7 +11,10 @@ import {
   updateProfileLastSeen,
 } from "@/services/profileService";
 import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
+import { USEFUL_CONTACTS_CHANGED_EVENT } from "@/lib/usefulContactEvents";
+import { fetchUsefulContactsCount } from "@/services/statsService";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
+import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;
@@ -41,11 +44,42 @@ export function TopBar() {
   const [fullName, setFullName] = useState<string | null>(null);
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [contactCount, setContactCount] = useState(0);
+  const [usefulContactsCount, setUsefulContactsCount] = useState<number | null>(
+    null,
+  );
+  const [usefulContactsLoading, setUsefulContactsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mapContactsActive, setMapContactsActive] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { selectedCity } = useSelectedCity();
+
+  const loadUsefulContactsCount = useCallback(async () => {
+    setUsefulContactsLoading(true);
+    try {
+      const count = await fetchUsefulContactsCount(selectedCity);
+      setUsefulContactsCount(count);
+    } catch (e) {
+      console.error("Failed to load useful contacts count", e);
+      setUsefulContactsCount(null);
+    } finally {
+      setUsefulContactsLoading(false);
+    }
+  }, [selectedCity]);
+
+  useEffect(() => {
+    void loadUsefulContactsCount();
+  }, [loadUsefulContactsCount]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refresh = () => void loadUsefulContactsCount();
+    window.addEventListener(USEFUL_CONTACTS_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(USEFUL_CONTACTS_CHANGED_EVENT, refresh);
+    };
+  }, [loadUsefulContactsCount]);
 
   const openSupport = () => {
     setMenuOpen(false);
@@ -235,22 +269,37 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-[1500] shrink-0 border-b border-gray-200 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm">
       <div className="grid h-14 min-h-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 md:px-4">
-      <Link
-        href="/"
-        className="flex min-w-0 items-center gap-2 justify-self-start"
-      >
-        <Image
-          src="/zeip-logo.svg"
-          alt="Zeip"
-          width={36}
-          height={36}
-          className="h-9 w-9 shrink-0"
-          priority
-        />
-        <span className="truncate text-xl font-semibold text-slate-900">
-          Zeip
-        </span>
-      </Link>
+      <div className="flex min-w-0 flex-col gap-0.5 justify-self-start sm:flex-row sm:items-center sm:gap-3">
+        <Link
+          href="/"
+          className="flex min-w-0 items-center gap-2"
+        >
+          <Image
+            src="/zeip-logo.svg"
+            alt="Zeip"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0"
+            priority
+          />
+          <span className="truncate text-xl font-semibold text-slate-900">
+            Zeip
+          </span>
+        </Link>
+        <p className="truncate text-[10px] leading-tight text-slate-600 sm:text-xs">
+          <span className="hidden md:inline">Установлено полезных контактов: </span>
+          <span className="md:hidden">Полезных контактов: </span>
+          {usefulContactsLoading ? (
+            <span className="text-slate-400">…</span>
+          ) : usefulContactsCount != null ? (
+            <span className="font-semibold text-slate-800">
+              {usefulContactsCount}
+            </span>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </p>
+      </div>
 
       <div className="justify-self-center">
         <TopBarCitySelect />

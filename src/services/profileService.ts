@@ -6,33 +6,78 @@ import type { Profile } from "@/types";
 export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select(
-      "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at",
-    )
+    .select(PROFILE_MAP_SELECT)
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as Profile[];
 }
 
+const PROFILE_MAP_SELECT =
+  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at";
+
 export type CurrentProfileRow = {
   id: string;
   full_name: string | null;
   city: string | null;
+  role_title: string | null;
   is_blocked: boolean | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
 };
+
+export function parseInterestedProfessions(raw: string | null | undefined) {
+  if (!raw) return [];
+  return raw
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+export function profileInterestedInProfession(
+  profile: Pick<Profile, "interested_in">,
+  profession: string,
+) {
+  const target = profession.trim();
+  if (!target) return false;
+  return parseInterestedProfessions(profile.interested_in).includes(target);
+}
 
 export async function fetchCurrentUserProfileRow(
   authUserId: string,
 ): Promise<CurrentProfileRow | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, city, is_blocked, is_pro, pro_expires_at")
+    .select("id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
   if (error) throw error;
   return (data as CurrentProfileRow | null) ?? null;
+}
+
+export async function fetchProfilesInterestedIn(
+  roleTitle: string,
+  options?: { excludeProfileId?: string; limit?: number },
+): Promise<Profile[]> {
+  const trimmed = roleTitle.trim();
+  if (!trimmed) return [];
+
+  const limit = options?.limit ?? 200;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(PROFILE_MAP_SELECT)
+    .ilike("interested_in", `%${trimmed}%`)
+    .limit(limit);
+  if (error) throw error;
+
+  let rows = ((data ?? []) as Profile[]).filter((profile) =>
+    profileInterestedInProfession(profile, trimmed),
+  );
+
+  if (options?.excludeProfileId) {
+    rows = rows.filter((profile) => profile.id !== options.excludeProfileId);
+  }
+
+  return rows;
 }
 
 export async function updateProfileLastSeen(profileId: string): Promise<void> {

@@ -38,6 +38,7 @@ export type FeedFilters = {
   online_status: "online" | "offline" | null;
   age_from: number | null;
   age_to: number | null;
+  recommendedContacts: boolean;
 };
 
 export const DEFAULT_FEED_FILTERS: FeedFilters = {
@@ -48,12 +49,14 @@ export const DEFAULT_FEED_FILTERS: FeedFilters = {
   online_status: null,
   age_from: null,
   age_to: null,
+  recommendedContacts: false,
 };
 
 export type CurrentUser = {
   profileId: string;
   fullName: string | null;
   city: string | null;
+  roleTitle: string | null;
   isBlocked: boolean;
   isPro: boolean;
 };

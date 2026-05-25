@@ -85,17 +85,68 @@ export async function fetchSubindustryCatalogFromDb(): Promise<SubindustryCatalo
   return (data ?? []) as SubindustryCatalogRow[];
 }
 
+function readCachedIndustryCatalog(): {
+  rows: IndustryCatalogRow[] | null;
+  lastFetchedUtcMs: number | null;
+} {
+  if (typeof window === "undefined") {
+    return { rows: null, lastFetchedUtcMs: null };
+  }
+
+  let rows: IndustryCatalogRow[] | null = null;
+  const cached = window.localStorage.getItem(LS_INDUSTRY_KEY);
+  if (cached) {
+    try {
+      rows = JSON.parse(cached) as IndustryCatalogRow[];
+    } catch {}
+  }
+
+  let lastFetchedUtcMs: number | null = null;
+  const fetchedAtRaw = window.localStorage.getItem(LS_INDUSTRY_FETCHED_AT_KEY);
+  if (fetchedAtRaw) {
+    const parsed = Number(fetchedAtRaw);
+    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
+  }
+
+  return { rows, lastFetchedUtcMs };
+}
+
+function readCachedSubindustryCatalog(): {
+  rows: SubindustryCatalogRow[] | null;
+  lastFetchedUtcMs: number | null;
+} {
+  if (typeof window === "undefined") {
+    return { rows: null, lastFetchedUtcMs: null };
+  }
+
+  let rows: SubindustryCatalogRow[] | null = null;
+  const cached = window.localStorage.getItem(LS_SUBINDUSTRY_KEY);
+  if (cached) {
+    try {
+      rows = JSON.parse(cached) as SubindustryCatalogRow[];
+    } catch {}
+  }
+
+  let lastFetchedUtcMs: number | null = null;
+  const fetchedAtRaw = window.localStorage.getItem(LS_SUBINDUSTRY_FETCHED_AT_KEY);
+  if (fetchedAtRaw) {
+    const parsed = Number(fetchedAtRaw);
+    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
+  }
+
+  return { rows, lastFetchedUtcMs };
+}
+
 export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
   const nowUtc = msNow();
-  let cachedRows: IndustryCatalogRow[] | null = null;
+  const { rows: cachedRows, lastFetchedUtcMs } = readCachedIndustryCatalog();
 
-  if (typeof window !== "undefined") {
-    const cached = window.localStorage.getItem(LS_INDUSTRY_KEY);
-    if (cached) {
-      try {
-        cachedRows = JSON.parse(cached) as IndustryCatalogRow[];
-      } catch {}
-    }
+  if (
+    cachedRows &&
+    cachedRows.length > 0 &&
+    !shouldRefreshAt4amMsk(lastFetchedUtcMs, nowUtc)
+  ) {
+    return cachedRows;
   }
 
   try {
@@ -121,15 +172,14 @@ export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
 
 export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]> {
   const nowUtc = msNow();
-  let cachedRows: SubindustryCatalogRow[] | null = null;
+  const { rows: cachedRows, lastFetchedUtcMs } = readCachedSubindustryCatalog();
 
-  if (typeof window !== "undefined") {
-    const cached = window.localStorage.getItem(LS_SUBINDUSTRY_KEY);
-    if (cached) {
-      try {
-        cachedRows = JSON.parse(cached) as SubindustryCatalogRow[];
-      } catch {}
-    }
+  if (
+    cachedRows &&
+    cachedRows.length > 0 &&
+    !shouldRefreshAt4amMsk(lastFetchedUtcMs, nowUtc)
+  ) {
+    return cachedRows;
   }
 
   try {

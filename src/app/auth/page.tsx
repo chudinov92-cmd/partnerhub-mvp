@@ -343,7 +343,7 @@ export default function AuthPage() {
           {mode === "signup" && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">
-                Имя и фамилия
+                Имя
               </label>
               <input
                 type="text"

@@ -12,11 +12,13 @@ export function ProfessionDropdown({
   onChange,
   placeholder = "Выберите профессию",
   catalog,
+  disabled = false,
 }: {
   value: string | null | undefined;
   onChange: (label: string) => void;
   placeholder?: string;
   catalog: ProfessionCatalogRow[];
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,8 +63,15 @@ export function ProfessionDropdown({
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 h-12 py-0 text-sm text-slate-900 shadow-sm focus:border-[#009966] focus:ring-1 focus:ring-[#009966] hover:border-[#009966]/60"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((v) => !v);
+        }}
+        className={
+          "flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 h-12 py-0 text-sm text-slate-900 shadow-sm focus:border-[#009966] focus:ring-1 focus:ring-[#009966] hover:border-[#009966]/60 " +
+          (disabled ? "cursor-not-allowed opacity-60" : "")
+        }
       >
         <span className={"truncate " + (isPlaceholder ? "text-slate-400" : "text-slate-900")}>
           {value ? value : placeholder}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { PartnerMapProps } from "@/components/PartnerMap";
 import { deleteBlock, insertBlock } from "@/services/contactService";
+import { fetchProfilesInterestedIn } from "@/services/profileService";
 import {
   formatChatListPreview,
   openOrEnsurePrivateChat,
@@ -26,6 +27,7 @@ import {
   getErrorMessage,
   SUPPORT_STUB_PROFILE,
 } from "@/lib/support";
+import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import {
   getDmPartnersDailyLimit,
@@ -98,6 +100,14 @@ function scrollComposerIntoView(el: HTMLElement | null) {
   const run = () => el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   requestAnimationFrame(run);
   window.setTimeout(run, 350);
+}
+
+function persistFeedFilters(filters: FeedFilters) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    "feed_filters",
+    JSON.stringify({ ...filters, recommendedContacts: false }),
+  );
 }
 
 const INDUSTRY_OPTIONS = [
@@ -317,6 +327,13 @@ export default function Home() {
   const [feedFilters, setFeedFilters] = useState<FeedFilters>(
     () => DEFAULT_FEED_FILTERS,
   );
+  const [recommendedProfiles, setRecommendedProfiles] = useState<
+    Profile[] | null
+  >(null);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
+  const [recommendedNotice, setRecommendedNotice] = useState<string | null>(
+    null,
+  );
   const hasActiveFeedFilters = Boolean(
     feedFilters.profession ||
       feedFilters.industry ||
@@ -324,7 +341,8 @@ export default function Home() {
       feedFilters.current_status ||
       feedFilters.online_status ||
       feedFilters.age_from != null ||
-      feedFilters.age_to != null,
+      feedFilters.age_to != null ||
+      feedFilters.recommendedContacts,
   );
   const [newPostBody, setNewPostBody] = useState("");
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
@@ -390,8 +408,14 @@ export default function Home() {
     markProfileViewed,
   } = useContacts(currentUser);
 
-  const { selectedCity } = useSelectedCity();
+  const { selectedCity, setSelectedCity } = useSelectedCity();
   const isRussiaChat = selectedCity === RUSSIA_LABEL;
+
+  const profileReadyForMessaging = Boolean(
+    currentUser &&
+      (currentUser.city ?? "").trim() &&
+      (currentUser.roleTitle ?? "").trim(),
+  );
 
   const {
     posts,
@@ -456,6 +480,7 @@ export default function Home() {
       setFeedFilters({
         ...DEFAULT_FEED_FILTERS,
         ...parsed,
+        recommendedContacts: false,
       });
     } catch {
       // ignore
@@ -637,7 +662,24 @@ export default function Home() {
   }, [feedFilters.industry, industryCatalog.length, subindustryCatalog]);
 
   const filteredProfilesForMap = useMemo(() => {
-    return profiles.filter((p) => {
+    const source =
+      feedFilters.recommendedContacts && recommendedProfiles !== null
+        ? recommendedProfiles
+        : profiles;
+
+    return source.filter((p) => {
+      if (blockedProfileIds.includes(p.id)) return false;
+
+      if (feedFilters.recommendedContacts) {
+        if (
+          selectedCity !== RUSSIA_LABEL &&
+          (p.city ?? null) !== selectedCity
+        ) {
+          return false;
+        }
+        return true;
+      }
+
       if (contactsOnlyMode || mapContactsOnly) {
         if (!contactProfileIds.includes(p.id)) return false;
       }
@@ -669,11 +711,77 @@ export default function Home() {
     });
   }, [
     profiles,
+    recommendedProfiles,
     feedFilters,
     contactsOnlyMode,
     mapContactsOnly,
     contactProfileIds,
+    selectedCity,
+    blockedProfileIds,
   ]);
+
+  const recommendedProfilesAll = useMemo(() => {
+    if (!recommendedProfiles) return [];
+    return recommendedProfiles.filter(
+      (profile) => !blockedProfileIds.includes(profile.id),
+    );
+  }, [recommendedProfiles, blockedProfileIds]);
+
+  const showRecommendedEmptyRussiaPrompt =
+    feedFilters.recommendedContacts &&
+    !recommendedLoading &&
+    recommendedProfiles !== null &&
+    selectedCity !== RUSSIA_LABEL &&
+    filteredProfilesForMap.length === 0 &&
+    recommendedProfilesAll.length > 0;
+
+  const showRecommendedEmptyAll =
+    feedFilters.recommendedContacts &&
+    !recommendedLoading &&
+    recommendedProfiles !== null &&
+    recommendedProfilesAll.length === 0;
+
+  const handleToggleRecommended = async () => {
+    if (feedFilters.recommendedContacts) {
+      setRecommendedProfiles(null);
+      setRecommendedNotice(null);
+      const next: FeedFilters = { ...feedFilters, recommendedContacts: false };
+      setFeedFilters(next);
+      persistFeedFilters(next);
+      return;
+    }
+
+    setRecommendedNotice(null);
+
+    if (!currentUser) {
+      setRecommendedNotice(
+        "Зарегистрируйтесь, чтобы видеть рекомендованные контакты",
+      );
+      return;
+    }
+
+    const roleTitle = (currentUser.roleTitle ?? "").trim();
+    if (!roleTitle) {
+      setRecommendedNotice("Заполните профессию в профиле");
+      return;
+    }
+
+    setRecommendedLoading(true);
+    try {
+      const rows = await fetchProfilesInterestedIn(roleTitle, {
+        excludeProfileId: currentUser.profileId,
+      });
+      setRecommendedProfiles(rows);
+      const next: FeedFilters = { ...feedFilters, recommendedContacts: true };
+      setFeedFilters(next);
+      persistFeedFilters(next);
+    } catch (e) {
+      console.error("Failed to load recommended contacts", e);
+      setRecommendedNotice("Не удалось загрузить рекомендованные контакты");
+    } finally {
+      setRecommendedLoading(false);
+    }
+  };
 
   const filteredChatList = useMemo(() => {
     if (!contactsOnlyMode) return chatList;
@@ -1088,6 +1196,12 @@ export default function Home() {
       setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
       return;
     }
+    if (!profileReadyForMessaging) {
+      setChatError(
+        "Заполните город и профессию в профиле, чтобы отправлять сообщения.",
+      );
+      return;
+    }
 
     setChatSending(true);
     setChatError(null);
@@ -1132,6 +1246,7 @@ export default function Home() {
 
         setChatMessages((prev) => [...prev, data as ChatMessage]);
         setChatInput("");
+        notifyUsefulContactsChanged();
 
         // Поднимаем чат вверх в списке по отправке
         setChatList((prev) => {
@@ -1567,12 +1682,12 @@ export default function Home() {
 
               {feedFiltersOpen && (
                 <div
-                  className="pointer-events-auto absolute right-0 top-[calc(100%+0.5rem)] z-[1200] w-[min(calc(100vw-2rem),300px)] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl"
+                  className="pointer-events-auto absolute right-0 top-[calc(100%+0.5rem)] z-[1200] flex w-[min(calc(100vw-2rem),300px)] max-h-[calc(100dvh-11.75rem-env(safe-area-inset-bottom,0px))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl lg:max-h-[calc(100dvh-7rem-env(safe-area-inset-top,0px))]"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex shrink-0 items-center justify-between">
                     <p className="text-sm font-semibold text-slate-900">
-                      Поиск по специалистам
+                      Поиск специалистов
                     </p>
                     <button
                       type="button"
@@ -1584,7 +1699,48 @@ export default function Home() {
                     </button>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="max-h-[min(60vh,calc(100dvh-13rem-env(safe-area-inset-bottom,0px)))] space-y-2 overflow-y-auto overscroll-y-contain pr-1 [-webkit-overflow-scrolling:touch] [touch-action:pan-y] lg:max-h-[min(70vh,calc(100dvh-8.5rem-env(safe-area-inset-top,0px)))]">
+                    <button
+                      type="button"
+                      disabled={recommendedLoading}
+                      onClick={() => void handleToggleRecommended()}
+                      className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-semibold transition ${
+                        feedFilters.recommendedContacts
+                          ? "border-[#009966] bg-[#009966] text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      <span aria-hidden>★</span>
+                      Рекомендованные контакты
+                    </button>
+
+                    {recommendedNotice ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        <p>{recommendedNotice}</p>
+                        {!currentUser ? (
+                          <Link
+                            href="/auth"
+                            className="mt-1 inline-block font-medium text-[#009966] underline"
+                          >
+                            Зарегистрироваться
+                          </Link>
+                        ) : !(currentUser.roleTitle ?? "").trim() ? (
+                          <Link
+                            href="/profile"
+                            className="mt-1 inline-block font-medium text-[#009966] underline"
+                          >
+                            Заполнить профиль
+                          </Link>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {recommendedLoading ? (
+                      <p className="text-[11px] text-slate-500">
+                        Загрузка рекомендаций...
+                      </p>
+                    ) : null}
+
                     <div>
                       <label className="mb-1 block text-[11px] font-medium text-slate-600">
                         Профессия
@@ -1609,12 +1765,7 @@ export default function Home() {
                             profession: v || null,
                           };
                           setFeedFilters(next);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(next),
-                            );
-                          }
+                          persistFeedFilters(next);
                         }}
                         menuClassName="text-[11px]"
                       />
@@ -1647,12 +1798,7 @@ export default function Home() {
                             subindustry: null,
                           };
                           setFeedFilters(next);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(next),
-                            );
-                          }
+                          persistFeedFilters(next);
                         }}
                         menuClassName="text-[11px]"
                       />
@@ -1683,12 +1829,7 @@ export default function Home() {
                             subindustry: v || null,
                           };
                           setFeedFilters(next);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(next),
-                            );
-                          }
+                          persistFeedFilters(next);
                         }}
                         menuClassName="text-[11px]"
                       />
@@ -1714,12 +1855,7 @@ export default function Home() {
                             current_status: v || null,
                           };
                           setFeedFilters(next);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(next),
-                            );
-                          }
+                          persistFeedFilters(next);
                         }}
                         menuClassName="text-[11px]"
                       />
@@ -1744,12 +1880,7 @@ export default function Home() {
                               v === "online" || v === "offline" ? v : null,
                           };
                           setFeedFilters(next);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(next),
-                            );
-                          }
+                          persistFeedFilters(next);
                         }}
                         menuClassName="text-[11px]"
                       />
@@ -1779,12 +1910,7 @@ export default function Home() {
                                   raw === "" ? null : Number.isFinite(n) ? n : null,
                               };
                               setFeedFilters(next);
-                              if (typeof window !== "undefined") {
-                                window.localStorage.setItem(
-                                  "feed_filters",
-                                  JSON.stringify(next),
-                                );
-                              }
+                              persistFeedFilters(next);
                             }}
                             className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
                             placeholder="0"
@@ -1809,12 +1935,7 @@ export default function Home() {
                                   raw === "" ? null : Number.isFinite(n) ? n : null,
                               };
                               setFeedFilters(next);
-                              if (typeof window !== "undefined") {
-                                window.localStorage.setItem(
-                                  "feed_filters",
-                                  JSON.stringify(next),
-                                );
-                              }
+                              persistFeedFilters(next);
                             }}
                             className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
                             placeholder="80"
@@ -1823,17 +1944,14 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                       <button
                         type="button"
                         onClick={() => {
                           setFeedFilters(DEFAULT_FEED_FILTERS);
-                          if (typeof window !== "undefined") {
-                            window.localStorage.setItem(
-                              "feed_filters",
-                              JSON.stringify(DEFAULT_FEED_FILTERS),
-                            );
-                          }
+                          setRecommendedProfiles(null);
+                          setRecommendedNotice(null);
+                          persistFeedFilters(DEFAULT_FEED_FILTERS);
                         }}
                         className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                       >
@@ -1858,6 +1976,35 @@ export default function Home() {
                 aria-hidden
               />
             ) : null}
+            {feedFilters.recommendedContacts &&
+            !recommendedLoading &&
+            mapViewMode === "map" ? (
+              <>
+                {showRecommendedEmptyRussiaPrompt ? (
+                  <div className="pointer-events-auto absolute inset-x-4 top-20 z-[1050] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-700 shadow-lg backdrop-blur-sm">
+                    <p>
+                      В вашем городе пока нет пользователей, интересующихся вашей
+                      профессией. Хотите посмотреть по всей России?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCity(RUSSIA_LABEL)}
+                      className="mt-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                    >
+                      Открыть всю Россию
+                    </button>
+                  </div>
+                ) : null}
+                {showRecommendedEmptyAll ? (
+                  <div className="pointer-events-auto absolute inset-x-4 top-20 z-[1050] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-700 shadow-lg backdrop-blur-sm">
+                    <p>
+                      К сожалению, сейчас нет пользователей, интересующихся вашей
+                      профессией. Мы сообщим вам, когда такие пользователи появятся.
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
             {mapViewMode === "map" ? (
               <PartnerMap
                 profiles={filteredProfilesForMap}
@@ -1865,7 +2012,7 @@ export default function Home() {
                 viewedProfileIds={viewedProfileIds}
                 focusedProfileId={focusedProfileId}
                 currentUserProfileId={currentUser?.profileId ?? null}
-                invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}`}
+                invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}`}
                 center={mapConfig.center}
                 zoom={mapConfig.zoom}
                 onOpenProfile={(p) => {
@@ -2331,6 +2478,19 @@ export default function Home() {
                     </button>
                   </div>
                 </form>
+              ) : currentUser && !profileReadyForMessaging ? (
+                <div className="mt-1 shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-slate-700">
+                  <p>
+                    Заполните город и профессию в профиле, чтобы отправлять
+                    сообщения.
+                  </p>
+                  <Link
+                    href="/profile"
+                    className="mt-3 inline-flex rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                  >
+                    Заполнить профиль
+                  </Link>
+                </div>
               ) : currentUser ? (
                 <form
                   onSubmit={handleSendChatMessage}
@@ -2422,12 +2582,7 @@ export default function Home() {
                 profession: profession || null,
               };
               setFeedFilters(next);
-              if (typeof window !== "undefined") {
-                window.localStorage.setItem(
-                  "feed_filters",
-                  JSON.stringify(next),
-                );
-              }
+              persistFeedFilters(next);
               setActiveProfileOverlay(null);
               setMobileTab("map");
             }}

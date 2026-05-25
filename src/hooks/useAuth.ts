@@ -44,6 +44,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
               profileId: profileRow.id,
               fullName: profileRow.full_name,
               city: profileRow.city,
+              roleTitle: profileRow.role_title ?? null,
               isBlocked: !!profileRow.is_blocked,
               isPro: isActiveProProfile(profileRow),
             });

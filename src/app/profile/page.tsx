@@ -288,7 +288,8 @@ export default function ProfilePage() {
   const [subindustryCatalog, setSubindustryCatalog] = useState<
     SubindustryCatalogRow[]
   >([]);
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -364,9 +365,31 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
+    const mapWorkBlocks = (wbRows: unknown[]) =>
+      wbRows.map((r) => {
+        const row = r as {
+          id?: string;
+          role_title?: string | null;
+          industry?: string | null;
+          industry_other?: string | null;
+          subindustry?: string | null;
+          experience_years?: number | null;
+        };
+        return {
+          id: row.id,
+          role_title: row.role_title ?? null,
+          industry: row.industry ?? null,
+          industry_other: row.industry_other ?? null,
+          subindustry: row.subindustry ?? null,
+          experience_years:
+            typeof row.experience_years === "number" ? row.experience_years : null,
+        };
+      });
+
     const load = async () => {
       try {
-        setLoading(true);
+        setProfileLoading(true);
+        setCatalogLoading(true);
         setError(null);
 
         const {
@@ -379,7 +402,6 @@ export default function ProfilePage() {
           return;
         }
 
-        // получаем профиль по auth_user_id
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
@@ -393,7 +415,6 @@ export default function ProfilePage() {
           return;
         }
 
-        // если профиль отсутствует, создаём пустой
         if (!profData) {
           const { data: created, error: cErr } = await supabase
             .from("profiles")
@@ -415,89 +436,72 @@ export default function ProfilePage() {
 
         const prof = profData as Profile;
         setProfile(prof);
-        // Load profession catalog (best-effort; UI still allows free input via "Другое")
-        let rows: ProfessionCatalogRow[] = [];
-        try {
-          rows = await loadProfessionCatalog();
-        } catch {
-          rows = [];
-        }
-        setProfessionCatalog(rows);
+        setProfileLoading(false);
 
-        const labels = rows.map((r) => r.label);
-        setProfessionIsOther(!!(prof.role_title && !labels.includes(prof.role_title)));
-
-        // Load extra work blocks (Group 2 repeats)
-        try {
-          const { data: wbRows, error: wbErr } = await supabase
+        const [
+          professionRows,
+          workResult,
+          locationResult,
+          industryRows,
+          subindustryRows,
+        ] = await Promise.all([
+          loadProfessionCatalog().catch(() => [] as ProfessionCatalogRow[]),
+          supabase
             .from("profile_work")
-            .select("id, role_title, industry, industry_other, subindustry, experience_years")
+            .select(
+              "id, role_title, industry, industry_other, subindustry, experience_years",
+            )
             .eq("profile_id", prof.id)
-            .order("created_at", { ascending: true });
-          if (wbErr) throw wbErr;
-          const rows = (wbRows ?? []) as any[];
-          setWorkBlocks(
-            rows.map((r) => ({
-              id: r.id,
-              role_title: r.role_title ?? null,
-              industry: r.industry ?? null,
-              industry_other: r.industry_other ?? null,
-              subindustry: r.subindustry ?? null,
-              experience_years:
-                typeof r.experience_years === "number" ? r.experience_years : null,
-            })),
-          );
-        } catch {
-          setWorkBlocks([]);
-        }
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("locations")
+            .select("id, user_id, lat, lng, city")
+            .eq("user_id", prof.id)
+            .maybeSingle(),
+          loadIndustryCatalog().catch((e) => {
+            console.error("Failed to load industry_catalog", e);
+            return [] as IndustryCatalogRow[];
+          }),
+          loadSubindustryCatalog().catch((e) => {
+            console.error("Failed to load subindustry_catalog", e);
+            return [] as SubindustryCatalogRow[];
+          }),
+        ]);
 
-        // Baseline snapshot for change detection (set after we have initial profile + workBlocks).
-        // We use the loaded workBlocks from state update above on the next tick; so compute from
-        // current values we already know (prof + rows) as best-effort.
-        // If the async block failed, baseline will be updated by the effect once profile is set.
+        setProfessionCatalog(professionRows);
+        const labels = professionRows.map((r) => r.label);
+        setProfessionIsOther(
+          !!(prof.role_title && !labels.includes(prof.role_title)),
+        );
+
+        const loadedWorkBlocks = workResult.error
+          ? []
+          : mapWorkBlocks(workResult.data ?? []);
+        setWorkBlocks(loadedWorkBlocks);
+
         try {
           const baseline = JSON.stringify({
             profile: prof,
-            workBlocks: Array.isArray((profData as any)?.workBlocks)
-              ? (profData as any).workBlocks
-              : [],
+            workBlocks: loadedWorkBlocks,
           });
-          if (!baselineSnapshotRef.current) baselineSnapshotRef.current = baseline;
+          if (!baselineSnapshotRef.current) {
+            baselineSnapshotRef.current = baseline;
+          }
         } catch {
           // ignore
         }
 
-        // Load industry/subindustry catalogs (best-effort).
-        try {
-          const inds = await loadIndustryCatalog();
-          setIndustryCatalog(inds);
-        } catch (e) {
-          console.error("Failed to load industry_catalog", e);
-          setIndustryCatalog([]);
-        }
-        try {
-          const subs = await loadSubindustryCatalog();
-          setSubindustryCatalog(subs);
-        } catch (e) {
-          console.error("Failed to load subindustry_catalog", e);
-          setSubindustryCatalog([]);
-        }
+        setIndustryCatalog(industryRows);
+        setSubindustryCatalog(subindustryRows);
 
-        if (prof) {
-          const { data: locData, error: lErr } = await supabase
-            .from("locations")
-            .select("id, user_id, lat, lng, city")
-            .eq("user_id", prof.id)
-            .maybeSingle();
-
-          if (!lErr && locData) {
-            const loc = locData as LocationRow;
-            setLocation(loc);
-            setCoords({ lat: loc.lat, lng: loc.lng });
-          }
+        if (!locationResult.error && locationResult.data) {
+          const loc = locationResult.data as LocationRow;
+          setLocation(loc);
+          setCoords({ lat: loc.lat, lng: loc.lng });
         }
       } finally {
-        setLoading(false);
+        setProfileLoading(false);
+        setCatalogLoading(false);
       }
     };
 
@@ -709,7 +713,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
+  if (profileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <p className="text-sm text-slate-500">Загрузка профиля...</p>
@@ -783,7 +787,11 @@ export default function ProfilePage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-emerald-600">{success}</p>}
 
-        {!loading && profile ? <PushNotificationsSettings /> : null}
+        {profile ? <PushNotificationsSettings /> : null}
+
+        {catalogLoading ? (
+          <p className="text-xs text-slate-500">Загрузка справочников...</p>
+        ) : null}
 
         {/* Группа 1: Имя / Страна / Город */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -1038,6 +1046,7 @@ export default function ProfilePage() {
                     }
                     placeholder="Выберите профессию"
                     catalog={professionCatalog}
+                    disabled={catalogLoading}
                     onChange={(v) => {
                       const isOther = v === OTHER_PROFESSION_LABEL;
                       if (isPrimaryBlock) {
@@ -1087,6 +1096,7 @@ export default function ProfilePage() {
                     variant="profile"
                     value={industryValue}
                     placeholder="Выберите отрасль"
+                    disabled={catalogLoading}
                     options={(industryCatalog.length > 0
                       ? getIndustryLabelsForSelect(industryCatalog)
                       : SORTED_INDUSTRY_OPTIONS
@@ -1138,6 +1148,7 @@ export default function ProfilePage() {
                       variant="profile"
                       value={isSubOther ? "Другое" : b.subindustry}
                       placeholder="Выберите подотрасль"
+                      disabled={catalogLoading}
                       options={subOptions.map((s) => ({ value: s, label: s }))}
                       onChange={(v) => {
                         const isOther = v === "Другое";
@@ -1327,7 +1338,7 @@ export default function ProfilePage() {
                 label,
               }))}
               onChange={(v) => setInterestedProfessionDraft(v || null)}
-              disabled={!canAddInterestedProfession}
+              disabled={catalogLoading || !canAddInterestedProfession}
             />
             <button
               type="button"
