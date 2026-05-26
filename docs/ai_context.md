@@ -105,6 +105,7 @@
   - `chat_id uuid` → `chats.id`.
   - `user_id uuid` → `profiles.id`.
   - `role text` (member/admin/owner; сейчас используется минимально).
+  - `last_read_at timestamptz` (nullable) — последний просмотр чата; непрочитанные = входящие с `created_at > last_read_at` (миграция `supabase/sql/2026-05-26-chat-members-last-read.sql`).
 - `public.messages`:
   - `id uuid`.
   - `chat_id uuid` → `chats.id`.
@@ -134,6 +135,8 @@
     - проверяем, что `currentUser` — участник чата через `chat_members`.
     - если чат сейчас открыт (`activeChatId`) → добавляем сообщение в `chatMessages` + автоскролл.
     - иначе инкрементируем счётчик непрочитанных для собеседника (`unreadByUser[userId] += 1`).
+  - при входе: `get_dm_unread_counts` → `loadDmUnreadCounts` заполняет `unreadByUser` из БД;
+  - при открытии чата: `markChatAsRead` обновляет `chat_members.last_read_at`.
 - “Мои чаты” (3‑й столбец):
   - показываются **только** собеседники текущего пользователя:
     - находим все `chat_members` для `user_id = currentProfileId`,

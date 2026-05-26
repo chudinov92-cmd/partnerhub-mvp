@@ -5,6 +5,7 @@ import {
   subscribeToMessagesRealtime,
   unsubscribeChannel,
   fetchChatMemberUserIds,
+  markChatAsRead,
 } from "@/services/chatService";
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import type { ChatMessage, ChatListItem, CurrentUser } from "@/types";
@@ -68,6 +69,7 @@ export function useChatMessagesRealtime(opts: {
 
           if (activeChatId === chatId) {
             setChatMessages((prev) => [...prev, msg]);
+            void markChatAsRead(chatId, currentUser.profileId);
           } else {
             setUnreadByUser((prev) => ({
               ...prev,

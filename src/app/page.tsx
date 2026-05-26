@@ -18,6 +18,8 @@ import {
   getSupportProfileId,
   isChatClosed,
   reopenChat,
+  loadDmUnreadCounts,
+  markChatAsRead,
 } from "@/services/chatService";
 import {
   formatAppealMessage,
@@ -564,6 +566,22 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, supportDeepLinkNonce]);
 
+  useEffect(() => {
+    if (!currentUser) {
+      setUnreadByUser({});
+      return;
+    }
+    let cancelled = false;
+    void loadDmUnreadCounts(currentUser.profileId, [
+      ...blockedProfileIds,
+    ]).then((counts) => {
+      if (!cancelled) setUnreadByUser(counts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.profileId, blockedProfileIds]);
+
   useChatMessagesRealtime({
     currentUser,
     activeChatId,
@@ -1059,6 +1077,7 @@ export default function Home() {
       const normalized = await fetchRecentMessages(chatId);
       setChatMessages(normalized);
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
+      void markChatAsRead(chatId, currentUser.profileId);
     } catch (err: unknown) {
       setChatError(
         getErrorMessage(err, "Не удалось открыть поддержку."),
@@ -1143,6 +1162,7 @@ export default function Home() {
       setEditingMessageId(null);
       setChatInput("");
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
+      void markChatAsRead(chatId, currentUser.profileId);
     } catch (err: any) {
       setChatError(err.message ?? "Не удалось открыть диалог.");
     } finally {

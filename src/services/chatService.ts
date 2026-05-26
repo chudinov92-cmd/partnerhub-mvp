@@ -231,6 +231,64 @@ export async function loadPrivateChatSidebar(
   return { chatMembership, items: withLast };
 }
 
+/** Непрочитанные ЛС по profile id собеседника (нужна миграция 2026-05-26-chat-members-last-read.sql). */
+export async function loadDmUnreadCounts(
+  myProfileId: string,
+  blockedProfileIds: string[],
+): Promise<Record<string, number>> {
+  const { data, error } = await supabase.rpc("get_dm_unread_counts", {
+    p_profile_id: myProfileId,
+  });
+
+  if (error) {
+    const code = String((error as { code?: string }).code ?? "");
+    const msg = String(error.message ?? "");
+    if (
+      code === "PGRST202" ||
+      msg.includes("get_dm_unread_counts") ||
+      msg.includes("Could not find the function")
+    ) {
+      return {};
+    }
+    throw error;
+  }
+
+  const out: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const peer = (row as { peer_profile_id?: string }).peer_profile_id;
+    const count = Number((row as { unread_count?: number }).unread_count ?? 0);
+    if (!peer || count <= 0) continue;
+    if (blockedProfileIds.includes(peer)) continue;
+    out[peer] = count;
+  }
+  return out;
+}
+
+/** Отметить чат прочитанным для текущего участника. */
+export async function markChatAsRead(
+  chatId: string,
+  myProfileId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("chat_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("chat_id", chatId)
+    .eq("user_id", myProfileId);
+
+  if (error) {
+    const msg = String(error.message ?? "");
+    const code = String((error as { code?: string }).code ?? "");
+    if (
+      code === "42703" ||
+      (msg.includes("last_read_at") &&
+        (/does not exist/i.test(msg) || /не существует/i.test(msg)))
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export async function fetchChatMemberUserIds(
   chatId: string,
 ): Promise<{ user_id: string }[]> {
