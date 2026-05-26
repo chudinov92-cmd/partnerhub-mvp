@@ -165,19 +165,18 @@ export function TopBar() {
 
     const {
       data: { subscription },
-    } = authOnAuthStateChange((_event, session) => {
+    } = authOnAuthStateChange(async (_event, session) => {
       const user = session?.user;
       if (user) {
         setIsAuthed(true);
-        void fetchTopBarProfile(user.id)
-          .then((p) => {
-            setFullName(p?.full_name ?? null);
-            setMyProfileId(p?.id ?? null);
-          })
-          .catch(() => {
-            setFullName(null);
-            setMyProfileId(null);
-          });
+        try {
+          const p = await fetchTopBarProfile(user.id);
+          setFullName(p?.full_name ?? null);
+          setMyProfileId(p?.id ?? null);
+        } catch {
+          setFullName(null);
+          setMyProfileId(null);
+        }
         return;
       }
       setIsAuthed(false);
