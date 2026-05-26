@@ -183,6 +183,7 @@ export function TopBar() {
       setFullName(null);
       setMyProfileId(null);
       setContactCount(0);
+      setLoading(false);
     });
 
     return () => {
@@ -338,7 +339,7 @@ export function TopBar() {
         </button>
 
         <div className="relative" ref={menuRef}>
-          {loading ? null : isAuthed ? (
+          {isAuthed ? (
             <>
               <button
                 type="button"
@@ -412,6 +413,7 @@ export function TopBar() {
                       setIsAuthed(false);
                       setFullName(null);
                       setMyProfileId(null);
+                      setLoading(false);
                       router.push("/auth");
                     }}
                     className="flex w-full items-center px-3 py-2 text-left text-red-600 hover:bg-red-50"

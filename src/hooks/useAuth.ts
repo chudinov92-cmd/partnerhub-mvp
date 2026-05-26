@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { authGetUser } from "@/services/authService";
+import { authGetUser, authOnAuthStateChange } from "@/services/authService";
 import {
   fetchCurrentUserProfileRow,
   fetchProfilesForMap,
@@ -74,6 +74,24 @@ export function useAuth(blockedProfileIds: readonly string[]) {
     };
 
     void load();
+
+    const {
+      data: { subscription },
+    } = authOnAuthStateChange(async (event) => {
+      if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setChatList([]);
+        chatMembershipRef.current = new Set();
+        setLoading(false);
+      }
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        await load();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return {

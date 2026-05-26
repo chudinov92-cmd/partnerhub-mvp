@@ -17,11 +17,10 @@ export async function authGetUser() {
   if (sessionError) {
     return { data: { user: null }, error: sessionError };
   }
-  const sessionUser = sessionData.session?.user ?? null;
-  if (sessionUser) {
-    return { data: { user: sessionUser }, error: null };
-  }
-  return supabase.auth.getUser();
+  return {
+    data: { user: sessionData.session?.user ?? null },
+    error: null,
+  };
 }
 
 export function authSignOut() {

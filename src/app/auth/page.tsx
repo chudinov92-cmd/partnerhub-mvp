@@ -2,8 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isPasswordRecoverySession } from "@/lib/authRecovery";
+import {
+  isPasswordRecoverySession,
+  recoveryCallbackPendingInUrl,
+} from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
+
+function authErrMeta(err: unknown): Record<string, unknown> {
+  if (!err || typeof err !== "object") return { kind: typeof err };
+  const row = err as { code?: unknown; status?: unknown; message?: unknown };
+  const msg =
+    typeof row.message === "string" ? row.message.slice(0, 200) : undefined;
+  return {
+    code: formatAuthCode(row.code),
+    status: typeof row.status === "number" ? row.status : undefined,
+    messageExcerpt: msg,
+    isRateLimit:
+      formatAuthCode(row.code) === "over_email_send_rate_limit" ||
+      row.status === 429 ||
+      (typeof msg === "string" &&
+        /rate.?limit|only request this after/i.test(msg)),
+  };
+}
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -62,6 +82,16 @@ function isInvalidLoginCredentials(err: unknown): boolean {
 function getAuthErrorMessage(err: unknown) {
   const redirectHint =
     "Если адрес уже в списке redirect, посмотрите логи: на сервере в каталоге supabase-stack выполните docker compose logs auth --tail 100 (ошибки SMTP GoTrue там виднее). На localhost добавьте в ADDITIONAL_REDIRECT_URLS строку http://localhost:3000/auth/reset-password.";
+
+  const meta = authErrMeta(err);
+  if (meta.isRateLimit) {
+    const excerpt =
+      typeof meta.messageExcerpt === "string" ? meta.messageExcerpt : "";
+    const sec = excerpt.match(/after\s+(\d+)\s+seconds?/i)?.[1];
+    return sec
+      ? `Слишком частые запросы письма. Подождите ${sec} сек. и попробуйте снова.`
+      : "Слишком частые запросы письма. Подождите минуту и попробуйте снова.";
+  }
 
   if (isInvalidLoginCredentials(err)) {
     return "Неверный логин или пароль";
@@ -188,6 +218,12 @@ export default function AuthPage() {
   // если уже есть сессия: recovery → установка пароля, иначе на главную
   useEffect(() => {
     const check = async () => {
+      if (recoveryCallbackPendingInUrl()) {
+        window.location.replace(
+          `/auth/reset-password${window.location.search}${window.location.hash}`,
+        );
+        return;
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -225,12 +261,13 @@ export default function AuthPage() {
               ? raw.replace(/\/$/, "")
               : window.location.origin
             : raw.replace(/\/$/, "");
+        const redirectTo = `${origin}/auth/reset-password`;
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${origin}/auth/reset-password`,
+          redirectTo,
         });
         if (error) throw error;
         setInfo(
-          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Проверьте почту (и папку «Спам»).",
+          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в том же браузере (Safari), где запрашивали сброс — не через превью в Telegram. Проверьте почту (и папку «Спам»).",
         );
       } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
@@ -252,7 +289,6 @@ export default function AuthPage() {
           password,
         });
         if (error) throw error;
-        await supabase.auth.getSession();
         const target = getPostAuthRedirectPath();
         if (target.startsWith("/admin")) {
           window.location.assign(target);
