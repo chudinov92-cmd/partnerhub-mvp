@@ -161,19 +161,29 @@ export function TopBar() {
       }
     };
 
-    load();
+    void load();
 
     const {
       data: { subscription },
-    } = authOnAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        load();
-      } else {
-        setIsAuthed(false);
-        setFullName(null);
-        setMyProfileId(null);
-        setContactCount(0);
+    } = authOnAuthStateChange((_event, session) => {
+      const user = session?.user;
+      if (user) {
+        setIsAuthed(true);
+        void fetchTopBarProfile(user.id)
+          .then((p) => {
+            setFullName(p?.full_name ?? null);
+            setMyProfileId(p?.id ?? null);
+          })
+          .catch(() => {
+            setFullName(null);
+            setMyProfileId(null);
+          });
+        return;
       }
+      setIsAuthed(false);
+      setFullName(null);
+      setMyProfileId(null);
+      setContactCount(0);
     });
 
     return () => {
