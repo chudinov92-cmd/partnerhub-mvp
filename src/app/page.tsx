@@ -2648,11 +2648,12 @@ export default function Home() {
             viewerProfileId={currentUser?.profileId ?? null}
             style={{
               left: "50%",
-              // Keep the popup fully visible between TopBar (3.5rem) and bottom nav (3.5rem) on mobile.
-              top: "calc(3.5rem + env(safe-area-inset-top, 0px) + 8px)",
+              // Keep the popup fully visible between TopBar and bottom nav (3.5rem) on mobile.
+              top:
+                "calc(var(--zeip-topbar-height, 4.5rem) + env(safe-area-inset-top, 0px) + 8px)",
               transform: "translateX(-50%)",
               maxHeight:
-                "calc(100vh - 3.5rem - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)",
+                "calc(100vh - var(--zeip-topbar-height, 4.5rem) - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)",
             }}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}

@@ -31,17 +31,33 @@ body {
 }
 
 /**
- * Высота основного стека карты: минус TopBar (3.5rem + safe-top).
+ * Высота TopBar (две строки слева: логотип + счётчик полезных контактов).
+ * Синхронизировать с popup карты в page.tsx.
+ */
+.zeip-topbar {
+  --zeip-topbar-height: 4.5rem;
+}
+
+/**
+ * Высота основного стека карты: минус TopBar + safe-top.
  * 100dvh — видимая область в iOS Safari; fallback на 100vh.
  */
 .zeip-main-stack {
-  height: calc(100vh - env(safe-area-inset-top, 0px) - 3.5rem);
-  max-height: calc(100vh - env(safe-area-inset-top, 0px) - 3.5rem);
+  height: calc(
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+  );
+  max-height: calc(
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+  );
 }
 @supports (height: 100dvh) {
   .zeip-main-stack {
-    height: calc(100dvh - env(safe-area-inset-top, 0px) - 3.5rem);
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 3.5rem);
+    height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+    );
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+    );
   }
 }
 

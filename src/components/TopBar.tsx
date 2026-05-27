@@ -276,10 +276,12 @@ export function TopBar() {
   const displayInitial =
     fullName?.trim()?.[0]?.toUpperCase() ?? "П";
 
+  const showMapContactsButton = isAuthed && contactCount > 0;
+
   return (
-    <header className="sticky top-0 z-[1500] shrink-0 border-b border-gray-200 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm">
-      <div className="grid h-14 min-h-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 md:px-4">
-      <div className="flex min-w-0 flex-col gap-0.5 justify-self-start sm:flex-row sm:items-center sm:gap-3">
+    <header className="zeip-topbar sticky top-0 z-[1500] shrink-0 border-b border-gray-200 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm">
+      <div className="grid min-h-14 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 md:px-4">
+      <div className="flex min-w-0 max-w-[min(100%,11rem)] flex-col gap-0.5 justify-self-start">
         <Link
           href="/"
           className="flex min-w-0 items-center gap-2"
@@ -316,27 +318,25 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center justify-end gap-2 md:gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            if (!isAuthed || loading) return;
-            if (typeof window === "undefined") return;
-            const url = new URL(window.location.href);
-            if (mapContactsActive) url.searchParams.delete("mapContacts");
-            else url.searchParams.set("mapContacts", "1");
-            router.replace(url.pathname + url.search);
-          }}
-          disabled={!isAuthed || loading}
-          className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Контакты"
-        >
-          <IconUsers className="h-5 w-5" />
-          {contactCount > 0 ? (
+        {showMapContactsButton ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              const url = new URL(window.location.href);
+              if (mapContactsActive) url.searchParams.delete("mapContacts");
+              else url.searchParams.set("mapContacts", "1");
+              router.replace(url.pathname + url.search);
+            }}
+            className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900"
+            aria-label="Контакты"
+          >
+            <IconUsers className="h-5 w-5" />
             <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-1 text-[10px] font-bold text-white">
               {contactCount > 9 ? "9+" : contactCount}
             </span>
-          ) : null}
-        </button>
+          </button>
+        ) : null}
 
         <div className="relative" ref={menuRef}>
           {isAuthed ? (
@@ -424,21 +424,12 @@ export function TopBar() {
               )}
             </>
           ) : (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={openSupport}
-                className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-gray-100"
-              >
-                Поддержка
-              </button>
-              <Link
-                href="/auth"
-                className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-              >
-                Войти
-              </Link>
-            </div>
+            <Link
+              href="/auth"
+              className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+            >
+              Войти
+            </Link>
           )}
         </div>
       </div>

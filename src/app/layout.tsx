@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthRecoveryUrlHandler } from "@/components/AuthRecoveryUrlHandler";
+import { RecoveryRedirectScript } from "@/components/RecoveryRedirectScript";
 import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { PushBootstrap } from "@/components/PushBootstrap";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
@@ -28,7 +30,9 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className="font-sans antialiased text-slate-900">
+        <RecoveryRedirectScript />
         <PushBootstrap />
+        <AuthRecoveryUrlHandler />
         <SelectedCityProvider>
           <div className="flex min-h-screen flex-col bg-gray-100" style={{ minHeight: '100dvh' }}>
             <ConditionalTopBar />

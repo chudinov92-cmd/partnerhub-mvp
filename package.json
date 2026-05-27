@@ -4,9 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:lan": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "start:lan": "next start --hostname 0.0.0.0 --port 3000",
+    "build:lan": "npm run build && npm run start:lan",
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:install": "PLAYWRIGHT_BROWSERS_PATH=./node_modules/.playwright-browsers playwright install chromium",
+    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=./node_modules/.playwright-browsers playwright install chromium || true"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -19,6 +28,8 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "dotenv": "^16.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^20",

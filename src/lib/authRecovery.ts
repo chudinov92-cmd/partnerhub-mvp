@@ -5,6 +5,16 @@ import type { Session } from "@supabase/supabase-js";
  * (см. GoTrue после redirect type recovery). Используем для UX после обновления страницы.
  */
 
+/** PKCE: после /verify GoTrue редиректит на redirect_to с ?code= (часто на `/`, не на reset-password). */
+export function pkceAuthCallbackInUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).has("code");
+  } catch {
+    return false;
+  }
+}
+
 /** В адресе после клика по ссылке из письма (implicit / некоторые варианты PKCE в query). */
 export function recoveryCallbackPendingInUrl(): boolean {
   if (typeof window === "undefined") return false;
@@ -19,6 +29,7 @@ export function recoveryCallbackPendingInUrl(): boolean {
   } catch {
     //
   }
+  if (pkceAuthCallbackInUrl()) return true;
   return (
     window.location.hash.includes("type=recovery") ||
     window.location.search.includes("type=recovery")
@@ -26,7 +37,12 @@ export function recoveryCallbackPendingInUrl(): boolean {
 }
 
 export function isPasswordRecoverySession(session: Session | null): boolean {
-  if (!session?.access_token) return false;
+  if (!session?.user) return false;
+  const recoverySentAt = (
+    session.user as { recovery_sent_at?: string | null }
+  ).recovery_sent_at;
+  if (recoverySentAt) return true;
+  if (!session.access_token) return false;
   try {
     const parts = session.access_token.split(".");
     if (parts.length < 2) return false;

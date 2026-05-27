@@ -14,15 +14,32 @@ function getAuthErrorMessage(err: unknown) {
   if (typeof err === "string") return err;
   if (typeof err === "object") {
     const o = err as { message?: unknown; error_description?: unknown };
-    if (typeof o.message === "string" && o.message.trim()) return o.message;
-    if (
-      typeof o.error_description === "string" &&
-      o.error_description.trim()
-    ) {
-      return o.error_description;
+    const raw =
+      (typeof o.message === "string" && o.message.trim()) ||
+      (typeof o.error_description === "string" && o.error_description.trim()) ||
+      "";
+    if (/code verifier|bad_code_verifier/i.test(raw)) {
+      return (
+        "Ссылка открыта не в том браузере, где вы нажимали «Забыли пароль?». " +
+        "Запросите новое письмо на https://zeip.ru/auth в Safari и откройте ссылку там же " +
+        "(не в превью Telegram)."
+      );
     }
+    if (raw) return raw;
   }
   return "Не удалось обновить пароль";
+}
+
+function recoveryLinkHelpMessage(): string | null {
+  if (typeof window === "undefined") return null;
+  const search = window.location.search;
+  if (search.includes("code=") || search.includes("type=recovery")) {
+    return (
+      "Не удалось подтвердить ссылку. Запросите новое письмо на странице входа и откройте ссылку " +
+      "в Safari (тот же браузер, без превью Telegram)."
+    );
+  }
+  return null;
 }
 
 export default function ResetPasswordPage() {
@@ -40,7 +57,8 @@ export default function ResetPasswordPage() {
 
     const applySession = (session: Session | null) => {
       if (cancelled) return;
-      if (isPasswordRecoverySession(session)) {
+      const ok = isPasswordRecoverySession(session);
+      if (ok) {
         setCanReset(true);
         setChecking(false);
       }
@@ -72,7 +90,12 @@ export default function ResetPasswordPage() {
       if (cancelled) return;
       void supabase.auth.getSession().then(({ data: { session } }) => {
         if (cancelled) return;
-        if (isPasswordRecoverySession(session)) setCanReset(true);
+        if (isPasswordRecoverySession(session)) {
+          setCanReset(true);
+        } else {
+          const hint = recoveryLinkHelpMessage();
+          if (hint) setError(hint);
+        }
         setChecking(false);
       });
     }, 2800);
@@ -132,9 +155,13 @@ export default function ResetPasswordPage() {
           <h1 className="text-xl font-semibold text-slate-900">
             Ссылка недействительна или устарела
           </h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Запросите новую ссылку на странице входа («Забыли пароль?»).
-          </p>
+          {error ? (
+            <p className="mt-3 text-sm text-red-600">{error}</p>
+          ) : (
+            <p className="mt-3 text-sm text-slate-600">
+              Запросите новую ссылку на странице входа («Забыли пароль?»).
+            </p>
+          )}
           <button
             type="button"
             onClick={() => router.push("/auth")}
