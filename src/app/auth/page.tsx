@@ -290,12 +290,7 @@ export default function AuthPage() {
         });
         if (error) throw error;
         const target = getPostAuthRedirectPath();
-        if (target.startsWith("/admin")) {
-          window.location.assign(target);
-        } else {
-          router.push(target);
-          router.refresh();
-        }
+        window.location.replace(target);
       }
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));
