@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { authGetUser } from "@/services/authService";
 import {
   OTHER_PROFESSION_LABEL,
   loadProfessionCatalog,
@@ -395,7 +396,7 @@ export default function ProfilePage() {
         const {
           data: { user },
           error: userError,
-        } = await supabase.auth.getUser();
+        } = await authGetUser();
 
         if (userError || !user) {
           setError("Нужно войти в аккаунт");
