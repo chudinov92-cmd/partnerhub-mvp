@@ -8,8 +8,8 @@ export type AuthChangeCallback = Parameters<
 >[0];
 
 /**
- * Текущий пользователь для UI (главная, TopBar).
- * Сначала getSession (быстро, из storage), без лишнего getUser при каждом маунте.
+ * Текущий пользователь для UI (главная, TopBar, профиль).
+ * getSession из storage; если access_token истёк — refresh до PostgREST-запросов.
  */
 export async function authGetUser() {
   const { data: sessionData, error: sessionError } =
@@ -17,8 +17,20 @@ export async function authGetUser() {
   if (sessionError) {
     return { data: { user: null }, error: sessionError };
   }
+  const session = sessionData.session;
+  if (session?.expires_at && session.expires_at * 1000 < Date.now()) {
+    const { data: refreshed, error: refreshError } =
+      await supabase.auth.refreshSession();
+    if (refreshError) {
+      return { data: { user: null }, error: refreshError };
+    }
+    return {
+      data: { user: refreshed.session?.user ?? null },
+      error: null,
+    };
+  }
   return {
-    data: { user: sessionData.session?.user ?? null },
+    data: { user: session?.user ?? null },
     error: null,
   };
 }
