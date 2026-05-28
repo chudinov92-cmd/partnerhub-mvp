@@ -298,17 +298,17 @@ export function TopBar() {
             Zeip
           </span>
         </Link>
-        <p className="truncate text-[10px] leading-tight text-slate-600 sm:text-xs">
-          <span className="hidden md:inline">Установлено полезных контактов: </span>
-          <span className="md:hidden">Полезных контактов: </span>
+        <p className="flex items-baseline gap-1 overflow-hidden text-[10px] leading-tight text-slate-600 sm:text-xs">
+          <span className="hidden min-w-0 shrink truncate md:inline">Установлено полезных контактов:</span>
+          <span className="min-w-0 shrink truncate md:hidden">Полезных контактов:</span>
           {usefulContactsLoading ? (
-            <span className="text-slate-400">…</span>
+            <span className="shrink-0 text-slate-400">…</span>
           ) : usefulContactsCount != null ? (
-            <span className="font-semibold text-slate-800">
+            <span className="shrink-0 font-semibold text-slate-800">
               {usefulContactsCount}
             </span>
           ) : (
-            <span className="text-slate-400">—</span>
+            <span className="shrink-0 text-slate-400">—</span>
           )}
         </p>
       </div>

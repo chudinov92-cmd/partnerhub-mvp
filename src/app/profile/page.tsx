@@ -291,6 +291,7 @@ export default function ProfilePage() {
   >([]);
   const [profileLoading, setProfileLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const profileLoadInFlightRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -366,6 +367,8 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const mapWorkBlocks = (wbRows: unknown[]) =>
       wbRows.map((r) => {
         const row = r as {
@@ -388,8 +391,10 @@ export default function ProfilePage() {
       });
 
     const load = async () => {
+      if (profileLoadInFlightRef.current) return;
+      profileLoadInFlightRef.current = true;
+
       try {
-        setProfileLoading(true);
         setCatalogLoading(true);
         setError(null);
 
@@ -397,6 +402,8 @@ export default function ProfilePage() {
           data: { user },
           error: userError,
         } = await authGetUser();
+
+        if (cancelled) return;
 
         if (userError || !user) {
           setError("Нужно войти в аккаунт");
@@ -410,6 +417,8 @@ export default function ProfilePage() {
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
+
+        if (cancelled) return;
 
         if (pErr) {
           setError(pErr.message);
@@ -426,6 +435,8 @@ export default function ProfilePage() {
               "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
             )
             .single();
+
+          if (cancelled) return;
 
           if (cErr) {
             setError(cErr.message);
@@ -469,6 +480,8 @@ export default function ProfilePage() {
           }),
         ]);
 
+        if (cancelled) return;
+
         setProfessionCatalog(professionRows);
         const labels = professionRows.map((r) => r.label);
         setProfessionIsOther(
@@ -500,13 +513,27 @@ export default function ProfilePage() {
           setLocation(loc);
           setCoords({ lat: loc.lat, lng: loc.lng });
         }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg =
+            err instanceof Error ? err.message : "Не удалось загрузить профиль";
+          setError(msg);
+        }
       } finally {
-        setProfileLoading(false);
-        setCatalogLoading(false);
+        if (!cancelled) {
+          setProfileLoading(false);
+          setCatalogLoading(false);
+        }
+        profileLoadInFlightRef.current = false;
       }
     };
 
-    load();
+    void load();
+
+    return () => {
+      cancelled = true;
+      profileLoadInFlightRef.current = false;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

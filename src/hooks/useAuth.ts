@@ -22,22 +22,96 @@ export function useAuth(blockedProfileIds: readonly string[]) {
   const [error, setError] = useState<string | null>(null);
   const chatMembershipRef = useRef<Set<string>>(new Set());
   const blockedRef = useRef(blockedProfileIds);
+  const loadPromiseRef = useRef<Promise<void> | null>(null);
   blockedRef.current = blockedProfileIds;
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        setError(null);
-        setLoading(true);
+    const loadPrivateChatSidebarInBackground = (profileId: string) => {
+      loadPrivateChatSidebar(profileId, blockedRef.current as string[])
+        .then((sidebar) => {
+          chatMembershipRef.current = sidebar.chatMembership;
+          setChatList(sidebar.items);
+        })
+        .catch((err) => {
+          console.error("Failed to load chat sidebar", err);
+        });
+    };
 
-        const {
-          data: { user },
-        } = await authGetUser();
+    const load = (): Promise<void> => {
+      if (loadPromiseRef.current) {
+        return loadPromiseRef.current;
+      }
 
-        const allProfiles = await fetchProfilesForMap(50);
-        setProfiles(allProfiles);
+      const promise = (async () => {
+        try {
+          setError(null);
+          setLoading(true);
 
-        if (user) {
+          const {
+            data: { user },
+          } = await authGetUser();
+
+          const allProfiles = await fetchProfilesForMap(50);
+          setProfiles(allProfiles);
+          // Карта и лента не ждут профиль/сайдбар чатов.
+          setLoading(false);
+
+          if (user) {
+            const profileRow = await fetchCurrentUserProfileRow(user.id);
+            if (profileRow) {
+              setCurrentUser({
+                profileId: profileRow.id,
+                fullName: profileRow.full_name,
+                city: profileRow.city,
+                roleTitle: profileRow.role_title ?? null,
+                isBlocked: !!profileRow.is_blocked,
+                isPro: isActiveProProfile(profileRow),
+              });
+              loadPrivateChatSidebarInBackground(profileRow.id);
+            } else {
+              chatMembershipRef.current = new Set();
+              setCurrentUser(null);
+              setChatList([]);
+            }
+          } else {
+            chatMembershipRef.current = new Set();
+            setCurrentUser(null);
+            setChatList([]);
+          }
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error ? err.message : "Не удалось загрузить данные";
+          setError(msg);
+        } finally {
+          setLoading(false);
+          loadPromiseRef.current = null;
+        }
+      })();
+
+      loadPromiseRef.current = promise;
+      return promise;
+    };
+
+    void load();
+
+    const {
+      data: { subscription },
+    } = authOnAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setChatList([]);
+        chatMembershipRef.current = new Set();
+        setProfiles([]);
+        setLoading(false);
+        loadPromiseRef.current = null;
+        return;
+      }
+      if (event === "TOKEN_REFRESHED") {
+        void (async () => {
+          const {
+            data: { user },
+          } = await authGetUser();
+          if (!user) return;
           const profileRow = await fetchCurrentUserProfileRow(user.id);
           if (profileRow) {
             setCurrentUser({
@@ -48,49 +122,19 @@ export function useAuth(blockedProfileIds: readonly string[]) {
               isBlocked: !!profileRow.is_blocked,
               isPro: isActiveProProfile(profileRow),
             });
-
-            const sidebar = await loadPrivateChatSidebar(
-              profileRow.id,
-              blockedRef.current as string[],
-            );
-            chatMembershipRef.current = sidebar.chatMembership;
-            setChatList(sidebar.items);
-          } else {
-            chatMembershipRef.current = new Set();
-            setCurrentUser(null);
-            setChatList([]);
+            loadPrivateChatSidebarInBackground(profileRow.id);
           }
-        } else {
-          chatMembershipRef.current = new Set();
-          setCurrentUser(null);
-          setChatList([]);
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Не удалось загрузить данные";
-        setError(msg);
-      } finally {
-        setLoading(false);
+        })();
+        return;
       }
-    };
-
-    void load();
-
-    const {
-      data: { subscription },
-    } = authOnAuthStateChange(async (event) => {
-      if (event === "SIGNED_OUT") {
-        setCurrentUser(null);
-        setChatList([]);
-        chatMembershipRef.current = new Set();
-        setLoading(false);
-      }
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        await load();
+      if (event === "SIGNED_IN") {
+        void load();
       }
     });
 
     return () => {
       subscription.unsubscribe();
+      loadPromiseRef.current = null;
     };
   }, []);
 

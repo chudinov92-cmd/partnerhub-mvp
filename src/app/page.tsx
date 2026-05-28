@@ -1451,7 +1451,7 @@ export default function Home() {
             ref={feedScrollRef}
             className="min-h-0 flex-1 overflow-y-auto px-4"
           >
-          {(loading || postsLoading) && (
+          {postsLoading && (
             <p className="py-2 text-sm text-slate-500">Загрузка...</p>
           )}
           {error && <p className="py-2 text-sm text-red-600">{error}</p>}
@@ -2091,31 +2091,37 @@ export default function Home() {
               </div>
             ) : null}
             {mapViewMode === "map" ? (
-              <PartnerMap
-                profiles={filteredProfilesForMap}
-                contactProfileIds={contactProfileIds}
-                viewedProfileIds={viewedProfileIds}
-                focusedProfileId={focusedProfileId}
-                currentUserProfileId={currentUser?.profileId ?? null}
-                invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}`}
-                center={mapConfig.center}
-                zoom={mapConfig.zoom}
-                onOpenProfile={(p) => {
-                  const full = profiles.find((x) => x.id === p.id) ?? null;
-                  setActiveProfileOverlay(full);
-                  setFocusedProfileId(null);
-                  if (full) void markProfileViewed(full.id);
-                }}
-                onOpenChat={(profileId) => {
-                  const p = profiles.find((pr) => pr.id === profileId);
-                  if (p) {
-                    openChatWithProfile(p);
-                  }
-                }}
-                onToggleContact={(profileId) => {
-                  toggleContact(profileId);
-                }}
-              />
+              loading && profiles.length === 0 ? (
+                <div className="flex h-full min-h-0 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100">
+                  <p className="text-sm text-slate-500">Загрузка карты...</p>
+                </div>
+              ) : (
+                <PartnerMap
+                  profiles={filteredProfilesForMap}
+                  contactProfileIds={contactProfileIds}
+                  viewedProfileIds={viewedProfileIds}
+                  focusedProfileId={focusedProfileId}
+                  currentUserProfileId={currentUser?.profileId ?? null}
+                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${profiles.length}`}
+                  center={mapConfig.center}
+                  zoom={mapConfig.zoom}
+                  onOpenProfile={(p) => {
+                    const full = profiles.find((x) => x.id === p.id) ?? null;
+                    setActiveProfileOverlay(full);
+                    setFocusedProfileId(null);
+                    if (full) void markProfileViewed(full.id);
+                  }}
+                  onOpenChat={(profileId) => {
+                    const p = profiles.find((pr) => pr.id === profileId);
+                    if (p) {
+                      openChatWithProfile(p);
+                    }
+                  }}
+                  onToggleContact={(profileId) => {
+                    toggleContact(profileId);
+                  }}
+                />
+              )
             ) : (
               <div className="h-full min-h-0 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur">

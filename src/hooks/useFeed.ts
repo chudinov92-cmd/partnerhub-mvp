@@ -37,41 +37,51 @@ export function useFeed(selectedCity: string) {
     setPostsLoadError(null);
 
     (async () => {
-      const { posts: postsData, error: postsError } =
-        await fetchPostsForCity(selectedCity);
+      try {
+        const { posts: postsData, error: postsError } =
+          await fetchPostsForCity(selectedCity);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      if (postsError || !postsData) {
-        console.warn("posts load failed", postsError);
+        if (postsError || !postsData) {
+          console.warn("posts load failed", postsError);
+          setPosts([]);
+          setCommentsByPostId({});
+          setPostsLoadError(
+            postsError
+              ? `Не удалось загрузить общий чат. ${postsError.message}`
+              : "Не удалось загрузить общий чат.",
+          );
+          return;
+        }
+
+        setPosts(postsData);
+        const postIds = postsData.map((p) => p.id);
+        postsFingerprintRef.current = postIds.join("|");
+        if (postIds.length > 0) {
+          const { rows: commentsData, error: commentsErr } =
+            await fetchCommentsForPostIds(postIds);
+          if (cancelled) return;
+          if (commentsErr) {
+            console.warn("post_comments load failed", commentsErr);
+            setCommentsByPostId({});
+          } else if (commentsData) {
+            setCommentsByPostId(groupCommentsByPostId(commentsData));
+          }
+        } else {
+          setCommentsByPostId({});
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn("posts load unexpected error", err);
         setPosts([]);
         setCommentsByPostId({});
-        setPostsLoadError(
-          postsError
-            ? `Не удалось загрузить общий чат. ${postsError.message}`
-            : "Не удалось загрузить общий чат.",
-        );
-        setPostsLoading(false);
-        return;
-      }
-
-      setPosts(postsData);
-      const postIds = postsData.map((p) => p.id);
-      postsFingerprintRef.current = postIds.join("|");
-      if (postIds.length > 0) {
-        const { rows: commentsData, error: commentsErr } =
-          await fetchCommentsForPostIds(postIds);
-        if (cancelled) return;
-        if (commentsErr) {
-          console.warn("post_comments load failed", commentsErr);
-          setCommentsByPostId({});
-        } else if (commentsData) {
-          setCommentsByPostId(groupCommentsByPostId(commentsData));
+        setPostsLoadError("Не удалось загрузить общий чат.");
+      } finally {
+        if (!cancelled) {
+          setPostsLoading(false);
         }
-      } else {
-        setCommentsByPostId({});
       }
-      setPostsLoading(false);
     })();
 
     return () => {

@@ -281,9 +281,15 @@ export function PartnerMap({
     return new Set(viewedProfileIds ?? []);
   }, [viewedProfileIds]);
 
+  // Перезагрузка точек после auth и при возврате на главную (сессия + profiles).
+  const locationsFetchKey = `${invalidateKey ?? ""}|${profiles.length}|${currentUserProfileId ?? ""}`;
+
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
       const pts = await fetchActiveLocations(200);
+      if (cancelled) return;
       const normalized: LocationPoint[] = pts.map((row) => ({
         id: row.id,
         user_id: row.user_id,
@@ -294,8 +300,12 @@ export function PartnerMap({
       setPoints(normalized);
     };
 
-    load();
-  }, []);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [locationsFetchKey]);
 
   const effectiveCenter = center ?? PERM_CENTER;
   const effectiveZoom = zoom ?? DEFAULT_ZOOM;
@@ -303,7 +313,6 @@ export function PartnerMap({
   void onToggleContact;
   void contactProfileIds;
   void focusedProfileId;
-  void invalidateKey;
 
   const obfByUserId = useMemo(() => {
     const map = new Map<string, { lat: number; lng: number }>();

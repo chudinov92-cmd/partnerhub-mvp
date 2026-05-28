@@ -7,11 +7,19 @@ export type AuthChangeCallback = Parameters<
   SupabaseClient["auth"]["onAuthStateChange"]
 >[0];
 
+export type AuthGetUserResult = {
+  data: { user: User | null };
+  error: Error | null;
+};
+
+let authGetUserInFlight: Promise<AuthGetUserResult> | null = null;
+
 /**
  * Текущий пользователь для UI (главная, TopBar, профиль).
  * getSession из storage; если access_token истёк — refresh до PostgREST-запросов.
+ * Параллельные вызовы дедуплицируются — один lock Supabase Auth на всех.
  */
-export async function authGetUser() {
+async function authGetUserImpl(): Promise<AuthGetUserResult> {
   const { data: sessionData, error: sessionError } =
     await supabase.auth.getSession();
   if (sessionError) {
@@ -33,6 +41,16 @@ export async function authGetUser() {
     data: { user: session?.user ?? null },
     error: null,
   };
+}
+
+export async function authGetUser(): Promise<AuthGetUserResult> {
+  if (authGetUserInFlight) {
+    return authGetUserInFlight;
+  }
+  authGetUserInFlight = authGetUserImpl().finally(() => {
+    authGetUserInFlight = null;
+  });
+  return authGetUserInFlight;
 }
 
 export function authSignOut() {

@@ -119,24 +119,19 @@ Verify registration email flow in app.
 
 По умолчанию GoTrue выдаёт access token на **3600 с (1 ч)**. После истечения при перезагрузке страницы без refresh в cookies UI может кратко показывать пустой контент.
 
-В `/root/zeip/supabase-stack/.env` (или `.env` стека Supabase на VPS):
+В `/root/zeip/supabase-stack/.env` меняют **`JWT_EXPIRY`** (в `docker-compose.yml` auth это пробрасывается как `GOTRUE_JWT_EXP`). Переменная `GOTRUE_JWT_EXPIRY` в `.env` **не используется** GoTrue.
 
 ```env
-GOTRUE_JWT_EXPIRY=86400
+JWT_EXPIRY=86400
 ```
 
-Применить:
+Применить (с Mac, папка `my-startup`):
 
 ```bash
-ssh root@186.246.2.104
-cd /root/zeip/supabase-stack
-nano .env
-docker compose up -d --force-recreate auth
-docker compose restart kong
-docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep GOTRUE_JWT_EXPIRY
+ssh root@186.246.2.104 'cd /root/zeip/supabase-stack && (grep -q "^JWT_EXPIRY=" .env && sed -i "s/^JWT_EXPIRY=.*/JWT_EXPIRY=86400/" .env || echo "JWT_EXPIRY=86400" >> .env) && docker compose up -d --force-recreate auth && docker compose restart kong && docker inspect supabase-auth --format "{{range .Config.Env}}{{println .}}{{end}}" | grep GOTRUE_JWT_EXP'
 ```
 
-Ожидаемо: `GOTRUE_JWT_EXPIRY=86400` (24 часа).
+Ожидаемо в контейнере: `GOTRUE_JWT_EXP=86400` (24 часа). Не `GOTRUE_JWT_EXP=3600`.
 
 ## 7) API smoke checks against target self-hosted Supabase
 
