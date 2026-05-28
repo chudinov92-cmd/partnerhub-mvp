@@ -115,6 +115,29 @@ docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}
 
 Verify registration email flow in app.
 
+### JWT lifetime (сессия после неактивности)
+
+По умолчанию GoTrue выдаёт access token на **3600 с (1 ч)**. После истечения при перезагрузке страницы без refresh в cookies UI может кратко показывать пустой контент.
+
+В `/root/zeip/supabase-stack/.env` (или `.env` стека Supabase на VPS):
+
+```env
+GOTRUE_JWT_EXPIRY=86400
+```
+
+Применить:
+
+```bash
+ssh root@186.246.2.104
+cd /root/zeip/supabase-stack
+nano .env
+docker compose up -d --force-recreate auth
+docker compose restart kong
+docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep GOTRUE_JWT_EXPIRY
+```
+
+Ожидаемо: `GOTRUE_JWT_EXPIRY=86400` (24 часа).
+
 ## 7) API smoke checks against target self-hosted Supabase
 
 From Mac:
