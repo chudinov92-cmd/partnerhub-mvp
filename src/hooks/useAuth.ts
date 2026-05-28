@@ -96,7 +96,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
 
     const {
       data: { subscription },
-    } = authOnAuthStateChange((event) => {
+    } = authOnAuthStateChange(async (event) => {
       if (event === "SIGNED_OUT") {
         setCurrentUser(null);
         setChatList([]);
@@ -107,28 +107,26 @@ export function useAuth(blockedProfileIds: readonly string[]) {
         return;
       }
       if (event === "TOKEN_REFRESHED") {
-        void (async () => {
-          const {
-            data: { user },
-          } = await authGetUser();
-          if (!user) return;
-          const profileRow = await fetchCurrentUserProfileRow(user.id);
-          if (profileRow) {
-            setCurrentUser({
-              profileId: profileRow.id,
-              fullName: profileRow.full_name,
-              city: profileRow.city,
-              roleTitle: profileRow.role_title ?? null,
-              isBlocked: !!profileRow.is_blocked,
-              isPro: isActiveProProfile(profileRow),
-            });
-            loadPrivateChatSidebarInBackground(profileRow.id);
-          }
-        })();
+        const {
+          data: { user },
+        } = await authGetUser();
+        if (!user) return;
+        const profileRow = await fetchCurrentUserProfileRow(user.id);
+        if (profileRow) {
+          setCurrentUser({
+            profileId: profileRow.id,
+            fullName: profileRow.full_name,
+            city: profileRow.city,
+            roleTitle: profileRow.role_title ?? null,
+            isBlocked: !!profileRow.is_blocked,
+            isPro: isActiveProProfile(profileRow),
+          });
+          loadPrivateChatSidebarInBackground(profileRow.id);
+        }
         return;
       }
       if (event === "SIGNED_IN") {
-        void load();
+        await load();
       }
     });
 
