@@ -7,6 +7,12 @@ import {
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  AUTH_FORM_TIMEOUT_MS,
+  AUTH_OPERATION_TIMEOUT_MS,
+  isAuthTimeoutError,
+  withAuthTimeout,
+} from "@/services/authService";
 
 function authErrMeta(err: unknown): Record<string, unknown> {
   if (!err || typeof err !== "object") return { kind: typeof err };
@@ -80,6 +86,10 @@ function isInvalidLoginCredentials(err: unknown): boolean {
 }
 
 function getAuthErrorMessage(err: unknown) {
+  if (isAuthTimeoutError(err)) {
+    return "Сервис авторизации не отвечает. Проверьте интернет и попробуйте ещё раз через минуту.";
+  }
+
   const redirectHint =
     "Если адрес уже в списке redirect, посмотрите логи: на сервере в каталоге supabase-stack выполните docker compose logs auth --tail 100 (ошибки SMTP GoTrue там виднее). На localhost добавьте в ADDITIONAL_REDIRECT_URLS строку http://localhost:3000/auth/reset-password.";
 
@@ -226,7 +236,11 @@ export default function AuthPage() {
       }
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await withAuthTimeout(
+        supabase.auth.getSession(),
+        "getSession",
+        AUTH_OPERATION_TIMEOUT_MS,
+      );
       if (!session?.user) return;
       if (isPasswordRecoverySession(session)) {
         router.replace("/auth/reset-password");
@@ -262,32 +276,44 @@ export default function AuthPage() {
               : window.location.origin
             : raw.replace(/\/$/, "");
         const redirectTo = `${origin}/auth/reset-password`;
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo,
-        });
+        const { error } = await withAuthTimeout(
+          supabase.auth.resetPasswordForEmail(email, {
+            redirectTo,
+          }),
+          "resetPasswordForEmail",
+          AUTH_FORM_TIMEOUT_MS,
+        );
         if (error) throw error;
         setInfo(
           "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в том же браузере (Safari), где запрашивали сброс — не через превью в Telegram. Проверьте почту (и папку «Спам»).",
         );
       } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
+        const { error } = await withAuthTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: fullName,
+              },
             },
-          },
-        });
+          }),
+          "signUp",
+          AUTH_FORM_TIMEOUT_MS,
+        );
         if (error) throw error;
         setInfo(
           "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
         );
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await withAuthTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+          "signInWithPassword",
+          AUTH_FORM_TIMEOUT_MS,
+        );
         if (error) throw error;
         const target = getPostAuthRedirectPath();
         window.location.replace(target);

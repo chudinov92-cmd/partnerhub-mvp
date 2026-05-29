@@ -17,24 +17,34 @@ export type AuthGetUserResult = {
 export const AUTH_SESSION_EXPIRED_EVENT = "zeip:auth-session-expired";
 
 export const AUTH_OPERATION_TIMEOUT_MS = 8_000;
+/** Таймаут форм входа/регистрации/сброса пароля (дольше, чем getSession). */
+export const AUTH_FORM_TIMEOUT_MS = 15_000;
 export const PROACTIVE_REFRESH_BEFORE_EXPIRY_MS = 60_000;
 
 let authGetUserInFlight: Promise<AuthGetUserResult> | null = null;
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-function withAuthTimeout<T>(
+export function withAuthTimeout<T>(
   promise: Promise<T>,
   label: string,
+  timeoutMs: number = AUTH_OPERATION_TIMEOUT_MS,
 ): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
       setTimeout(
-        () => reject(new Error(`${label} timeout after ${AUTH_OPERATION_TIMEOUT_MS}ms`)),
-        AUTH_OPERATION_TIMEOUT_MS,
+        () => reject(new Error(`${label} timeout after ${timeoutMs}ms`)),
+        timeoutMs,
       );
     }),
   ]);
+}
+
+export function isAuthTimeoutError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    /timeout after \d+ms/i.test(err.message)
+  );
 }
 
 export function dispatchAuthSessionExpired(): void {

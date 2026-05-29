@@ -1,10 +1,10 @@
 "use client";
 
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, supabasePublic } from "@/lib/supabaseClient";
 import type { Profile } from "@/types";
 
 export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabasePublic
     .from("profiles")
     .select(PROFILE_MAP_SELECT)
     .limit(limit);
@@ -62,7 +62,7 @@ export async function fetchProfilesInterestedIn(
   if (!trimmed) return [];
 
   const limit = options?.limit ?? 200;
-  const { data, error } = await supabase
+  const { data, error } = await supabasePublic
     .from("profiles")
     .select(PROFILE_MAP_SELECT)
     .ilike("interested_in", `%${trimmed}%`)
@@ -120,7 +120,7 @@ export type LocationPointRow = {
 export async function fetchActiveLocations(
   limit = 200,
 ): Promise<LocationPointRow[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabasePublic
     .from("locations")
     .select("id, user_id, lat, lng, city")
     .eq("is_active", true)
@@ -137,7 +137,7 @@ export async function fetchActiveLocations(
 
 /** Лайки на карточке профиля (ProfilePreviewCard). */
 export async function fetchProfileLikeCount(targetProfileId: string): Promise<number> {
-  const { count, error } = await supabase
+  const { count, error } = await supabasePublic
     .from("profile_likes")
     .select("id", { count: "exact", head: true })
     .eq("liked_profile_id", targetProfileId);
