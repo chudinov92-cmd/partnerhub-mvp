@@ -133,16 +133,15 @@ export function useAuth(blockedProfileIds: readonly string[]) {
       }
       if (event === "TOKEN_REFRESHED") {
         setSessionExpired(false);
-        const {
-          data: { user },
-        } = await authGetUser();
-        if (!user) return;
-        await loadUserContext(user.id);
+        void authGetUser().then(({ data: { user } }) => {
+          if (!user) return;
+          void loadUserContext(user.id);
+        });
         return;
       }
       if (event === "SIGNED_IN") {
         setSessionExpired(false);
-        await load();
+        void load();
       }
     });
 

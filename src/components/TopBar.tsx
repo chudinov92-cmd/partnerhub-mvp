@@ -169,14 +169,16 @@ export function TopBar() {
       const user = session?.user;
       if (user) {
         setIsAuthed(true);
-        try {
-          const p = await fetchTopBarProfile(user.id);
-          setFullName(p?.full_name ?? null);
-          setMyProfileId(p?.id ?? null);
-        } catch {
-          setFullName(null);
-          setMyProfileId(null);
-        }
+        // Не await: supabase auth ждёт все колбэки перед resolve signInWithPassword.
+        void fetchTopBarProfile(user.id)
+          .then((p) => {
+            setFullName(p?.full_name ?? null);
+            setMyProfileId(p?.id ?? null);
+          })
+          .catch(() => {
+            setFullName(null);
+            setMyProfileId(null);
+          });
         return;
       }
       setIsAuthed(false);

@@ -306,17 +306,64 @@ export default function AuthPage() {
           "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
         );
       } else {
-        const { error } = await withAuthTimeout(
-          supabase.auth.signInWithPassword({
-            email,
-            password,
-          }),
-          "signInWithPassword",
-          AUTH_FORM_TIMEOUT_MS,
-        );
-        if (error) throw error;
         const target = getPostAuthRedirectPath();
-        window.location.replace(target);
+        let redirected = false;
+
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((event) => {
+          if (event === "SIGNED_IN" && !redirected) {
+            redirected = true;
+            window.location.replace(target);
+          }
+        });
+
+        try {
+          const { error } = await withAuthTimeout(
+            supabase.auth.signInWithPassword({
+              email,
+              password,
+            }),
+            "signInWithPassword",
+            AUTH_FORM_TIMEOUT_MS,
+          );
+          if (error) throw error;
+          if (!redirected) {
+            redirected = true;
+            window.location.replace(target);
+          }
+        } catch (err: unknown) {
+          if (
+            !redirected &&
+            isAuthTimeoutError(err)
+          ) {
+            try {
+              const {
+                data: { session },
+              } = await withAuthTimeout(
+                supabase.auth.getSession(),
+                "getSession(post-login)",
+                AUTH_OPERATION_TIMEOUT_MS,
+              );
+              if (session?.user) {
+                redirected = true;
+                window.location.replace(target);
+                return;
+              }
+            } catch {
+              // ignore — покажем ошибку ниже
+            }
+          }
+          if (!redirected) {
+            setError(getAuthErrorMessage(err));
+          }
+        } finally {
+          subscription.unsubscribe();
+          if (!redirected) {
+            setLoading(false);
+          }
+        }
+        return;
       }
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));
