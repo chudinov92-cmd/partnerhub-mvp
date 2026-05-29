@@ -61,7 +61,11 @@ test.describe("Фаза 1: Аутентификация", () => {
       await expect(
         page.getByRole("heading", { name: "Восстановление пароля" }),
       ).toBeVisible();
-      await page.locator("form").locator('input[type="email"]').fill(e2eUser.email);
+      // Не e2eUser — иначе GoTrue выставит recovery_sent_at и сломает последующие тесты.
+      await page
+        .locator("form")
+        .locator('input[type="email"]')
+        .fill(`e2e-forgot-${Date.now()}@example.com`);
       await page.getByRole("button", { name: "Отправить ссылку" }).click();
       await expect(
         page.getByText(/отправили письмо|зарегистрирован/i).first(),

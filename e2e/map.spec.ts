@@ -90,6 +90,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
   test("TC-3.9 Режим только контакты на карте (?mapContacts=1)", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?mapContacts=1");
     await expect(page.locator(".leaflet-container").first()).toBeVisible({
       timeout: 25_000,

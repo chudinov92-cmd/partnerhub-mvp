@@ -12,9 +12,6 @@ async function fillSignInForm(
   await form.locator('input[type="password"]').fill(password);
 }
 
-function headerLoginLink(page: Page) {
-  return page.locator("header").getByRole("link", { name: "Войти" });
-}
 
 function headerUserMenuButton(page: Page) {
   return page
@@ -24,7 +21,31 @@ function headerUserMenuButton(page: Page) {
     .first();
 }
 
-/** Успешный вход: сессия в Supabase и UI шапки (не только смена URL — TopBar на время loading пустой). */
+async function isSignedInUi(page: Page): Promise<boolean> {
+  if (await headerUserMenuButton(page).isVisible().catch(() => false)) {
+    return true;
+  }
+  // После redirect=/admin/* — AdminShell, не TopBar с аватаркой.
+  if (
+    await page
+      .getByRole("navigation", { name: "Разделы админки" })
+      .isVisible()
+      .catch(() => false)
+  ) {
+    return true;
+  }
+  // Обычный пользователь на /admin/*: middleware отдаёт 403, но сессия есть.
+  if (page.url().includes("/admin")) {
+    const forbidden = await page
+      .getByText(/доступ запрещён/i)
+      .isVisible()
+      .catch(() => false);
+    if (forbidden) return true;
+  }
+  return false;
+}
+
+/** Успешный вход: TopBar с аватаркой или shell админки. */
 async function waitForSignedIn(page: Page, email: string) {
   const wrongPassword = page.getByText(/Неверный логин или пароль/i);
 
@@ -35,18 +56,7 @@ async function waitForSignedIn(page: Page, email: string) {
       );
     }
 
-    if (!page.url().includes("/auth")) {
-      return;
-    }
-
-    if (await headerUserMenuButton(page).isVisible().catch(() => false)) {
-      return;
-    }
-
-    const loginVisible = await headerLoginLink(page)
-      .isVisible()
-      .catch(() => false);
-    if (!loginVisible) {
+    if (await isSignedInUi(page)) {
       return;
     }
 

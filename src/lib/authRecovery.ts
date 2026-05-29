@@ -37,12 +37,9 @@ export function recoveryCallbackPendingInUrl(): boolean {
 }
 
 export function isPasswordRecoverySession(session: Session | null): boolean {
-  if (!session?.user) return false;
-  const recoverySentAt = (
-    session.user as { recovery_sent_at?: string | null }
-  ).recovery_sent_at;
-  if (recoverySentAt) return true;
-  if (!session.access_token) return false;
+  if (!session?.user || !session.access_token) return false;
+  // recovery_sent_at — только факт отправки письма; не активная recovery-сессия.
+  // Активная recovery определяется по amr в JWT (method «recovery» после клика по ссылке).
   try {
     const parts = session.access_token.split(".");
     if (parts.length < 2) return false;
