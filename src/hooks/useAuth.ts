@@ -20,6 +20,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const chatMembershipRef = useRef<Set<string>>(new Set());
   const blockedRef = useRef(blockedProfileIds);
   const loadPromiseRef = useRef<Promise<void> | null>(null);
@@ -37,6 +38,31 @@ export function useAuth(blockedProfileIds: readonly string[]) {
         });
     };
 
+    const loadUserContext = async (userId: string) => {
+      const profileRow = await fetchCurrentUserProfileRow(userId);
+      if (profileRow) {
+        setCurrentUser({
+          profileId: profileRow.id,
+          fullName: profileRow.full_name,
+          city: profileRow.city,
+          roleTitle: profileRow.role_title ?? null,
+          isBlocked: !!profileRow.is_blocked,
+          isPro: isActiveProProfile(profileRow),
+        });
+        loadPrivateChatSidebarInBackground(profileRow.id);
+      } else {
+        chatMembershipRef.current = new Set();
+        setCurrentUser(null);
+        setChatList([]);
+      }
+    };
+
+    const clearUserContext = () => {
+      chatMembershipRef.current = new Set();
+      setCurrentUser(null);
+      setChatList([]);
+    };
+
     const load = (): Promise<void> => {
       if (loadPromiseRef.current) {
         return loadPromiseRef.current;
@@ -47,43 +73,42 @@ export function useAuth(blockedProfileIds: readonly string[]) {
           setError(null);
           setLoading(true);
 
+          // Карта и лента не ждут auth — публичные данные грузим первыми.
+          try {
+            const allProfiles = await fetchProfilesForMap(50);
+            setProfiles(allProfiles);
+          } catch (err: unknown) {
+            const msg =
+              err instanceof Error
+                ? err.message
+                : "Не удалось загрузить профили для карты";
+            setError(msg);
+          } finally {
+            setLoading(false);
+          }
+
           const {
             data: { user },
+            sessionExpired: expired,
           } = await authGetUser();
 
-          const allProfiles = await fetchProfilesForMap(50);
-          setProfiles(allProfiles);
-          // Карта и лента не ждут профиль/сайдбар чатов.
-          setLoading(false);
+          if (expired) {
+            setSessionExpired(true);
+          } else {
+            setSessionExpired(false);
+          }
 
           if (user) {
-            const profileRow = await fetchCurrentUserProfileRow(user.id);
-            if (profileRow) {
-              setCurrentUser({
-                profileId: profileRow.id,
-                fullName: profileRow.full_name,
-                city: profileRow.city,
-                roleTitle: profileRow.role_title ?? null,
-                isBlocked: !!profileRow.is_blocked,
-                isPro: isActiveProProfile(profileRow),
-              });
-              loadPrivateChatSidebarInBackground(profileRow.id);
-            } else {
-              chatMembershipRef.current = new Set();
-              setCurrentUser(null);
-              setChatList([]);
-            }
+            await loadUserContext(user.id);
           } else {
-            chatMembershipRef.current = new Set();
-            setCurrentUser(null);
-            setChatList([]);
+            clearUserContext();
           }
         } catch (err: unknown) {
           const msg =
             err instanceof Error ? err.message : "Не удалось загрузить данные";
           setError(msg);
-        } finally {
           setLoading(false);
+        } finally {
           loadPromiseRef.current = null;
         }
       })();
@@ -101,31 +126,22 @@ export function useAuth(blockedProfileIds: readonly string[]) {
         setCurrentUser(null);
         setChatList([]);
         chatMembershipRef.current = new Set();
-        setProfiles([]);
+        setSessionExpired(false);
         setLoading(false);
         loadPromiseRef.current = null;
         return;
       }
       if (event === "TOKEN_REFRESHED") {
+        setSessionExpired(false);
         const {
           data: { user },
         } = await authGetUser();
         if (!user) return;
-        const profileRow = await fetchCurrentUserProfileRow(user.id);
-        if (profileRow) {
-          setCurrentUser({
-            profileId: profileRow.id,
-            fullName: profileRow.full_name,
-            city: profileRow.city,
-            roleTitle: profileRow.role_title ?? null,
-            isBlocked: !!profileRow.is_blocked,
-            isPro: isActiveProProfile(profileRow),
-          });
-          loadPrivateChatSidebarInBackground(profileRow.id);
-        }
+        await loadUserContext(user.id);
         return;
       }
       if (event === "SIGNED_IN") {
+        setSessionExpired(false);
         await load();
       }
     });
@@ -145,6 +161,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
     setCurrentUser,
     loading,
     error,
+    sessionExpired,
     chatMembershipRef,
   };
 }

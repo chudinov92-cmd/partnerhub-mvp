@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthRecoveryUrlHandler } from "@/components/AuthRecoveryUrlHandler";
+import { AuthSessionKeeper } from "@/components/AuthSessionKeeper";
 import { RecoveryRedirectScript } from "@/components/RecoveryRedirectScript";
 import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { PushBootstrap } from "@/components/PushBootstrap";
+import { SessionExpiredToast } from "@/components/SessionExpiredToast";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 export const metadata: Metadata = {
   title: "Zeip",
@@ -33,10 +35,12 @@ export default function RootLayout({
         <RecoveryRedirectScript />
         <PushBootstrap />
         <AuthRecoveryUrlHandler />
+        <AuthSessionKeeper />
         <SelectedCityProvider>
           <div className="flex min-h-screen flex-col bg-gray-100" style={{ minHeight: '100dvh' }}>
             <ConditionalTopBar />
             <div className="flex-1">{children}</div>
+            <SessionExpiredToast />
           </div>
         </SelectedCityProvider>
       </body>
