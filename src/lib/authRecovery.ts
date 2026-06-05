@@ -15,25 +15,25 @@ export function pkceAuthCallbackInUrl(): boolean {
   }
 }
 
-/** В адресе после клика по ссылке из письма (implicit / некоторые варианты PKCE в query). */
-export function recoveryCallbackPendingInUrl(): boolean {
-  if (typeof window === "undefined") return false;
+/** Маркеры recovery в query/hash (без привязки к window — для тестов). */
+export function recoveryTypeInUrl(search: string, hash: string): boolean {
   try {
-    if (window.location.search.includes("type=recovery")) return true;
-    const hash = window.location.hash.startsWith("#")
-      ? window.location.hash.slice(1)
-      : window.location.hash;
-    if (!hash) return false;
-    const qp = new URLSearchParams(hash);
-    if (qp.get("type") === "recovery") return true;
+    if (search.includes("type=recovery")) return true;
+    const hashBody = hash.startsWith("#") ? hash.slice(1) : hash;
+    if (hashBody) {
+      const qp = new URLSearchParams(hashBody);
+      if (qp.get("type") === "recovery") return true;
+    }
   } catch {
     //
   }
-  if (pkceAuthCallbackInUrl()) return true;
-  return (
-    window.location.hash.includes("type=recovery") ||
-    window.location.search.includes("type=recovery")
-  );
+  return hash.includes("type=recovery") || search.includes("type=recovery");
+}
+
+/** В адресе после клика по recovery-ссылке (implicit или PKCE с type=recovery). */
+export function recoveryCallbackPendingInUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  return recoveryTypeInUrl(window.location.search, window.location.hash);
 }
 
 export function isPasswordRecoverySession(session: Session | null): boolean {

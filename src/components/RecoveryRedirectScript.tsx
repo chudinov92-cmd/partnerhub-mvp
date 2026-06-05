@@ -10,10 +10,8 @@ export function RecoveryRedirectScript() {
     var search = location.search || "";
     var hash = location.hash || "";
     var need =
-      search.indexOf("code=") !== -1 ||
       search.indexOf("type=recovery") !== -1 ||
-      hash.indexOf("type=recovery") !== -1 ||
-      hash.indexOf("access_token") !== -1;
+      hash.indexOf("type=recovery") !== -1;
     if (need) {
       location.replace("/auth/reset-password" + search + hash);
     }

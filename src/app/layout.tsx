@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: "Zeip",
   description: "Zeip — платформа для поиска партнеров и команд по городам.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/zeip-logo.svg", type: "image/svg+xml" }],
+    shortcut: "/zeip-logo.svg",
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     title: "Zeip",

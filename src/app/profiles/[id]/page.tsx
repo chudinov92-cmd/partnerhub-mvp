@@ -152,7 +152,7 @@ export default function PublicProfilePage() {
           </div>
           <div className="ml-4 flex gap-2">
             <Link
-              href="/"
+              href="/map"
               className="inline-flex items-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
             >
               Назад

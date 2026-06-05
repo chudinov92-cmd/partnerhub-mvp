@@ -33,7 +33,7 @@ function getAuthErrorMessage(err: unknown) {
 function recoveryLinkHelpMessage(): string | null {
   if (typeof window === "undefined") return null;
   const search = window.location.search;
-  if (search.includes("code=") || search.includes("type=recovery")) {
+  if (search.includes("type=recovery")) {
     return (
       "Не удалось подтвердить ссылку. Запросите новое письмо на странице входа и откройте ссылку " +
       "в Safari (тот же браузер, без превью Telegram)."
@@ -57,6 +57,10 @@ export default function ResetPasswordPage() {
 
     const applySession = (session: Session | null) => {
       if (cancelled) return;
+      if (session?.user && !isPasswordRecoverySession(session)) {
+        router.replace("/map");
+        return;
+      }
       const ok = isPasswordRecoverySession(session);
       if (ok) {
         setCanReset(true);
@@ -92,6 +96,9 @@ export default function ResetPasswordPage() {
         if (cancelled) return;
         if (isPasswordRecoverySession(session)) {
           setCanReset(true);
+        } else if (session?.user) {
+          router.replace("/map");
+          return;
         } else {
           const hint = recoveryLinkHelpMessage();
           if (hint) setError(hint);
@@ -105,7 +112,7 @@ export default function ResetPasswordPage() {
       window.clearTimeout(t);
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,7 +136,7 @@ export default function ResetPasswordPage() {
       if (updErr) throw updErr;
       setInfo("Пароль обновлён. Переходим на главную…");
       await new Promise((r) => setTimeout(r, 400));
-      router.replace("/");
+      router.replace("/map");
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));
     } finally {

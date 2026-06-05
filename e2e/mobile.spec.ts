@@ -5,7 +5,7 @@ test.describe("Фаза 10: Мобильная адаптация", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
   test("TC-10.1 Нижняя навигация видна", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/map");
     const nav = page.getByRole("navigation", { name: "Основная навигация" });
     await expect(nav).toBeVisible();
     for (const tab of ["Чат", "Карта", "Контакты", "Мои чаты"]) {
@@ -14,7 +14,7 @@ test.describe("Фаза 10: Мобильная адаптация", () => {
   });
 
   test("TC-10.2 Переключение вкладок", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Чат");
     await expect(page.locator("body")).not.toContainText("Application error");
     await openMobileTab(page, "Карта");
@@ -28,7 +28,7 @@ test.describe("Фаза 10: Мобильная адаптация", () => {
   test("TC-10.3 Нет лишнего вертикального скролла body на карте", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Карта");
     await page.waitForTimeout(800);
     const scrollY = await page.evaluate(() => window.scrollY);

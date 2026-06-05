@@ -2,7 +2,10 @@
 
 На Mac сам проект ~900 МБ; на сервере десятки ГБ часто заняты **Docker** (старые образы, build cache), **бэкапами** без ротации и **логами** контейнеров/systemd.
 
-Скрипт: [`scripts/migration/timeweb_disk_maintenance.sh`](../../scripts/migration/timeweb_disk_maintenance.sh).
+Скрипты:
+
+- по шагам: [`scripts/migration/timeweb_disk_maintenance.sh`](../../scripts/migration/timeweb_disk_maintenance.sh)
+- **полный план одной командой:** [`scripts/vps/zeip-disk-cleanup-plan.sh`](../../scripts/vps/zeip-disk-cleanup-plan.sh) (с Mac: [`scripts/vps/run-zeip-disk-cleanup-remote.sh`](../../scripts/vps/run-zeip-disk-cleanup-remote.sh))
 
 ## С Mac (SSH одной строкой)
 

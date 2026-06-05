@@ -129,7 +129,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               Обновить
             </button>
             <Link
-              href="/"
+              href="/map"
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 hover:bg-slate-50"
             >
               На карту
@@ -154,7 +154,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/"
+              href="/map"
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-50"
             >
               На карту

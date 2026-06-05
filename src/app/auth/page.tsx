@@ -207,11 +207,23 @@ function getAuthErrorMessage(err: unknown) {
   return `Не удалось выполнить запрос к Auth (${keys.length ? `поля: ${keys.join(", ")}` : "нет полей"}, без текста ошибки). ${redirectHint}`;
 }
 
+function getEmailAuthRedirectOrigin(): string {
+  const raw = (
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN?.trim()
+      : ""
+  ) ?? "";
+  if (typeof window !== "undefined") {
+    return raw.length > 0 ? raw.replace(/\/$/, "") : window.location.origin;
+  }
+  return raw.replace(/\/$/, "");
+}
+
 /** Безопасный путь после входа (?redirect=/admin/support). */
 function getPostAuthRedirectPath(): string {
-  if (typeof window === "undefined") return "/";
+  if (typeof window === "undefined") return "/map";
   const raw = new URLSearchParams(window.location.search).get("redirect");
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/map";
   return raw;
 }
 
@@ -264,17 +276,7 @@ export default function AuthPage() {
 
     try {
       if (mode === "forgot") {
-        const raw = (
-          typeof process !== "undefined"
-            ? process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN?.trim()
-            : ""
-        ) ?? "";
-        const origin =
-          typeof window !== "undefined"
-            ? raw.length > 0
-              ? raw.replace(/\/$/, "")
-              : window.location.origin
-            : raw.replace(/\/$/, "");
+        const origin = getEmailAuthRedirectOrigin();
         const redirectTo = `${origin}/auth/reset-password`;
         const { error } = await withAuthTimeout(
           supabase.auth.resetPasswordForEmail(email, {
@@ -288,11 +290,13 @@ export default function AuthPage() {
           "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в том же браузере (Safari), где запрашивали сброс — не через превью в Telegram. Проверьте почту (и папку «Спам»).",
         );
       } else if (mode === "signup") {
+        const origin = getEmailAuthRedirectOrigin();
         const { error } = await withAuthTimeout(
           supabase.auth.signUp({
             email,
             password,
             options: {
+              emailRedirectTo: `${origin}/auth`,
               data: {
                 full_name: fullName,
               },

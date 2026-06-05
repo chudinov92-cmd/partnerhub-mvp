@@ -1479,7 +1479,7 @@ export default function ProfilePage() {
           <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
             {hasChanges ? (
               <Link
-                href="/"
+                href="/map"
                 className="inline-flex h-24 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:h-24 sm:w-auto sm:px-6"
               >
                 Отмена

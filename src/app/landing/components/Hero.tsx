@@ -21,7 +21,7 @@ export function Hero({ assets }: HeroProps) {
             твои амбиции — прямо в твоем квартале.
           </p>
 
-          <ButtonLink href="/" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
+          <ButtonLink href="/map" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
             На карту
           </ButtonLink>
         </div>

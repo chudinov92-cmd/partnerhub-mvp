@@ -10,7 +10,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
   }) => {
     await clearClientStorage(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Карта");
     const cityStorage = await page.evaluate(() =>
       localStorage.getItem("selected_city"),
@@ -23,7 +23,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
 
   test("TC-3.4 Панель фильтров открывается", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Карта");
     await page.getByRole("button", { name: "Настройки поиска" }).click();
     await expect(
@@ -32,7 +32,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
   });
 
   test("TC-3.6 Карта Leaflet отображается", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/map");
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.locator(".leaflet-container").first()).toBeVisible({
       timeout: 25_000,
@@ -47,7 +47,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
 
   test("TC-3.2 Выбор города сохраняется в localStorage", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
+    await page.goto("/map");
     const cityButton = page
       .locator("header")
       .getByRole("button")
@@ -71,7 +71,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
 
   test("TC-3.3 Фильтр: панель поиска и кнопка Поиск", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Карта");
     await page.getByRole("button", { name: "Настройки поиска" }).click();
     await expect(page.getByText("Поиск специалистов")).toBeVisible();
@@ -81,7 +81,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
 
   test("TC-3.5 Рекомендованные контакты в фильтрах", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Карта");
     await page.getByRole("button", { name: "Настройки поиска" }).click();
     await expect(page.getByText("Рекомендованные контакты")).toBeVisible();

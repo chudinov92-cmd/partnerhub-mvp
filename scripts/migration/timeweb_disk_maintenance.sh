@@ -38,8 +38,13 @@ cmd_diagnose() {
   df -h || true
 
   echo
-  echo "=== du top-level (depth 2 under /) — может занять время ==="
-  du -h --max-depth=2 / 2>/dev/null | sort -rh | head -35 || true
+  echo "=== du (только docker + /root/zeip — быстро, без полного скана /) ==="
+  for d in /var/lib/docker /root/zeip; do
+    if [[ -d "$d" ]]; then
+      echo "--- $d ---"
+      du -h --max-depth=2 "$d" 2>/dev/null | sort -rh | head -20 || true
+    fi
+  done
 
   echo
   echo "=== docker system df -v ==="
@@ -99,8 +104,14 @@ cmd_docker_prune() {
   echo "Running docker image prune -a -f ..."
   docker image prune -a -f
 
-  echo "Running docker builder prune -a -f ..."
-  docker builder prune -a -f
+  echo "Running docker builder prune -a -f (лог в /root/zeip/backups/daily/builder-prune.log) ..."
+  mkdir -p /root/zeip/backups/daily
+  if docker buildx prune -a -f >>/root/zeip/backups/daily/builder-prune.log 2>&1; then
+    :
+  else
+    docker builder prune -a -f >>/root/zeip/backups/daily/builder-prune.log 2>&1 || true
+  fi
+  tail -5 /root/zeip/backups/daily/builder-prune.log 2>/dev/null || true
 
   echo "=== после prune ==="
   docker system df 2>/dev/null || true

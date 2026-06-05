@@ -54,7 +54,7 @@ describeWithUser("Фаза 2: Профиль", () => {
 
   test("TC-2.5 Предупреждение без города/профессии", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Мои чаты");
     const hint = page.getByText(/заполните профиль|город|профессию|профил/i);
     await expect(hint.first()).toBeVisible({ timeout: 15_000 }).catch(() => {

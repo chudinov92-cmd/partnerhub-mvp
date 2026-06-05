@@ -3,16 +3,10 @@
 import { usePathname } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 
-/** Скрывает основную шапку приложения на маркетинговых страницах (например /about). */
+/** Скрывает основную шапку приложения на маркетинговой главной (/). */
 export function ConditionalTopBar() {
   const pathname = usePathname();
-  if (
-    pathname === "/about" ||
-    pathname === "/about2" ||
-    pathname === "/about3" ||
-    pathname === "/landing"
-  )
-    return null;
+  if (pathname === "/") return null;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
   return <TopBar />;
 }

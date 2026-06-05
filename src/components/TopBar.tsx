@@ -83,11 +83,11 @@ export function TopBar() {
 
   const openSupport = () => {
     setMenuOpen(false);
-    if (pathname === "/") {
+    if (pathname === "/map") {
       window.dispatchEvent(new CustomEvent(OPEN_SUPPORT_CHAT_EVENT));
       return;
     }
-    router.push("/?support=1");
+    router.push("/map?support=1");
   };
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -371,7 +371,7 @@ export function TopBar() {
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      router.push("/?contacts=1");
+                      router.push("/map?contacts=1");
                     }}
                     className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
                   >
@@ -401,7 +401,7 @@ export function TopBar() {
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      router.push("/about");
+                      router.push("/");
                     }}
                     className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
                   >

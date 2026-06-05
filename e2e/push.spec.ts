@@ -18,7 +18,7 @@ describeWithUser("Фаза 8: Push — UI", () => {
   });
 
   test("TC-8.1 Баннер или настройки Push на главной", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/map");
     const pushText = page.getByText(/уведомлен|push|сообщен/i);
     await expect(pushText.first())
       .toBeVisible({ timeout: 20_000 })

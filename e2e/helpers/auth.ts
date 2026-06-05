@@ -134,7 +134,7 @@ export async function loginViaUi(
 }
 
 export async function logoutViaTopBar(page: Page) {
-  await page.goto("/");
+  await page.goto("/map");
   await headerUserMenuButton(page).click();
   await page.getByRole("button", { name: "Выйти" }).click();
   await page.waitForURL(/\/auth/, { timeout: 15_000 });

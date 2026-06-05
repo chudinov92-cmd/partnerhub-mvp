@@ -35,7 +35,7 @@ test.describe("Фаза 12: Edge cases и безопасность", () => {
   });
 
   test("Health: главная и auth отдают HTML", async ({ request }) => {
-    for (const path of ["/", "/auth", "/landing"]) {
+    for (const path of ["/", "/map", "/auth"]) {
       const res = await request.get(path);
       expect(res.status(), `${baseURL}${path}`).toBe(200);
       const ct = res.headers()["content-type"] ?? "";

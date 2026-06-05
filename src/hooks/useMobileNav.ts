@@ -71,7 +71,7 @@ export function useMobileNav() {
   const handleMobileTab = (t: MobileMainTab) => {
     setMobileTab(t);
     if (t === "contacts") {
-      router.push("/?contacts=1");
+      router.push("/map?contacts=1");
       return;
     }
     if (contactsOnlyMode) resetContactsMode();

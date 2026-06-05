@@ -11,13 +11,13 @@ describeWithUser("Фаза 5: Личные сообщения", () => {
 
   test("TC-5.1 Вкладка «Мои чаты» открывается", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Мои чаты");
     await expect(page.locator("body")).not.toContainText("Application error");
   });
 
   test("TC-5.7 Поддержка: открытие из меню", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/map");
     await page
       .locator("header")
       .locator("button")

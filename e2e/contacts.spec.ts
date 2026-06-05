@@ -11,7 +11,7 @@ describeWithUser("Фаза 6: Контакты", () => {
 
   test("TC-6.1 Вкладка «Контакты» открывается", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Контакты");
     await expect(page.locator("body")).not.toContainText("Application error");
   });
@@ -20,7 +20,7 @@ describeWithUser("Фаза 6: Контакты", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/map");
     await openMobileTab(page, "Контакты");
     await expect(page.locator("body")).not.toContainText("Application error");
 

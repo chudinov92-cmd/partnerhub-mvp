@@ -544,7 +544,7 @@ export default function Home() {
       if (!next.has("support")) return;
       next.delete("support");
       const qs = next.toString();
-      router.replace(qs ? `/?${qs}` : "/");
+      router.replace(qs ? `/map?${qs}` : "/map");
     };
 
     const runFromQuery = async () => {

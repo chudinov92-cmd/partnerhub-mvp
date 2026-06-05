@@ -31,6 +31,21 @@ test.describe("Фаза 1: Аутентификация", () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test("TC-1.5b PKCE signup callback не редиректит на reset-password", async ({
+    page,
+  }) => {
+    await page.goto("/?code=fake-signup-code");
+    await page.waitForTimeout(500);
+    await expect(page).not.toHaveURL(/\/auth\/reset-password/);
+  });
+
+  test("TC-1.5c type=recovery редиректит на reset-password", async ({
+    page,
+  }) => {
+    await page.goto("/?type=recovery&code=fake-recovery-code");
+    await expect(page).toHaveURL(/\/auth\/reset-password\?type=recovery/);
+  });
+
   test("TC-1.6 Редирект из /admin без авторизации", async ({ page }) => {
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/auth\?redirect=%2Fadmin%2Fusers/);
