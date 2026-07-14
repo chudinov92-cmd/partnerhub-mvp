@@ -1,9 +1,10 @@
-FROM node:20-alpine AS deps
+# public.ecr.aws — зеркало Docker Hub без жёсткого rate limit (429 на VPS).
+FROM public.ecr.aws/docker/library/node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:20-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 # NEXT_PUBLIC_* вшиваются в клиент на этапе build — без этого env_file у контейнера не помогает.
@@ -19,7 +20,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM public.ecr.aws/docker/library/node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

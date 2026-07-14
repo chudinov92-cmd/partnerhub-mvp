@@ -31,6 +31,8 @@ run_sql_migration "${ROOT}/supabase/sql/2026-05-25-profession-demand-analytics.s
 run_sql_migration "${ROOT}/supabase/sql/2026-05-26-chat-members-last-read.sql" "chat-members-last-read"
 run_sql_migration "${ROOT}/supabase/sql/2026-06-02-add-engineering-professions.sql" "engineering-professions"
 run_sql_migration "${ROOT}/supabase/sql/2026-06-03-add-engineering-professions-batch2.sql" "engineering-professions-batch2"
+run_sql_migration "${ROOT}/docs/profile_views_content_version.sql" "profile-views-content-version"
+run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-public-read"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"
@@ -51,7 +53,17 @@ done
 
 echo "=== docker build (with .env.app) ==="
 cd "${ROOT}/deploy/timeweb"
-docker compose --env-file .env.app -f docker-compose.app.yml build --no-cache
+
+# --no-cache каждый раз тянет node:20-alpine с Docker Hub → 429 на VPS без login.
+# Кэш слоёв сохраняем; базовый образ не перекачиваем, если уже есть локально.
+PULL_POLICY="missing"
+if docker image inspect public.ecr.aws/docker/library/node:20-alpine >/dev/null 2>&1 || \
+   docker image inspect node:20-alpine >/dev/null 2>&1; then
+  PULL_POLICY="never"
+  echo "Базовый образ node:20-alpine уже локально — pull отключён"
+fi
+
+docker compose --env-file .env.app -f docker-compose.app.yml build --pull="${PULL_POLICY}"
 docker compose --env-file .env.app -f docker-compose.app.yml up -d
 
 echo "=== check /subscription ==="
