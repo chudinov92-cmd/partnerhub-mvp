@@ -461,9 +461,10 @@ export default function ProfilePage() {
           supabase
             .from("profile_work")
             .select(
-              "id, role_title, industry, industry_other, subindustry, experience_years",
+              "id, role_title, industry, industry_other, subindustry, experience_years, sort_order",
             )
             .eq("profile_id", prof.id)
+            .order("sort_order", { ascending: true })
             .order("created_at", { ascending: true }),
           supabase
             .from("locations")
@@ -686,7 +687,7 @@ export default function ProfilePage() {
             const hasExp = b.experience_years != null;
             return hasRole || hasIndustry || hasSub || hasExp;
           })
-          .map((b) => ({
+          .map((b, index) => ({
             profile_id: profile.id,
             role_title: maskProfanity(b.role_title),
             industry: b.industry,
@@ -694,6 +695,7 @@ export default function ProfilePage() {
               b.industry === "Другое" ? maskProfanity(b.industry_other) : null,
             subindustry: maskProfanity(b.subindustry),
             experience_years: b.experience_years,
+            sort_order: index,
           }));
         if (payload.length > 0) {
           await supabase.from("profile_work").insert(payload);

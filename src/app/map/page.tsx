@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { PartnerMapProps } from "@/components/PartnerMap";
-import { deleteBlock, insertBlock } from "@/services/contactService";
-import { fetchProfilesInterestedIn } from "@/services/profileService";
+import { deleteBlock, insertBlock, getEffectiveViewedProfileIds } from "@/services/contactService";
+import { fetchProfilesInterestedIn, getProfessionMatchIndex, profileMatchesProfession } from "@/services/profileService";
 import {
   formatChatListPreview,
   openOrEnsurePrivateChat,
@@ -375,6 +375,7 @@ export default function Home() {
   const [generalChatSearch, setGeneralChatSearch] = useState("");
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  const suppressChatOutsideCloseUntilRef = useRef(0);
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
     useState<Profile | null>(null);
@@ -407,12 +408,17 @@ export default function Home() {
 
   const {
     contactProfileIds,
-    viewedProfileIds,
+    viewedProfileStates,
     blockedProfileIds,
     setBlockedProfileIds,
     toggleContact,
     markProfileViewed,
   } = useContacts(currentUser);
+
+  const effectiveViewedProfileIds = useMemo(
+    () => getEffectiveViewedProfileIds(viewedProfileStates, profiles),
+    [viewedProfileStates, profiles],
+  );
 
   const { selectedCity, setSelectedCity } = useSelectedCity();
   const isRussiaChat = selectedCity === RUSSIA_LABEL;
@@ -706,7 +712,7 @@ export default function Home() {
         if (!contactProfileIds.includes(p.id)) return false;
       }
       if (feedFilters.profession) {
-        if ((p.role_title ?? null) !== feedFilters.profession) return false;
+        if (!profileMatchesProfession(p, feedFilters.profession)) return false;
       }
       if (feedFilters.industry) {
         if ((p.industry ?? null) !== feedFilters.industry) return false;
@@ -1170,6 +1176,21 @@ export default function Home() {
     }
   };
 
+  const handleWriteToProfile = async (profile: Profile) => {
+    setActiveProfileOverlay(null);
+
+    if (!currentUser) {
+      router.push(
+        `/auth?redirect=${encodeURIComponent(`/map?chat=${profile.id}`)}`,
+      );
+      return;
+    }
+
+    suppressChatOutsideCloseUntilRef.current = Date.now() + 400;
+    await openChatWithProfile(profile);
+    setMobileTab("my-chats");
+  };
+
   const openChatFromList = async (item: ChatListItem) => {
     await openChatWithProfile(item.profile);
     setUnreadByUser((prev) => ({ ...prev, [item.profile.id]: 0 }));
@@ -1342,6 +1363,7 @@ export default function Home() {
     if (!activeChatUser) return;
 
     const handleClick = (event: MouseEvent) => {
+      if (Date.now() < suppressChatOutsideCloseUntilRef.current) return;
       const target = event.target as HTMLElement | null;
       // Если открыт поп-ап профиля, взаимодействие с ним не должно закрывать чат
       if (target?.closest?.("[data-profile-card]")) return;
@@ -1353,6 +1375,7 @@ export default function Home() {
 
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (document.querySelector("[data-profile-card]")) return;
         closeChatWindow();
       }
     };
@@ -1387,6 +1410,7 @@ export default function Home() {
 
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
+  const hideMobileMainStack = isMobileLayout && !!activeChatUser;
 
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
@@ -1394,7 +1418,7 @@ export default function Home() {
         {/* Левая колонка: лента запросов, как список чата */}
         <section
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
-            mobileTab === "chat" ? "flex" : "hidden"
+            mobileTab === "chat" && !hideMobileMainStack ? "flex" : "hidden"
           } lg:flex`}
           style={
             keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined
@@ -1500,7 +1524,10 @@ export default function Home() {
                   const p = profiles.find((pr) => pr.id === post.author_id);
                   if (p) {
                     setActiveProfileOverlay(p);
-                    void markProfileViewed(p.id);
+                    void markProfileViewed(
+                      p.id,
+                      p.content_updated_at ?? new Date().toISOString(),
+                    );
                   }
                 };
 
@@ -1692,7 +1719,7 @@ export default function Home() {
         <section
           id="main-map"
           className={`flex h-full min-h-0 flex-1 flex-col bg-white lg:min-w-0 ${
-            mobileTab === "map" ? "flex" : "hidden"
+            mobileTab === "map" && !hideMobileMainStack ? "flex" : "hidden"
           } lg:flex`}
         >
           <div ref={mapContainerRef} className="relative min-h-0 flex-1">
@@ -2098,18 +2125,23 @@ export default function Home() {
               ) : (
                 <PartnerMap
                   profiles={filteredProfilesForMap}
+                  professionFilter={feedFilters.profession}
                   contactProfileIds={contactProfileIds}
-                  viewedProfileIds={viewedProfileIds}
+                  viewedProfileIds={effectiveViewedProfileIds}
                   focusedProfileId={focusedProfileId}
                   currentUserProfileId={currentUser?.profileId ?? null}
-                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${profiles.length}`}
+                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${profiles.length}`}
                   center={mapConfig.center}
                   zoom={mapConfig.zoom}
                   onOpenProfile={(p) => {
                     const full = profiles.find((x) => x.id === p.id) ?? null;
                     setActiveProfileOverlay(full);
                     setFocusedProfileId(null);
-                    if (full) void markProfileViewed(full.id);
+                    if (full)
+                      void markProfileViewed(
+                        full.id,
+                        full.content_updated_at ?? new Date().toISOString(),
+                      );
                   }}
                   onOpenChat={(profileId) => {
                     const p = profiles.find((pr) => pr.id === profileId);
@@ -2129,13 +2161,22 @@ export default function Home() {
                     Профили
                   </p>
                   <p className="text-xs text-slate-500">
-                    Сортировка: Pro выше, затем рейтинг
+                    {feedFilters.profession
+                      ? "Сортировка: сначала основная профессия, затем доп., затем Pro и рейтинг"
+                      : "Сортировка: Pro выше, затем рейтинг"}
                   </p>
                 </div>
                 <div className="space-y-2 p-3">
                   {filteredProfilesForMap
                     .slice()
                     .sort((a, b) => {
+                      if (feedFilters.profession) {
+                        const aSlot = getProfessionMatchIndex(a, feedFilters.profession);
+                        const bSlot = getProfessionMatchIndex(b, feedFilters.profession);
+                        if (aSlot != null && bSlot != null && aSlot !== bSlot) {
+                          return aSlot - bSlot;
+                        }
+                      }
                       const aPro = Number(isActiveProProfile(a));
                       const bPro = Number(isActiveProProfile(b));
                       if (bPro !== aPro) return bPro - aPro;
@@ -2147,6 +2188,17 @@ export default function Home() {
                       const industry = (p.industry ?? "").trim();
                       const sub = (p.subindustry ?? "").trim();
                       const role = (p.role_title ?? "").trim();
+                      const professionMatchIndex = feedFilters.profession
+                        ? getProfessionMatchIndex(p, feedFilters.profession)
+                        : null;
+                      const matchedProfession =
+                        professionMatchIndex != null && professionMatchIndex > 0
+                          ? feedFilters.profession
+                          : null;
+                      const roleBadge =
+                        professionMatchIndex != null && professionMatchIndex > 0
+                          ? matchedProfession
+                          : role;
                       const age =
                         typeof (p as any).age === "number" ? (p as any).age : null;
                       return (
@@ -2156,7 +2208,10 @@ export default function Home() {
                           onClick={() => {
                             setActiveProfileOverlay(p);
                             setFocusedProfileId(null);
-                            void markProfileViewed(p.id);
+                            void markProfileViewed(
+                      p.id,
+                      p.content_updated_at ?? new Date().toISOString(),
+                    );
                           }}
                           className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                         >
@@ -2181,9 +2236,15 @@ export default function Home() {
                               </div>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5">
-                              {role ? (
-                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
-                                  {role}
+                              {roleBadge ? (
+                                <span
+                                  className={`rounded-md px-2 py-0.5 text-[11px] ${
+                                    professionMatchIndex != null && professionMatchIndex > 0
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {roleBadge}
                                 </span>
                               ) : null}
                               {industry ? (
@@ -2210,7 +2271,7 @@ export default function Home() {
         {/* Правая колонка: список чатов / специалистов */}
         <aside
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-l lg:border-gray-200 ${
-            showChatsColumn ? "flex" : "hidden"
+            showChatsColumn && !hideMobileMainStack ? "flex" : "hidden"
           } lg:flex`}
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
@@ -2297,7 +2358,11 @@ export default function Home() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setActiveProfileOverlay(item.profile);
-                            void markProfileViewed(item.profile.id);
+                            void markProfileViewed(
+                              item.profile.id,
+                              item.profile.content_updated_at ??
+                                new Date().toISOString(),
+                            );
                           }}
                           className="truncate text-left font-medium text-slate-900 hover:text-emerald-600"
                         >
@@ -2333,7 +2398,8 @@ export default function Home() {
         {activeChatUser && (
           <div
             ref={chatWindowRef}
-            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-16 lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[380px] lg:w-[min(100vw-1rem,24rem)] lg:max-w-sm lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
+            data-chat-window
+            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,4.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
             style={
               isMobileLayout
                 ? {
@@ -2367,10 +2433,19 @@ export default function Home() {
                 ) : (
                   <button
                     type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.preventDefault();
-                      setActiveProfileOverlay(activeChatUser);
-                      void markProfileViewed(activeChatUser.id);
+                      e.stopPropagation();
+                      const fullProfile =
+                        profiles.find((p) => p.id === activeChatUser.id) ??
+                        activeChatUser;
+                      setActiveProfileOverlay(fullProfile);
+                      void markProfileViewed(
+                        fullProfile.id,
+                        fullProfile.content_updated_at ??
+                          new Date().toISOString(),
+                      );
                     }}
                     title={
                       isOnline(activeChatUser.last_seen_at ?? null)
@@ -2414,7 +2489,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]">
               <div
                 ref={chatScrollRef}
                 className="mb-2 min-h-0 flex-1 overflow-y-auto space-y-2"
@@ -2527,7 +2602,9 @@ export default function Home() {
                       }}
                       placeholder="Кратко опишите суть"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                      onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                      onFocus={(e) => {
+                        if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
+                      }}
                     />
                     {supportFieldErrors.subject ? (
                       <p className="mt-1 text-[11px] text-red-600">
@@ -2548,10 +2625,12 @@ export default function Home() {
                           description: undefined,
                         }));
                       }}
-                      rows={isMobileLayout ? 3 : 4}
+                      rows={isMobileLayout ? 3 : 2}
                       placeholder="Подробности, шаги, что ожидали увидеть"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                      onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                      onFocus={(e) => {
+                        if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
+                      }}
                     />
                     {supportFieldErrors.description ? (
                       <p className="mt-1 text-[11px] text-red-600">
@@ -2592,10 +2671,12 @@ export default function Home() {
                     onChange={(e) =>
                       setChatInput(e.target.value.slice(0, 1000))
                     }
-                    rows={isMobileLayout ? 2 : 4}
+                    rows={2}
                     placeholder="Напишите сообщение…"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                    onFocus={(e) => scrollComposerIntoView(e.currentTarget)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20 lg:min-h-[2.75rem] lg:max-h-[5rem] lg:resize-none"
+                    onFocus={(e) => {
+                      if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -2649,18 +2730,10 @@ export default function Home() {
           <ProfilePreviewCard
             rootDataAttr
             variant="floating"
+            className={activeChatUser ? "!z-[1700]" : undefined}
             profile={activeProfileOverlay}
             online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
             viewerProfileId={currentUser?.profileId ?? null}
-            style={{
-              left: "50%",
-              // Keep the popup fully visible between TopBar and bottom nav (3.5rem) on mobile.
-              top:
-                "calc(var(--zeip-topbar-height, 4.5rem) + env(safe-area-inset-top, 0px) + 8px)",
-              transform: "translateX(-50%)",
-              maxHeight:
-                "calc(100vh - var(--zeip-topbar-height, 4.5rem) - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px)",
-            }}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}
             onShowOnMap={() => {
@@ -2679,8 +2752,7 @@ export default function Home() {
               setMobileTab("map");
             }}
             onWrite={() => {
-              openChatWithProfile(activeProfileOverlay);
-              setActiveProfileOverlay(null);
+              void handleWriteToProfile(activeProfileOverlay);
             }}
             showContactButton={
               !!currentUser?.profileId &&
@@ -2698,11 +2770,13 @@ export default function Home() {
           />
         )}
       </main>
-      <MainMobileNav
-        activeTab={mobileTab}
-        onTabChange={handleMobileTab}
-        unreadChatsCount={unreadChatsTotal}
-      />
+      {!hideMobileMainStack ? (
+        <MainMobileNav
+          activeTab={mobileTab}
+          onTabChange={handleMobileTab}
+          unreadChatsCount={unreadChatsTotal}
+        />
+      ) : null}
     </div>
   );
 }

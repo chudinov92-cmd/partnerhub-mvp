@@ -10,6 +10,15 @@ export type Post = {
   author: unknown;
 };
 
+export type ProfileWorkBlock = {
+  id?: string;
+  role_title: string | null;
+  industry: string | null;
+  subindustry: string | null;
+  experience_years: number | null;
+  sort_order?: number;
+};
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -18,6 +27,8 @@ export type Profile = {
   rating_avg: number | null;
   rating_count: number | null;
   last_seen_at?: string | null;
+  /** Версия контента формы /profile + profile_work; для сброса «просмотренного» пина. */
+  content_updated_at?: string | null;
   skills?: string | null;
   resources?: string | null;
   industry?: string | null;
@@ -28,6 +39,7 @@ export type Profile = {
   interested_in?: string | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  work_blocks?: ProfileWorkBlock[];
 };
 
 export type FeedFilters = {

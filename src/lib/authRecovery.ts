@@ -36,6 +36,32 @@ export function recoveryCallbackPendingInUrl(): boolean {
   return recoveryTypeInUrl(window.location.search, window.location.hash);
 }
 
+const PASSWORD_RESET_COMPLETE_KEY = "zeip_password_reset_complete";
+const PASSWORD_RESET_COMPLETE_TTL_MS = 5 * 60 * 1000;
+
+/** После успешной смены пароля JWT может ещё содержать amr recovery — не редиректим обратно. */
+export function markPasswordResetComplete(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(PASSWORD_RESET_COMPLETE_KEY, String(Date.now()));
+}
+
+export function isPasswordResetComplete(): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = sessionStorage.getItem(PASSWORD_RESET_COMPLETE_KEY);
+  if (!raw) return false;
+  const ts = Number(raw);
+  if (!Number.isFinite(ts) || Date.now() - ts > PASSWORD_RESET_COMPLETE_TTL_MS) {
+    sessionStorage.removeItem(PASSWORD_RESET_COMPLETE_KEY);
+    return false;
+  }
+  return true;
+}
+
+export function clearPasswordResetComplete(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(PASSWORD_RESET_COMPLETE_KEY);
+}
+
 export function isPasswordRecoverySession(session: Session | null): boolean {
   if (!session?.user || !session.access_token) return false;
   // recovery_sent_at — только факт отправки письма; не активная recovery-сессия.

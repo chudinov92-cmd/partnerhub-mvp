@@ -6,16 +6,18 @@ import {
   deleteContact,
   fetchBlockedProfileIds,
   fetchContactProfileIds,
-  fetchViewedProfileIds,
+  fetchViewedProfileStates,
   insertContact,
-  insertProfileView,
+  upsertProfileView,
 } from "@/services/contactService";
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 
 /** Контакты, просмотры, список блокировок (мутации блока остаются в page — там side-effects чата). */
 export function useContacts(currentUser: CurrentUser | null) {
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
-  const [viewedProfileIds, setViewedProfileIds] = useState<string[]>([]);
+  const [viewedProfileStates, setViewedProfileStates] = useState<
+    Record<string, string>
+  >({});
   const [blockedProfileIds, setBlockedProfileIds] = useState<string[]>([]);
 
   const profileId = currentUser?.profileId;
@@ -43,19 +45,19 @@ export function useContacts(currentUser: CurrentUser | null) {
 
   useEffect(() => {
     if (!profileId) {
-      setViewedProfileIds([]);
+      setViewedProfileStates({});
       return;
     }
     let alive = true;
-    fetchViewedProfileIds(profileId)
-      .then((ids) => {
+    fetchViewedProfileStates(profileId)
+      .then((states) => {
         if (!alive) return;
-        setViewedProfileIds(ids);
+        setViewedProfileStates(states);
       })
       .catch((error) => {
         if (!alive) return;
         console.error("Failed to load views", error);
-        setViewedProfileIds([]);
+        setViewedProfileStates({});
       });
     return () => {
       alive = false;
@@ -108,24 +110,36 @@ export function useContacts(currentUser: CurrentUser | null) {
     }
   };
 
-  const markProfileViewed = async (pid: string) => {
+  const markProfileViewed = async (pid: string, contentUpdatedAt: string) => {
     if (!profileId) return;
     if (pid === profileId) return;
-    if (viewedProfileIds.includes(pid)) return;
 
-    setViewedProfileIds((prev) => [...prev, pid]);
+    const previous = viewedProfileStates[pid];
+    setViewedProfileStates((prev) => ({
+      ...prev,
+      [pid]: contentUpdatedAt,
+    }));
+
     try {
-      await insertProfileView(profileId, pid);
+      await upsertProfileView(profileId, pid, contentUpdatedAt);
     } catch (e) {
       console.error("Failed to mark profile viewed", e);
-      setViewedProfileIds((prev) => prev.filter((x) => x !== pid));
+      setViewedProfileStates((prev) => {
+        const next = { ...prev };
+        if (previous != null) {
+          next[pid] = previous;
+        } else {
+          delete next[pid];
+        }
+        return next;
+      });
     }
   };
 
   return {
     contactProfileIds,
     setContactProfileIds,
-    viewedProfileIds,
+    viewedProfileStates,
     blockedProfileIds,
     setBlockedProfileIds,
     toggleContact,

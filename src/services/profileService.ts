@@ -1,19 +1,70 @@
 "use client";
 
 import { supabase, supabasePublic } from "@/lib/supabaseClient";
-import type { Profile } from "@/types";
+import type { Profile, ProfileWorkBlock } from "@/types";
+
+type ProfileMapRow = Profile & {
+  profile_work?: ProfileWorkBlock[] | null;
+};
+
+function normalizeWorkBlocks(
+  blocks: ProfileWorkBlock[] | null | undefined,
+): ProfileWorkBlock[] {
+  return (blocks ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((block) => ({
+      id: block.id,
+      role_title: block.role_title ?? null,
+      industry: block.industry ?? null,
+      subindustry: block.subindustry ?? null,
+      experience_years: block.experience_years ?? null,
+      sort_order: block.sort_order ?? 0,
+    }));
+}
+
+function normalizeMapProfile(row: ProfileMapRow): Profile {
+  const { profile_work, ...rest } = row;
+  return {
+    ...rest,
+    work_blocks: normalizeWorkBlocks(profile_work),
+  };
+}
+
+export function getProfessionMatchIndex(
+  profile: Pick<Profile, "role_title" | "work_blocks">,
+  profession: string,
+): number | null {
+  const target = profession.trim();
+  if (!target) return null;
+
+  if ((profile.role_title ?? "").trim() === target) return 0;
+
+  const extras = profile.work_blocks ?? [];
+  for (let i = 0; i < extras.length; i++) {
+    if ((extras[i].role_title ?? "").trim() === target) return i + 1;
+  }
+  return null;
+}
+
+export function profileMatchesProfession(
+  profile: Pick<Profile, "role_title" | "work_blocks">,
+  profession: string,
+): boolean {
+  return getProfessionMatchIndex(profile, profession) !== null;
+}
 
 export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
   const { data, error } = await supabasePublic
     .from("profiles")
-    .select(PROFILE_MAP_SELECT)
+    .select(`${PROFILE_MAP_SELECT}, profile_work(id, role_title, industry, subindustry, experience_years, sort_order)`)
     .limit(limit);
   if (error) throw error;
-  return (data ?? []) as Profile[];
+  return ((data ?? []) as ProfileMapRow[]).map(normalizeMapProfile);
 }
 
 const PROFILE_MAP_SELECT =
-  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at";
+  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at";
 
 export type CurrentProfileRow = {
   id: string;

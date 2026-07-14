@@ -285,7 +285,7 @@ export function TopBar() {
       <div className="grid min-h-14 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 md:px-4">
       <div className="flex min-w-0 max-w-[min(100%,11rem)] flex-col gap-0.5 justify-self-start">
         <Link
-          href="/"
+          href="/map"
           className="flex min-w-0 items-center gap-2"
         >
           <Image

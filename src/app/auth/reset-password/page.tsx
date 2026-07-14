@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   isPasswordRecoverySession,
+  markPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
@@ -24,6 +25,12 @@ function getAuthErrorMessage(err: unknown) {
         "Запросите новое письмо на https://zeip.ru/auth в Safari и откройте ссылку там же " +
         "(не в превью Telegram)."
       );
+    }
+    if (/new password should be different from the old password/i.test(raw)) {
+      return "Новый пароль должен отличаться от текущего.";
+    }
+    if (/password should be at least/i.test(raw)) {
+      return "Пароль должен быть не короче 6 символов.";
     }
     if (raw) return raw;
   }
@@ -130,10 +137,30 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
+      const {
+        data: { session: sessionBefore },
+      } = await supabase.auth.getSession();
+      const email = sessionBefore?.user?.email ?? null;
+
       const { error: updErr } = await supabase.auth.updateUser({
         password,
       });
       if (updErr) throw updErr;
+
+      await supabase.auth.refreshSession();
+      const {
+        data: { session: sessionAfterRefresh },
+      } = await supabase.auth.getSession();
+
+      if (isPasswordRecoverySession(sessionAfterRefresh) && email) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInErr) throw signInErr;
+      }
+
+      markPasswordResetComplete();
       setInfo("Пароль обновлён. Переходим на главную…");
       await new Promise((r) => setTimeout(r, 400));
       router.replace("/map");

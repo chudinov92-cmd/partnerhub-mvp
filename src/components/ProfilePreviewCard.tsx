@@ -20,7 +20,23 @@ export type ProfilePreviewData = {
   resources?: string | null;
   interested_in?: string | null;
   rating_count?: number | null;
+  work_blocks?: {
+    id?: string;
+    role_title: string | null;
+    industry: string | null;
+    subindustry: string | null;
+    experience_years: number | null;
+    sort_order?: number;
+  }[];
 };
+
+function isWorkBlockVisible(block: NonNullable<ProfilePreviewData["work_blocks"]>[number]) {
+  return !!(
+    block.role_title?.trim() ||
+    block.industry?.trim() ||
+    block.subindustry?.trim()
+  );
+}
 
 function splitToBulletItems(text: string | null | undefined): string[] {
   if (!text?.trim()) return [];
@@ -148,6 +164,10 @@ function IconLockOpen({ className }: { className?: string }) {
 
 const AVATAR_FALLBACK_BG = "#374151";
 
+function isInsideScrollBody(target: EventTarget | null) {
+  return target instanceof Element && target.closest("[data-profile-scroll-body]");
+}
+
 type ProfilePreviewCardProps = {
   profile: ProfilePreviewData;
   online: boolean;
@@ -202,6 +222,8 @@ export function ProfilePreviewCard({
   const resourceItems = splitToBulletItems(profile.resources);
   const interestedItems = splitToBulletItems(profile.interested_in);
   const hasIndustryBlock = !!(profile.industry?.trim() || profile.subindustry?.trim());
+  const extraWorkBlocks = (profile.work_blocks ?? []).filter(isWorkBlockVisible);
+  const hasExtraWorkBlocks = extraWorkBlocks.length > 0;
   const rating = profile.rating_count ?? 0;
   const showRating = rating > 0;
 
@@ -217,7 +239,7 @@ export function ProfilePreviewCard({
 
   const rootClass =
     variant === "floating"
-      ? `fixed z-[1300] w-[min(100vw-1rem,32rem)] max-h-[min(90vh,640px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${className}`
+      ? `zeip-profile-preview-floating fixed z-[1450] flex min-h-0 w-[min(100vw-1rem,32rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${className}`
       : `max-h-[min(70vh,32rem)] box-border w-full min-w-0 overflow-hidden rounded-xl bg-white ${className}`;
 
   const canLike = useMemo(() => {
@@ -293,13 +315,22 @@ export function ProfilePreviewCard({
       className={rootClass}
       style={style}
       // Prevent Leaflet from panning/zooming when user scrolls the popup.
-      onWheelCapture={(e) => e.stopPropagation()}
+      onWheelCapture={(e) => {
+        if (isInsideScrollBody(e.target)) return;
+        e.stopPropagation();
+      }}
       onTouchStartCapture={(e) => e.stopPropagation()}
-      onTouchMoveCapture={(e) => e.stopPropagation()}
+      onTouchMoveCapture={(e) => {
+        if (isInsideScrollBody(e.target)) return;
+        e.stopPropagation();
+      }}
       onPointerDownCapture={(e) => e.stopPropagation()}
-      onPointerMoveCapture={(e) => e.stopPropagation()}
+      onPointerMoveCapture={(e) => {
+        if (isInsideScrollBody(e.target)) return;
+        e.stopPropagation();
+      }}
     >
-      <div className="flex max-h-[inherit] w-full min-w-0 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
         <div
           className={`relative w-full min-w-0 shrink-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 text-white ${headerPad}`}
         >
@@ -313,33 +344,6 @@ export function ProfilePreviewCard({
               <IconX className="h-5 w-5" />
             </button>
           ) : null}
-
-          <button
-            type="button"
-            onClick={toggleLike}
-            disabled={!canLike || likesLoading}
-            className={`absolute right-12 top-1/2 z-10 inline-flex min-h-9 -translate-y-1/2 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-60 ${
-              likedByMe ? "bg-emerald-400/20 text-emerald-50 hover:bg-emerald-400/25" : "bg-white/10 text-white hover:bg-white/15"
-            }`}
-            aria-pressed={likedByMe}
-            aria-label={likedByMe ? "Убрать лайк" : "Поставить лайк"}
-            title={
-              !viewerProfileId
-                ? "Войдите, чтобы ставить лайки"
-                : viewerProfileId === profile.id
-                  ? "Нельзя лайкнуть себя"
-                  : likedByMe
-                    ? "Убрать лайк"
-                    : "Поставить лайк"
-            }
-          >
-            <IconThumbUp
-              className={`h-5 w-5 ${likedByMe ? "text-emerald-200" : "text-white"}`}
-            />
-            <span className="tabular-nums">
-              {likesLoading ? "…" : likesCount ?? "—"}
-            </span>
-          </button>
 
           <div className="flex items-start gap-3 sm:gap-4">
             <div
@@ -365,38 +369,74 @@ export function ProfilePreviewCard({
                   <button
                     type="button"
                     onClick={() => onFilterProfession(profile.role_title as string)}
-                    className="mb-3 inline-flex min-h-9 max-w-full items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-left text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/25 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                    className="mb-2 inline-flex min-h-9 max-w-full items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-left text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/25 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
                     title="Показать на карте специалистов этой профессии"
                   >
                     <span className="truncate">{profile.role_title}</span>
                   </button>
                 ) : (
-                  <span className="mb-3 inline-flex min-h-9 items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
-                    {profile.role_title}
+                  <span className="mb-2 inline-flex min-h-9 max-w-full items-center rounded-lg bg-white/20 px-3.5 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+                    <span className="truncate">{profile.role_title}</span>
                   </span>
                 )
               ) : null}
 
-              <div className="mt-1 flex items-center gap-1.5 text-sm text-white/90">
-                <IconMapPin className="h-4 w-4 shrink-0" />
-                {onShowOnMap ? (
-                  <button
-                    type="button"
-                    onClick={onShowOnMap}
-                    className="truncate text-left underline-offset-2 hover:underline"
-                    title="Показать на карте"
-                  >
-                    {profile.city?.trim() || "Город не указан"}
-                  </button>
-                ) : (
-                  <span>{profile.city?.trim() || "Город не указан"}</span>
-                )}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-white/90">
+                  <IconMapPin className="h-4 w-4 shrink-0" />
+                  {onShowOnMap ? (
+                    <button
+                      type="button"
+                      onClick={onShowOnMap}
+                      className="truncate text-left underline-offset-2 hover:underline"
+                      title="Показать на карте"
+                    >
+                      {profile.city?.trim() || "Город не указан"}
+                    </button>
+                  ) : (
+                    <span className="truncate">
+                      {profile.city?.trim() || "Город не указан"}
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleLike}
+                  disabled={!canLike || likesLoading}
+                  className={`inline-flex shrink-0 min-h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    likedByMe
+                      ? "bg-emerald-400/20 text-emerald-50 hover:bg-emerald-400/25"
+                      : "bg-white/10 text-white hover:bg-white/15"
+                  }`}
+                  aria-pressed={likedByMe}
+                  aria-label={likedByMe ? "Убрать лайк" : "Поставить лайк"}
+                  title={
+                    !viewerProfileId
+                      ? "Войдите, чтобы ставить лайки"
+                      : viewerProfileId === profile.id
+                        ? "Нельзя лайкнуть себя"
+                        : likedByMe
+                          ? "Убрать лайк"
+                          : "Поставить лайк"
+                  }
+                >
+                  <IconThumbUp
+                    className={`h-5 w-5 ${likedByMe ? "text-emerald-200" : "text-white"}`}
+                  />
+                  <span className="tabular-nums">
+                    {likesLoading ? "…" : likesCount ?? "—"}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className={`min-h-0 w-full min-w-0 flex-1 overflow-y-auto ${bodyPad}`}>
+        <div
+          data-profile-scroll-body
+          className={`min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y] ${bodyPad}`}
+        >
           {hasIndustryBlock ? (
             <div className="space-y-2">
               <div className={`flex items-center gap-2 text-slate-900 ${sectionTitle}`}>
@@ -414,6 +454,56 @@ export function ProfilePreviewCard({
                   <p className={bodyText}>{profile.subindustry}</p>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          {hasExtraWorkBlocks ? (
+            <div className="space-y-3">
+              <div className={`flex items-center gap-2 text-slate-900 ${sectionTitle}`}>
+                <IconBriefcase className="h-4 w-4 shrink-0" />
+                <h3>Дополнительные профессии</h3>
+              </div>
+              <div className="space-y-3 pl-6">
+                {extraWorkBlocks.map((block, index) => {
+                  const profession = block.role_title?.trim() || null;
+                  const industry = block.industry?.trim() || null;
+                  const subindustry = block.subindustry?.trim() || null;
+
+                  return (
+                    <div
+                      key={block.id ?? `work-${index}`}
+                      className={`space-y-1.5 ${bodyText}`}
+                    >
+                      {profession ? (
+                        onFilterProfession ? (
+                          <button
+                            type="button"
+                            onClick={() => onFilterProfession(profession)}
+                            className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2.5 py-1 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-200 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                            title="Показать на карте специалистов этой профессии"
+                          >
+                            <span className="truncate">{profession}</span>
+                          </button>
+                        ) : (
+                          <p className="text-sm font-semibold text-slate-900">{profession}</p>
+                        )
+                      ) : null}
+                      {industry ? (
+                        <p>
+                          <span className="text-gray-500">Отрасль: </span>
+                          {industry}
+                        </p>
+                      ) : null}
+                      {subindustry ? (
+                        <p>
+                          <span className="text-gray-500">Подотрасль: </span>
+                          {subindustry}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 

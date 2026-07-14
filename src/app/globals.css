@@ -8,6 +8,7 @@
     "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
+  --zeip-mobile-nav-height: 3.5rem;
 }
 
 @theme inline {
@@ -32,10 +33,47 @@ body {
 
 /**
  * Высота TopBar (две строки слева: логотип + счётчик полезных контактов).
- * Синхронизировать с popup карты в page.tsx.
+ * Синхронизировать с `.zeip-profile-preview-floating` в globals.css.
  */
 .zeip-topbar {
   --zeip-topbar-height: 4.5rem;
+}
+
+/**
+ * Плавающий попап профиля на карте: между TopBar и нижней навигацией на мобилке.
+ * z-index выше MainMobileNav (1400), ниже TopBar (1500).
+ */
+.zeip-profile-preview-floating {
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--zeip-topbar-height, 4.5rem) + env(safe-area-inset-top, 0px) + 8px);
+  max-height: calc(
+    100vh
+    - var(--zeip-topbar-height, 4.5rem)
+    - env(safe-area-inset-top, 0px)
+    - var(--zeip-mobile-nav-height, 3.5rem)
+    - env(safe-area-inset-bottom, 0px)
+    - 16px
+  );
+}
+
+@supports (height: 100dvh) {
+  .zeip-profile-preview-floating {
+    max-height: calc(
+      100dvh
+      - var(--zeip-topbar-height, 4.5rem)
+      - env(safe-area-inset-top, 0px)
+      - var(--zeip-mobile-nav-height, 3.5rem)
+      - env(safe-area-inset-bottom, 0px)
+      - 16px
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .zeip-profile-preview-floating {
+    max-height: min(90dvh, 640px);
+  }
 }
 
 /**

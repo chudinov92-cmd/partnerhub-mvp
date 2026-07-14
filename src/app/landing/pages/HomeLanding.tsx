@@ -90,7 +90,7 @@ export function HomeLanding() {
         <Mechanics
           title="Механика"
           items={[
-            { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Напиши о себе и расскажи, кто тебе нужен" },
+            { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Заполни профиль" },
             { iconSrc: assets.mechanics.map, title: "Открой карту", text: "Найди нужных экспертов" },
             { iconSrc: assets.mechanics.send, title: "Начни строить", text: "Напиши и реши свою задачу уже сегодня" },
           ]}

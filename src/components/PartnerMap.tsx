@@ -11,7 +11,7 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
-import { fetchActiveLocations } from "@/services/profileService";
+import { fetchActiveLocations, getProfessionMatchIndex } from "@/services/profileService";
 import {
   isActiveProProfile,
   PRO_PIN_COLOR,
@@ -180,6 +180,8 @@ export type PartnerMapProps = {
   currentUserProfileId?: string | null;
   center?: LatLngExpression;
   zoom?: number;
+  /** Активный фильтр по профессии — приоритет пинов по слоту совпадения */
+  professionFilter?: string | null;
   profiles: {
     id: string;
     full_name: string | null;
@@ -194,6 +196,13 @@ export type PartnerMapProps = {
     resources?: string | null;
     is_pro?: boolean | null;
     pro_expires_at?: string | null;
+    work_blocks?: {
+      role_title: string | null;
+      industry: string | null;
+      subindustry: string | null;
+      experience_years: number | null;
+      sort_order?: number;
+    }[];
   }[];
 };
 
@@ -265,6 +274,7 @@ export function PartnerMap({
   profiles,
   center,
   zoom,
+  professionFilter,
 }: PartnerMapProps) {
   const [points, setPoints] = useState<LocationPoint[]>([]);
   const pinIconCacheRef = useRef(new Map<string, L.DivIcon>());
@@ -353,6 +363,9 @@ export function PartnerMap({
         const isFocused =
           focusedProfileId != null && focusedProfileId === profile.id;
         const isPro = isActiveProProfile(profile);
+        const professionMatchIndex = professionFilter
+          ? getProfessionMatchIndex(profile, professionFilter)
+          : null;
 
         return {
           pt,
@@ -362,6 +375,7 @@ export function PartnerMap({
           rating,
           isFocused,
           isPro,
+          professionMatchIndex,
         };
       })
       .filter(Boolean) as {
@@ -372,12 +386,21 @@ export function PartnerMap({
       rating: number;
       isFocused: boolean;
       isPro: boolean;
+      professionMatchIndex: number | null;
     }[];
 
     rows.sort((a, b) => {
       // Фокусированный всегда выше остальных.
       const f = Number(b.isFocused) - Number(a.isFocused);
       if (f !== 0) return f;
+
+      if (professionFilter) {
+        const aSlot = a.professionMatchIndex;
+        const bSlot = b.professionMatchIndex;
+        if (aSlot != null && bSlot != null && aSlot !== bSlot) {
+          return aSlot - bSlot;
+        }
+      }
 
       // Pro выше Free (внутри группы — по рейтингу).
       const proRank = Number(b.isPro) - Number(a.isPro);
@@ -396,7 +419,7 @@ export function PartnerMap({
     });
 
     return rows;
-  }, [points, profileById, viewedSet, focusedProfileId, currentUserProfileId]);
+  }, [points, profileById, viewedSet, focusedProfileId, currentUserProfileId, professionFilter]);
 
   return (
     <div className="h-full min-h-0 w-full overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
@@ -420,7 +443,7 @@ export function PartnerMap({
           )}-${points.length}-${(contactProfileIds ?? []).length}`}
         />
 
-        {sortedPoints.map(({ pt: p, profile, isOwn, isViewed, rating, isFocused, isPro }, idx) => {
+        {sortedPoints.map(({ pt: p, profile, isOwn, isViewed, rating, isFocused, isPro, professionMatchIndex }, idx) => {
           const online = isOnline(profile?.last_seen_at ?? null);
           const initial = pinInitial(profile?.full_name);
           const pinFill = !isOwn && isPro ? PRO_PIN_COLOR : PIN_FILL_COLOR;
@@ -461,8 +484,13 @@ export function PartnerMap({
           const viewedBoost = isViewed ? 0 : 1_000_000;
           const focusedBoost = isFocused ? 2_000_000 : 0;
           const ownBoost = isOwn ? 100_000 : 0;
+          const professionBoost =
+            professionFilter && professionMatchIndex != null
+              ? (10 - professionMatchIndex) * 300_000
+              : 0;
           const zIndexOffset =
             focusedBoost +
+            professionBoost +
             proBoost +
             viewedBoost +
             ownBoost +

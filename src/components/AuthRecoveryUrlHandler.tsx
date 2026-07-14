@@ -2,7 +2,9 @@
 
 import { useEffect, useLayoutEffect } from "react";
 import {
+  clearPasswordResetComplete,
   isPasswordRecoverySession,
+  isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
@@ -18,6 +20,7 @@ function resetPasswordTarget(): string {
 function redirectToResetPasswordIfNeeded(reason: string) {
   const pathname = window.location.pathname;
   if (pathname === "/auth/reset-password") return;
+  if (isPasswordResetComplete()) return;
   const pending = recoveryCallbackPendingInUrl();
   if (!pending && reason !== "session_recovery" && reason !== "PASSWORD_RECOVERY") {
     return;
@@ -45,10 +48,14 @@ export function AuthRecoveryUrlHandler() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && !isPasswordRecoverySession(session)) {
+        clearPasswordResetComplete();
+      }
       if (event === "PASSWORD_RECOVERY") {
         goResetPassword("PASSWORD_RECOVERY");
         return;
       }
+      if (isPasswordResetComplete()) return;
       if (
         (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
         isPasswordRecoverySession(session) &&

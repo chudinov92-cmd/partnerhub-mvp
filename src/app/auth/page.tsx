@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   isPasswordRecoverySession,
+  isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
@@ -254,7 +255,7 @@ export default function AuthPage() {
         AUTH_OPERATION_TIMEOUT_MS,
       );
       if (!session?.user) return;
-      if (isPasswordRecoverySession(session)) {
+      if (isPasswordRecoverySession(session) && !isPasswordResetComplete()) {
         router.replace("/auth/reset-password");
         return;
       }
