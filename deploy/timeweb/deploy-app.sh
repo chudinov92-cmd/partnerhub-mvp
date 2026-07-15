@@ -9,7 +9,16 @@ COMPOSE_FILE="${ROOT}/deploy/timeweb/docker-compose.app.yml"
 
 cd "${ROOT}"
 echo "=== git pull ==="
-git pull
+OLD_HEAD="$(git rev-parse HEAD)"
+git pull --ff-only
+NEW_HEAD="$(git rev-parse HEAD)"
+
+# Bash уже прочитал этот файл до pull — после обновления перезапускаем скрипт.
+if [[ "${OLD_HEAD}" != "${NEW_HEAD}" ]] && [[ -z "${ZEIP_DEPLOY_REEXEC:-}" ]]; then
+  echo "=== deploy script updated (${OLD_HEAD:0:7} -> ${NEW_HEAD:0:7}), re-run ==="
+  export ZEIP_DEPLOY_REEXEC=1
+  exec bash "${ROOT}/deploy/timeweb/deploy-app.sh"
+fi
 
 run_sql_migration() {
   local file="$1"
@@ -58,14 +67,17 @@ cd "${ROOT}/deploy/timeweb"
 # --no-cache каждый раз тянет node:20-alpine с Docker Hub → 429 на VPS без login.
 # Кэш слоёв сохраняем; базовый образ не перекачиваем, если уже есть локально.
 # На VPS docker compose принимает только true/false (не missing/never).
-PULL_POLICY="true"
+COMPOSE_BUILD=(--env-file .env.app -f docker-compose.app.yml build)
 if docker image inspect public.ecr.aws/docker/library/node:20-alpine >/dev/null 2>&1 || \
    docker image inspect node:20-alpine >/dev/null 2>&1; then
-  PULL_POLICY="false"
+  COMPOSE_BUILD+=(--pull=false)
   echo "Базовый образ node:20-alpine уже локально — pull отключён"
+else
+  COMPOSE_BUILD+=(--pull=true)
+  echo "Базовый образ node:20-alpine не найден — pull включён"
 fi
 
-docker compose --env-file .env.app -f docker-compose.app.yml build --pull="${PULL_POLICY}"
+docker compose "${COMPOSE_BUILD[@]}"
 docker compose --env-file .env.app -f docker-compose.app.yml up -d
 
 echo "=== check /subscription ==="

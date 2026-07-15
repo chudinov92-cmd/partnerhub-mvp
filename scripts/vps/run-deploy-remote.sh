@@ -18,10 +18,10 @@ cd "$ROOT"
 
 if [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
   export SSHPASS="$VPS_SSH_PASSWORD"
-  sshpass -e ssh -o StrictHostKeyChecking=accept-new "$HOST" "bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh"
+  ssh -o StrictHostKeyChecking=accept-new "$HOST" "cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh"
 elif [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v expect >/dev/null 2>&1; then
   export VPS_SSH_PASSWORD
-  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" "$DEPLOY"
+  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" "cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh"
 else
-  ssh -o StrictHostKeyChecking=accept-new "$HOST" "bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh"
+  ssh -o StrictHostKeyChecking=accept-new "$HOST" "cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh"
 fi
