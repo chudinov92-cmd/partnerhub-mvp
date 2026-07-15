@@ -1,6 +1,10 @@
-import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import {
+  getRobokassaPassword1,
+  isRobokassaTestMode,
+  signPaymentRequest,
+} from "@/lib/robokassa";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -10,7 +14,7 @@ const DESCRIPTION = "Подписка Zeip Pro на 1 месяц";
 
 export async function POST() {
   const merchantLogin = process.env.NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN;
-  const password1 = process.env.ROBOKASSA_PASSWORD1;
+  const password1 = getRobokassaPassword1();
 
   if (!merchantLogin || !password1) {
     return NextResponse.json(
@@ -35,7 +39,7 @@ export async function POST() {
 
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("id, is_pro")
+    .select("id, is_pro, pro_expires_at")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -43,23 +47,26 @@ export async function POST() {
     return NextResponse.json({ error: "Профиль не найден" }, { status: 404 });
   }
 
-  if (profile.is_pro) {
+  const proActive =
+    profile.is_pro &&
+    (!profile.pro_expires_at ||
+      new Date(profile.pro_expires_at).getTime() > Date.now());
+
+  if (proActive) {
     return NextResponse.json(
       { error: "Подписка Pro уже активна" },
       { status: 409 },
     );
   }
 
-  // Уникальный InvId: случайный 9-значный номер.
   const invId = Math.floor(100_000_000 + Math.random() * 900_000_000);
+  const signatureValue = signPaymentRequest(
+    merchantLogin,
+    OUT_SUM,
+    invId,
+    password1,
+  );
 
-  // Подпись MD5: MerchantLogin:OutSum:InvId:Password1
-  const signatureValue = crypto
-    .createHash("md5")
-    .update(`${merchantLogin}:${OUT_SUM}:${invId}:${password1}`)
-    .digest("hex");
-
-  // Сохраняем заказ в БД до редиректа (webhook придёт позже по InvId).
   const { error: insertError } = await admin.from("subscription_payments").insert({
     inv_id: invId,
     profile_id: profile.id,
@@ -76,7 +83,6 @@ export async function POST() {
     );
   }
 
-  const isTest = process.env.ROBOKASSA_TEST_MODE === "1";
   const url = new URL("https://auth.robokassa.ru/Merchant/Index.aspx");
   url.searchParams.set("MerchantLogin", merchantLogin);
   url.searchParams.set("OutSum", OUT_SUM);
@@ -84,8 +90,8 @@ export async function POST() {
   url.searchParams.set("Description", DESCRIPTION);
   url.searchParams.set("SignatureValue", signatureValue);
   url.searchParams.set("Culture", "ru");
-  if (isTest) {
-    url.searchParams.set("isTest", "1");
+  if (isRobokassaTestMode()) {
+    url.searchParams.set("IsTest", "1");
   }
 
   return NextResponse.json({ paymentUrl: url.toString() });
