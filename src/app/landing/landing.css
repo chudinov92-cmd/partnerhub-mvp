@@ -809,8 +809,36 @@ img {
 /* ── Footer ── */
 
 .footer {
-  height: 173px;
+  min-height: 173px;
   background: var(--zeip-dark);
+  display: flex;
+  align-items: center;
+}
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem 1.5rem;
+  padding: 2rem 1rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.footer__links a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.footer__links a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.footer__links span {
+  opacity: 0.65;
 }
 
 /* ── Small screens ── */

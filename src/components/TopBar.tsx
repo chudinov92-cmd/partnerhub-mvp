@@ -409,6 +409,16 @@ export function TopBar() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push("/terms");
+                    }}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    Условия
+                  </button>
+                  <button
+                    type="button"
                     onClick={async () => {
                       setMenuOpen(false);
                       await authSignOut();
@@ -426,12 +436,33 @@ export function TopBar() {
               )}
             </>
           ) : (
-            <Link
-              href="/auth"
-              className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-            >
-              Войти
-            </Link>
+            <>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+              >
+                Войти
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-11 z-50 w-40 rounded-xl border border-gray-200 bg-white py-1 text-xs shadow-lg">
+                  <Link
+                    href="/auth"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    Войти
+                  </Link>
+                  <Link
+                    href="/terms"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    Условия
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

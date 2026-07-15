@@ -260,14 +260,25 @@ export default function SubscriptionPage() {
                     Активен
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleBuy}
-                    disabled={payLoading || !profileId}
-                    className="mt-6 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {payLoading ? "Переход к оплате…" : "Купить Pro"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleBuy}
+                      disabled={payLoading || !profileId}
+                      className="mt-6 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {payLoading ? "Переход к оплате…" : "Купить Pro"}
+                    </button>
+                    <p className="mt-1 text-center text-xs text-slate-400">
+                      Оплачивая, вы принимаете условия{" "}
+                      <Link
+                        href="/terms/oferta"
+                        className="underline hover:text-slate-600"
+                      >
+                        публичной оферты
+                      </Link>
+                    </p>
+                  </>
                 )}
               </article>
             </div>
