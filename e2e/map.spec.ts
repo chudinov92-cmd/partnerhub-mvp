@@ -16,7 +16,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
       localStorage.getItem("selected_city"),
     );
     expect(cityStorage === null || cityStorage === "Россия").toBeTruthy();
-    await expect(page.locator(".leaflet-container").first()).toBeVisible({
+    await expect(page.locator(".mmrgl-map").first()).toBeVisible({
       timeout: 25_000,
     });
   });
@@ -34,7 +34,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
   test("TC-3.6 Карта Leaflet отображается", async ({ page }) => {
     await page.goto("/map");
     await page.setViewportSize({ width: 1280, height: 800 });
-    await expect(page.locator(".leaflet-container").first()).toBeVisible({
+    await expect(page.locator(".mmrgl-map").first()).toBeVisible({
       timeout: 25_000,
     });
   });
@@ -76,7 +76,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
     await page.getByRole("button", { name: "Настройки поиска" }).click();
     await expect(page.getByText("Поиск специалистов")).toBeVisible();
     await page.getByRole("button", { name: "Поиск", exact: true }).click();
-    await expect(page.locator(".leaflet-container").first()).toBeVisible();
+    await expect(page.locator(".mmrgl-map").first()).toBeVisible();
   });
 
   test("TC-3.5 Рекомендованные контакты в фильтрах", async ({ page }) => {
@@ -92,7 +92,7 @@ describeWithUser("Фаза 3: Карта — авторизованный", () =
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/?mapContacts=1");
-    await expect(page.locator(".leaflet-container").first()).toBeVisible({
+    await expect(page.locator(".mmrgl-map").first()).toBeVisible({
       timeout: 25_000,
     });
   });

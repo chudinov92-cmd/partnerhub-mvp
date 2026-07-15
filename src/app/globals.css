@@ -72,7 +72,12 @@ body {
 
 @media (min-width: 1024px) {
   .zeip-profile-preview-floating {
-    max-height: min(90dvh, 640px);
+    max-height: calc(
+      100dvh
+      - var(--zeip-topbar-height, 4.5rem)
+      - env(safe-area-inset-top, 0px)
+      - 16px
+    );
   }
 }
 
@@ -99,10 +104,10 @@ body {
   }
 }
 
-/* Leaflet: кастомные пины (как в макете Figma) */
-.leaflet-div-icon.partner-map-div-icon {
-  background: transparent !important;
-  border: none !important;
+/* VK Maps (mmr-gl): кастомные пины партнёров */
+.partner-map-marker-root {
+  position: relative;
+  cursor: pointer;
 }
 
 .partner-map-pin-wrap {
@@ -150,16 +155,59 @@ body {
     0 8px 10px -6px rgb(15 23 42 / 0.1);
 }
 
-/* Отступ контролов от края карты — иначе overflow-hidden + скругление обрезают zoom «+» */
-.leaflet-container.zeip-partner-map .leaflet-top {
-  top: 0.5rem;
+.partner-map-hover-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 2;
+  min-width: 140px;
+  max-width: 220px;
+  transform: translateX(-50%);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.98);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: rgb(51 65 85);
+  box-shadow:
+    0 10px 15px -3px rgb(15 23 42 / 0.12),
+    0 4px 6px -4px rgb(15 23 42 / 0.08);
+  pointer-events: none;
+  white-space: nowrap;
 }
-.leaflet-container.zeip-partner-map .leaflet-left {
+
+.partner-map-marker-root:hover .partner-map-hover-tooltip {
+  display: block;
+}
+
+.partner-map-tooltip-role {
+  margin-top: 0.125rem;
+  color: rgb(100 116 139);
+}
+
+.partner-map-online-dot {
+  display: inline-block;
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+}
+
+.partner-map-online-dot.is-online {
+  background: rgb(16 185 129);
+}
+
+.partner-map-online-dot.is-offline {
+  background: rgb(148 163 184);
+}
+
+/* Отступ контролов VK Maps от края */
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-top-left {
+  top: 0.5rem;
   left: 0.5rem;
 }
 
-/* Zoom +/- на карте: скругление как у кнопок MainMobileNav (rounded-lg) */
-.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar {
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group {
   border-radius: 0.5rem;
   overflow: hidden;
   box-shadow:
@@ -167,63 +215,15 @@ body {
     0 1px 2px -1px rgb(15 23 42 / 0.06);
 }
 
-.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a {
-  border-radius: 0 !important;
-  /* как у неактивных иконок MainMobileNav: text-slate-600 */
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button {
   color: rgb(71 85 105);
 }
 
-.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a:hover,
-.leaflet-container.zeip-partner-map .leaflet-control-zoom.leaflet-bar a:focus {
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:hover,
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:focus {
   color: rgb(51 65 85);
 }
 
-.leaflet-container.zeip-partner-map
-  .leaflet-control-zoom.leaflet-bar
-  a.leaflet-disabled {
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:disabled {
   color: rgb(148 163 184);
-}
-
-/* Попап профиля на карте (Leaflet): без лишних отступов, скругление как у карточки */
-.zeip-profile-leaflet-popup.leaflet-popup {
-  text-align: start !important;
-  /* Делаем попап оверлеем по центру экрана, чтобы не сдвигать карту */
-  position: fixed !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  margin: 0 !important;
-  z-index: 3000;
-}
-
-.zeip-profile-leaflet-popup .leaflet-popup-content-wrapper {
-  box-sizing: border-box;
-  padding: 0 !important;
-  overflow: hidden;
-  border-radius: 0.75rem;
-  width: min(100vw - 2rem, 20rem);
-  min-width: 280px;
-  max-width: min(100vw - 2rem, 20rem);
-  box-shadow:
-    0 10px 15px -3px rgb(15 23 42 / 0.12),
-    0 4px 6px -4px rgb(15 23 42 / 0.08);
-}
-
-/* Leaflet выставляет .leaflet-popup-content width по maxWidth=300 — шире wrapper получаются поля */
-.zeip-profile-leaflet-popup .leaflet-popup-content {
-  box-sizing: border-box;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0;
-}
-
-.zeip-profile-leaflet-popup .leaflet-popup-tip {
-  display: none !important;
-}
-
-/* Закрытие только кнопкой в ProfilePreviewCard, не стандартной × Leaflet */
-.zeip-profile-leaflet-popup .leaflet-popup-close-button {
-  display: none !important;
 }

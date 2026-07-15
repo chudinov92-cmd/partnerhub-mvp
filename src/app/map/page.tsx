@@ -76,6 +76,7 @@ import { useFeed } from "@/hooks/useFeed";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useChatMessagesRealtime } from "@/hooks/useChat";
 import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
+import { useAutoResizeTextarea } from "@/hooks/useAutoResizeTextarea";
 
 const PartnerMap = dynamic<PartnerMapProps>(
   () => import("@/components/PartnerMap").then((m) => m.PartnerMap),
@@ -376,6 +377,9 @@ export default function Home() {
   const [generalChatSearch, setGeneralChatSearch] = useState("");
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  const newPostBodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const supportDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const suppressChatOutsideCloseUntilRef = useRef(0);
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
@@ -385,6 +389,9 @@ export default function Home() {
   const recommendedEmptyBannerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const cityInitializedRef = useRef(false);
+  useAutoResizeTextarea(newPostBodyRef, newPostBody);
+  useAutoResizeTextarea(chatInputRef, chatInput);
+  useAutoResizeTextarea(supportDescriptionRef, supportDescription);
   const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
     Record<string, boolean>
   >({});
@@ -1438,7 +1445,13 @@ export default function Home() {
 
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:flex-row lg:pb-0">
+      <main
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row lg:pb-0 ${
+          isMobileLayout && mobileTab === "map"
+            ? "pb-0"
+            : "pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]"
+        }`}
+      >
         {/* Левая колонка: лента запросов, как список чата */}
         <section
           className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-white shadow-lg lg:w-80 lg:shrink-0 lg:border-r lg:border-gray-200 ${
@@ -1677,11 +1690,11 @@ export default function Home() {
               className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-gray-50 p-4"
             >
               <textarea
+                ref={newPostBodyRef}
                 value={newPostBody}
                 onChange={(e) =>
                   setNewPostBody(e.target.value.slice(0, 1000))
                 }
-                rows={3}
                 placeholder={
                   currentUser
                     ? "Введите сообщение"
@@ -2403,9 +2416,6 @@ export default function Home() {
                       <p className="text-sm text-slate-600">
                         {item.profile.role_title || "Профессия не указана"}
                       </p>
-                      <p className="text-sm text-slate-500">
-                        {item.profile.city || "Город не указан"}
-                      </p>
                       <p className="mt-1 truncate text-xs text-slate-500">
                         {formatChatListPreview(item.lastMessagePreview) ??
                           "Нет сообщений"}
@@ -2642,6 +2652,7 @@ export default function Home() {
                       Описание проблемы
                     </label>
                     <textarea
+                      ref={supportDescriptionRef}
                       value={supportDescription}
                       onChange={(e) => {
                         setSupportDescription(e.target.value.slice(0, 2000));
@@ -2650,9 +2661,8 @@ export default function Home() {
                           description: undefined,
                         }));
                       }}
-                      rows={isMobileLayout ? 3 : 2}
                       placeholder="Подробности, шаги, что ожидали увидеть"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
                       onFocus={(e) => {
                         if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
                       }}
@@ -2692,13 +2702,13 @@ export default function Home() {
                   className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1"
                 >
                   <textarea
+                    ref={chatInputRef}
                     value={chatInput}
                     onChange={(e) =>
                       setChatInput(e.target.value.slice(0, 1000))
                     }
-                    rows={2}
                     placeholder="Напишите сообщение…"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20 lg:min-h-[2.75rem] lg:max-h-[5rem] lg:resize-none"
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
                     onFocus={(e) => {
                       if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
                     }}

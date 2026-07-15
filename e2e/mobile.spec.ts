@@ -18,7 +18,7 @@ test.describe("Фаза 10: Мобильная адаптация", () => {
     await openMobileTab(page, "Чат");
     await expect(page.locator("body")).not.toContainText("Application error");
     await openMobileTab(page, "Карта");
-    await expect(page.locator(".leaflet-container").first()).toBeVisible({
+    await expect(page.locator(".mmrgl-map").first()).toBeVisible({
       timeout: 25_000,
     });
     await openMobileTab(page, "Контакты");

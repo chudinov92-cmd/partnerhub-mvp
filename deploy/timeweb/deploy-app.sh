@@ -40,6 +40,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-05-25-profession-demand-analytics.s
 run_sql_migration "${ROOT}/supabase/sql/2026-05-26-chat-members-last-read.sql" "chat-members-last-read"
 run_sql_migration "${ROOT}/supabase/sql/2026-06-02-add-engineering-professions.sql" "engineering-professions"
 run_sql_migration "${ROOT}/supabase/sql/2026-06-03-add-engineering-professions-batch2.sql" "engineering-professions-batch2"
+run_sql_migration "${ROOT}/supabase/sql/2026-07-15-subscription-payments.sql" "subscription-payments"
 run_sql_migration "${ROOT}/docs/profile_views_content_version.sql" "profile-views-content-version"
 run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-public-read"
 run_sql_migration "${ROOT}/docs/profile_last_name_private.sql" "profile-last-name-private"
@@ -54,7 +55,7 @@ set -a
 source "${ENV_FILE}"
 set +a
 
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID SUPABASE_SERVICE_ROLE_KEY; do
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY; do
   if [[ -z "${!var:-}" ]] || [[ "${!var}" == REPLACE_* ]]; then
     echo "ОШИБКА: в ${ENV_FILE} не задано или плейсхолдер: ${var}"
     exit 1

@@ -132,12 +132,12 @@ const CITY_OPTIONS = [
   "Мичуринск",
 ];
 
-/** Ручные поправки, если Nominatim промахнулся */
+/** Ручные поправки, если Nominatim промахнулся. center: [lng, lat] для VK Maps */
 const MANUAL = {
-  [RUSSIA_LABEL]: { center: [61, 90], zoom: 3 },
-  Москва: { center: [55.7558, 37.6176], zoom: 10 },
-  "Санкт-Петербург": { center: [59.9311, 30.3609], zoom: 10 },
-  Пермь: { center: [58.01, 56.25], zoom: 12 },
+  [RUSSIA_LABEL]: { center: [90, 61], zoom: 3 },
+  Москва: { center: [37.6176, 55.7558], zoom: 10 },
+  "Санкт-Петербург": { center: [30.3609, 59.9311], zoom: 10 },
+  Пермь: { center: [56.25, 58.01], zoom: 12 },
 };
 
 function zoomForCity(city) {
@@ -163,7 +163,7 @@ async function geocodeCity(city) {
   const lat = Number(data[0].lat);
   const lng = Number(data[0].lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { center: [lat, lng], zoom: zoomForCity(city) };
+  return { center: [lng, lat], zoom: zoomForCity(city) };
 }
 
 function escapeKey(key) {
@@ -196,10 +196,10 @@ async function main() {
   }
 
   const lines = [
-    `import type { LatLngExpression } from "leaflet";`,
+    `export type LngLat = [number, number];`,
     ``,
     `export type CityViewConfig = {`,
-    `  center: LatLngExpression;`,
+    `  center: LngLat;`,
     `  zoom: number;`,
     `};`,
     ``,

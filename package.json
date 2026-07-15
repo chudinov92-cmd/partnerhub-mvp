@@ -20,17 +20,15 @@
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.99.1",
-    "leaflet": "^1.9.4",
+    "mmr-gl": "^0.2.43",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-leaflet": "^5.0.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4",
-    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

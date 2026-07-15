@@ -14,7 +14,7 @@ export async function openMobileTab(page: Page, tab: MobileTab) {
 /** Открыть карту: мобильный таб или desktop (карта в split-view). */
 export async function openMapView(page: Page) {
   await openMobileTab(page, "Карта");
-  if (await page.locator(".leaflet-container").first().isVisible().catch(() => false)) {
+  if (await page.locator(".mmrgl-map").first().isVisible().catch(() => false)) {
     return;
   }
   await page.getByRole("button", { name: "Настройки поиска" }).click().catch(() => {});

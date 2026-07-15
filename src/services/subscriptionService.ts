@@ -53,26 +53,28 @@ export async function getSubscriptionStatus(
   };
 }
 
-/** Заглушка: инициация оплаты Robokassa (подключить MerchantLogin, пароль, InvId). */
+/** Инициация оплаты Robokassa через серверный API route. */
 export async function initRobokassaPayment(
   _profileId: string,
 ): Promise<{ paymentUrl: string }> {
-  const merchantLogin = process.env.NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN;
-  if (!merchantLogin) {
-    throw new Error(
-      "Оплата временно недоступна: не настроен NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN. Интеграция Robokassa будет подключена на сервере.",
-    );
-  }
-
-  const baseUrl = "https://auth.robokassa.ru/Merchant/Index.aspx";
-  const params = new URLSearchParams({
-    MerchantLogin: merchantLogin,
-    OutSum: "249.00",
-    Description: "Подписка Zeip Pro на 1 месяц",
-    // InvId, SignatureValue — на API route при реальной интеграции
+  const res = await fetch("/api/subscription/create-payment", {
+    method: "POST",
+    credentials: "include",
   });
 
-  return { paymentUrl: `${baseUrl}?${params.toString()}` };
+  if (!res.ok) {
+    let message = "Ошибка инициации оплаты";
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      //
+    }
+    throw new Error(message);
+  }
+
+  const data = (await res.json()) as { paymentUrl: string };
+  return { paymentUrl: data.paymentUrl };
 }
 
 /** Заглушка отмены: сброс Pro у текущего профиля (до webhook Robokassa — только dev/тест). */

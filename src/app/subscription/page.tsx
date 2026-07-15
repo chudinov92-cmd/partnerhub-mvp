@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { authGetUser } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import {
-  cancelProSubscription,
   getSubscriptionStatus,
   initRobokassaPayment,
 } from "@/services/subscriptionService";
@@ -90,7 +89,6 @@ export default function SubscriptionPage() {
   const [isPro, setIsPro] = useState(false);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
-  const [cancelLoading, setCancelLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
@@ -140,32 +138,6 @@ export default function SubscriptionPage() {
     }
   };
 
-  const handleCancel = async () => {
-    if (!profileId || !isPro) return;
-    if (
-      !window.confirm(
-        "Отменить подписку Pro? Доступ к Pro-функциям будет отключён.",
-      )
-    ) {
-      return;
-    }
-    setCancelLoading(true);
-    setError(null);
-    try {
-      await cancelProSubscription(profileId);
-      setIsPro(false);
-      setExpiresAt(null);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Не удалось отменить подписку (возможно, нужна серверная политика RLS)",
-      );
-    } finally {
-      setCancelLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-4 py-8 md:py-12">
       <div className="mx-auto max-w-3xl">
@@ -173,10 +145,6 @@ export default function SubscriptionPage() {
           <h1 className="text-2xl font-semibold text-slate-900 md:text-3xl">
             Тарифные планы
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Выберите план, который подходит для вашей видимости на карте и в
-            чатах Zeip
-          </p>
         </div>
 
         {loading ? (
@@ -198,14 +166,6 @@ export default function SubscriptionPage() {
                     ? ` до ${formatExpiresAt(expiresAt)}`
                     : " (без даты окончания)"}
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={cancelLoading}
-                  className="mt-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {cancelLoading ? "Отмена…" : "Отменить подписку"}
-                </button>
               </div>
             ) : null}
 

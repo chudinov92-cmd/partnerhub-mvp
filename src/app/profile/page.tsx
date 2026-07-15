@@ -26,6 +26,7 @@ import {
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
 import { CITY_VIEWS } from "@/data/cityMapViews";
+import { isActiveProProfile } from "@/services/subscriptionService";
 
 const INDUSTRY_OPTIONS = [
   "Природные ресурсы",
@@ -224,6 +225,19 @@ function serializeInterestedProfessions(values: string[]) {
 
 const DEFAULT_COUNTRY = "Россия";
 
+function formatProExpiresAt(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
 type Profile = {
   id: string;
   full_name: string | null;
@@ -241,6 +255,8 @@ type Profile = {
   resources: string | null;
   can_help_with: string | null; // legacy in DB (not shown in UI)
   interested_in: string | null;
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
 };
 
 type WorkBlock = {
@@ -276,8 +292,8 @@ function coordsFromCity(
   if (!cityView) return null;
   const center = cityView.center;
   if (!Array.isArray(center) || center.length < 2) return null;
-  const lat = Number(center[0]);
-  const lng = Number(center[1]);
+  const lng = Number(center[0]);
+  const lat = Number(center[1]);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
 }
@@ -453,7 +469,7 @@ export default function ProfilePage() {
         let { data: profData, error: pErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
+            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, is_pro, pro_expires_at",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -473,7 +489,7 @@ export default function ProfilePage() {
               country: DEFAULT_COUNTRY,
             })
             .select(
-              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
+              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, is_pro, pro_expires_at",
             )
             .single();
 
@@ -918,6 +934,16 @@ export default function ProfilePage() {
             Заполните информацию о себе, чтобы другие пользователи могли вас
             найти
           </p>
+          {profile && isActiveProProfile(profile) ? (
+            <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium text-emerald-900">
+                Подписка Pro активна
+                {profile.pro_expires_at
+                  ? ` до ${formatProExpiresAt(profile.pro_expires_at)}`
+                  : " (без даты окончания)"}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
