@@ -57,10 +57,11 @@ cd "${ROOT}/deploy/timeweb"
 
 # --no-cache каждый раз тянет node:20-alpine с Docker Hub → 429 на VPS без login.
 # Кэш слоёв сохраняем; базовый образ не перекачиваем, если уже есть локально.
-PULL_POLICY="missing"
+# На VPS docker compose принимает только true/false (не missing/never).
+PULL_POLICY="true"
 if docker image inspect public.ecr.aws/docker/library/node:20-alpine >/dev/null 2>&1 || \
    docker image inspect node:20-alpine >/dev/null 2>&1; then
-  PULL_POLICY="never"
+  PULL_POLICY="false"
   echo "Базовый образ node:20-alpine уже локально — pull отключён"
 fi
 
