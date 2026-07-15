@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { authGetUser } from "@/services/authService";
 import {
@@ -26,6 +25,7 @@ import {
   type IndustryCatalogRow,
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
+import { CITY_VIEWS } from "@/data/cityMapViews";
 
 const INDUSTRY_OPTIONS = [
   "Природные ресурсы",
@@ -222,6 +222,8 @@ function serializeInterestedProfessions(values: string[]) {
   return normalized.length > 0 ? normalized.join("\n") : null;
 }
 
+const DEFAULT_COUNTRY = "Россия";
+
 type Profile = {
   id: string;
   full_name: string | null;
@@ -258,6 +260,28 @@ type LocationRow = {
   city: string | null;
 };
 
+function buildProfileSnapshot(
+  profile: Profile,
+  workBlocks: WorkBlock[],
+  lastName: string,
+  coords: { lat: number; lng: number } | null,
+) {
+  return JSON.stringify({ profile, workBlocks, lastName, coords });
+}
+
+function coordsFromCity(
+  city: string | null | undefined,
+): { lat: number; lng: number } | null {
+  const cityView = CITY_VIEWS[(city ?? "").trim()];
+  if (!cityView) return null;
+  const center = cityView.center;
+  if (!Array.isArray(center) || center.length < 2) return null;
+  const lat = Number(center[0]);
+  const lng = Number(center[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
 const LocationPicker = dynamic(
   () =>
     import("@/components/ProfileLocationPicker").then(
@@ -269,6 +293,7 @@ const LocationPicker = dynamic(
 export default function ProfilePage() {
   const MAX_GROUP2_BLOCKS = 5; // primary (profiles.*) + up to 4 additional blocks
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [lastName, setLastName] = useState("");
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
@@ -299,11 +324,12 @@ export default function ProfilePage() {
     string | null
   >(null);
   const baselineSnapshotRef = useRef<string>("");
+  const coordsMovedByUserRef = useRef(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    const current = JSON.stringify({ profile, workBlocks });
+    const current = buildProfileSnapshot(profile, workBlocks, lastName, coords);
 
     // "Профиль сохранен" сбрасываем при любом изменении после успешного сохранения.
     if (isSaved && savedSnapshotRef.current && current !== savedSnapshotRef.current) {
@@ -316,7 +342,7 @@ export default function ProfilePage() {
     } else {
       setHasChanges(false);
     }
-  }, [isSaved, profile, workBlocks]);
+  }, [isSaved, profile, workBlocks, lastName, coords]);
 
   const isExtraBlockStock = (wb: WorkBlock) => {
     const roleTitle = (wb.role_title ?? "").trim();
@@ -364,6 +390,20 @@ export default function ProfilePage() {
   const cancelDeleteExtraBlock = () => {
     setDeleteBlockConfirmOpen(false);
     setDeleteBlockConfirmIndex(null);
+  };
+
+  const handleCoordsChange = (next: { lat: number; lng: number }) => {
+    coordsMovedByUserRef.current = true;
+    setCoords(next);
+  };
+
+  const handleCityChange = (city: string) => {
+    if (!profile) return;
+    setProfile({ ...profile, city });
+    if (!coordsMovedByUserRef.current) {
+      const nextCoords = coordsFromCity(city);
+      if (nextCoords) setCoords(nextCoords);
+    }
   };
 
   useEffect(() => {
@@ -430,6 +470,7 @@ export default function ProfilePage() {
             .from("profiles")
             .insert({
               auth_user_id: user.id,
+              country: DEFAULT_COUNTRY,
             })
             .select(
               "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in",
@@ -446,8 +487,22 @@ export default function ProfilePage() {
           profData = created;
         }
 
-        const prof = profData as Profile;
+        const prof = {
+          ...(profData as Profile),
+          country: (profData as Profile).country?.trim() || DEFAULT_COUNTRY,
+        };
         setProfile(prof);
+
+        const { data: privateRow, error: privateLoadError } = await supabase
+          .from("profile_private")
+          .select("last_name")
+          .eq("profile_id", prof.id)
+          .maybeSingle();
+        const loadedLastName =
+          !privateLoadError && typeof privateRow?.last_name === "string"
+            ? privateRow.last_name
+            : "";
+        setLastName(loadedLastName);
         setProfileLoading(false);
 
         const [
@@ -494,11 +549,28 @@ export default function ProfilePage() {
           : mapWorkBlocks(workResult.data ?? []);
         setWorkBlocks(loadedWorkBlocks);
 
+        let loadedCoords: { lat: number; lng: number } | null = null;
+        if (!locationResult.error && locationResult.data) {
+          const loc = locationResult.data as LocationRow;
+          setLocation(loc);
+          loadedCoords = { lat: loc.lat, lng: loc.lng };
+          setCoords(loadedCoords);
+          coordsMovedByUserRef.current = true;
+        } else {
+          coordsMovedByUserRef.current = false;
+          loadedCoords = coordsFromCity(prof.city);
+          if (loadedCoords) {
+            setCoords(loadedCoords);
+          }
+        }
+
         try {
-          const baseline = JSON.stringify({
-            profile: prof,
-            workBlocks: loadedWorkBlocks,
-          });
+          const baseline = buildProfileSnapshot(
+            prof,
+            loadedWorkBlocks,
+            loadedLastName,
+            loadedCoords,
+          );
           if (!baselineSnapshotRef.current) {
             baselineSnapshotRef.current = baseline;
           }
@@ -508,12 +580,6 @@ export default function ProfilePage() {
 
         setIndustryCatalog(industryRows);
         setSubindustryCatalog(subindustryRows);
-
-        if (!locationResult.error && locationResult.data) {
-          const loc = locationResult.data as LocationRow;
-          setLocation(loc);
-          setCoords({ lat: loc.lat, lng: loc.lng });
-        }
       } catch (err: unknown) {
         if (!cancelled) {
           const msg =
@@ -540,6 +606,12 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
+
+    if (!coords) {
+      setError("Укажите местоположение на карте — кликните по нужному месту.");
+      setSuccess(null);
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -654,7 +726,7 @@ export default function ProfilePage() {
         .update({
           full_name: maskProfanity(profile.full_name),
           age: profile.age,
-          country: profile.country,
+          country: DEFAULT_COUNTRY,
           city: profile.city,
           industry: profile.industry,
           industry_other:
@@ -675,6 +747,18 @@ export default function ProfilePage() {
         .eq("id", profile.id);
 
       if (updateError) throw updateError;
+
+      const trimmedLastName = (lastName ?? "").trim().slice(0, 25);
+      const maskedLastName = maskProfanity(trimmedLastName) ?? null;
+      const { error: privateError } = await supabase.from("profile_private").upsert(
+        {
+          profile_id: profile.id,
+          last_name: maskedLastName || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "profile_id" },
+      );
+      if (privateError) throw privateError;
 
       // Sync repeating work blocks to DB (replace-all strategy)
       try {
@@ -733,7 +817,12 @@ export default function ProfilePage() {
 
       setSuccess("Профиль сохранён");
       setIsSaved(true);
-      savedSnapshotRef.current = JSON.stringify({ profile, workBlocks });
+      savedSnapshotRef.current = buildProfileSnapshot(
+        profile,
+        workBlocks,
+        lastName,
+        coords,
+      );
       baselineSnapshotRef.current = savedSnapshotRef.current;
       setHasChanges(false);
     } catch (err: any) {
@@ -781,11 +870,28 @@ export default function ProfilePage() {
           .concat("Другое")
   );
 
+  const saveButtonLabel = saving
+    ? "Сохраняем..."
+    : isSaved
+      ? "Профиль сохранен"
+      : "Сохранить профиль";
+
+  const saveButtonClassName = `inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
+    saving
+      ? "bg-[#009966]/80 hover:bg-[#009966]/80"
+      : isSaved
+        ? "bg-emerald-600 hover:bg-emerald-700"
+        : "bg-gradient-to-r from-[#009966] to-emerald-600 hover:from-[#009966] hover:to-emerald-700"
+  }`;
+
   return (
     <div className="flex min-h-screen justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
       <form
+        id="profile-edit-form"
         onSubmit={handleSubmit}
-        className="w-full max-w-4xl space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg"
+        className={`w-full max-w-4xl space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg ${
+          hasChanges ? "pb-4" : ""
+        }`}
       >
         <div className="mb-2">
           <div className="flex items-center gap-3">
@@ -823,7 +929,7 @@ export default function ProfilePage() {
           <p className="text-xs text-slate-500">Загрузка справочников...</p>
         ) : null}
 
-        {/* Группа 1: Имя / Страна / Город */}
+        {/* Группа 1: Имя / Фамилия / Город / Возраст */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
@@ -847,8 +953,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-4">
-            {/* Имя / возраст */}
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-800">
                   Имя
@@ -868,7 +973,37 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-800">
-                  Ваш возраст
+                  Фамилия
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value.slice(0, 25))}
+                  maxLength={25}
+                  autoComplete="family-name"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Видна только вам, другие пользователи её не увидят
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Город
+                </label>
+                <CityDropdown
+                  value={profile.city}
+                  onChange={handleCityChange}
+                  includeRussia={false}
+                  placeholder="Выберите город"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Возраст
                 </label>
                 <input
                   type="number"
@@ -885,34 +1020,6 @@ export default function ProfilePage() {
                     });
                   }}
                   className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-                />
-              </div>
-            </div>
-
-            {/* Страна / город */}
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-800">
-                  Страна
-                </label>
-                <input
-                  type="text"
-                  value={profile.country ?? ""}
-                  onChange={(e) =>
-                    setProfile({ ...profile, country: e.target.value })
-                  }
-                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-800">
-                  Город
-                </label>
-                <CityDropdown
-                  value={profile.city}
-                  onChange={(city) => setProfile({ ...profile, city })}
-                  includeRussia={false}
-                  placeholder="Выберите город"
                 />
               </div>
             </div>
@@ -1451,59 +1558,54 @@ export default function ProfilePage() {
             будет скрыта для других пользователей.
           </p>
 
-          <LocationPicker value={coords} onChange={setCoords} />
+          <LocationPicker
+            value={coords}
+            onChange={handleCoordsChange}
+            className={`min-h-[20rem] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${
+              hasChanges
+                ? "h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-5rem-env(safe-area-inset-bottom,0px)-8rem)]"
+                : "h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-env(safe-area-inset-bottom,0px)-10rem)]"
+            } max-h-[42rem]`}
+          />
         </div>
 
-        <div className="pt-2">
-            {deleteBlockConfirmOpen && (
-              <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/50 px-3">
-                <div className="w-full max-w-sm rounded-2xl bg-white p-4 text-sm shadow-xl">
-                  <p className="text-slate-900">{`Вы действительно хотите удалить данные?`}</p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={cancelDeleteExtraBlock}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-900 hover:bg-slate-50"
-                    >
-                      Нет
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmDeleteExtraBlock}
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700"
-                    >
-                      Да
-                    </button>
-                  </div>
-                </div>
+        {deleteBlockConfirmOpen && (
+          <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/50 px-3">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-4 text-sm shadow-xl">
+              <p className="text-slate-900">{`Вы действительно хотите удалить данные?`}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelDeleteExtraBlock}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-900 hover:bg-slate-50"
+                >
+                  Нет
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteExtraBlock}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700"
+                >
+                  Да
+                </button>
               </div>
-            )}
-          <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
-            {hasChanges ? (
-              <Link
-                href="/map"
-                className="inline-flex h-24 w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:h-24 sm:w-auto sm:px-6"
-              >
-                Отмена
-              </Link>
-            ) : null}
+            </div>
+          </div>
+        )}
 
+        <div
+          className={`fixed inset-x-0 bottom-0 z-[1450] border-t border-gray-200 bg-white/95 shadow-lg backdrop-blur transition-transform duration-300 ease-out ${
+            hasChanges ? "translate-y-0" : "pointer-events-none translate-y-full"
+          }`}
+          aria-hidden={!hasChanges}
+        >
+          <div className="mx-auto flex w-full max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
             <button
               type="submit"
               disabled={saving}
-              className={`inline-flex h-24 w-full items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 sm:w-auto sm:flex-1 ${
-                saving
-                  ? "bg-[#009966]/80 hover:bg-[#009966]/80"
-                  : isSaved
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-gradient-to-r from-[#009966] to-emerald-600 hover:from-[#009966] hover:to-emerald-700"
-              }`}
+              className={saveButtonClassName}
             >
-              {saving
-                ? "Сохраняем..."
-                : isSaved
-                  ? "Профиль сохранен"
-                  : "Сохранить профиль"}
+              {saveButtonLabel}
             </button>
           </div>
         </div>

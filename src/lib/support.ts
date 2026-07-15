@@ -55,6 +55,26 @@ export function getErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+const CHAT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_peer: "Нельзя написать самому себе.",
+  not_authorized: "Нужно войти, чтобы отправлять сообщения.",
+  peer_not_found: "Пользователь не найден.",
+};
+
+/** Локализация кодов ошибок RPC ensure_private_chat и похожих. */
+export function mapChatErrorMessage(message: string, fallback: string): string {
+  const raw = message.trim();
+  if (!raw) return fallback;
+  for (const [code, text] of Object.entries(CHAT_ERROR_MESSAGES)) {
+    if (raw.includes(code)) return text;
+  }
+  return raw;
+}
+
+export function getChatErrorMessage(err: unknown, fallback: string): string {
+  return mapChatErrorMessage(getErrorMessage(err, fallback), fallback);
+}
+
 export const SUPPORT_STUB_PROFILE = {
   id: getSupportProfileIdFromEnv() ?? "00000000-0000-0000-0000-000000000000",
   full_name: "Поддержка",

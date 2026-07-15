@@ -147,7 +147,7 @@ export default function PublicProfilePage() {
               {profile.full_name || "Пользователь"}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {profile.city || profile.country || "Локация не указана"}
+              {profile.city || "Локация не указана"}
             </p>
           </div>
           <div className="ml-4 flex gap-2">

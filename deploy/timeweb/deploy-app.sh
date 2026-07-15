@@ -33,6 +33,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-06-02-add-engineering-professions.s
 run_sql_migration "${ROOT}/supabase/sql/2026-06-03-add-engineering-professions-batch2.sql" "engineering-professions-batch2"
 run_sql_migration "${ROOT}/docs/profile_views_content_version.sql" "profile-views-content-version"
 run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-public-read"
+run_sql_migration "${ROOT}/docs/profile_last_name_private.sql" "profile-last-name-private"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

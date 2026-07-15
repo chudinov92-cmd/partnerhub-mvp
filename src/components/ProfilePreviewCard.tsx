@@ -242,11 +242,19 @@ export function ProfilePreviewCard({
       ? `zeip-profile-preview-floating fixed z-[1450] flex min-h-0 w-[min(100vw-1rem,32rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${className}`
       : `max-h-[min(70vh,32rem)] box-border w-full min-w-0 overflow-hidden rounded-xl bg-white ${className}`;
 
+  const isOwnProfile = useMemo(
+    () =>
+      viewerProfileId != null &&
+      viewerProfileId.length > 0 &&
+      viewerProfileId === profile.id,
+    [viewerProfileId, profile.id],
+  );
+
   const canLike = useMemo(() => {
     if (!viewerProfileId) return false;
-    if (viewerProfileId === profile.id) return false;
+    if (isOwnProfile) return false;
     return true;
-  }, [viewerProfileId, profile.id]);
+  }, [viewerProfileId, isOwnProfile]);
 
   const [likesCount, setLikesCount] = useState<number | null>(null);
   const [likedByMe, setLikedByMe] = useState<boolean>(false);
@@ -589,29 +597,7 @@ export function ProfilePreviewCard({
           ) : null}
 
           <div className="flex gap-2 sm:gap-3">
-            {showContactButton && onToggleContact ? (
-              <button
-                type="button"
-                onClick={onToggleContact}
-                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border font-medium transition-all ${
-                  isInContacts
-                    ? "border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
-                    : "border-emerald-300 text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50"
-                } ${isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"}`}
-              >
-                {isInContacts ? (
-                  <>
-                    <IconUserMinus className="h-4 w-4 shrink-0" />
-                    Удалить из контактов
-                  </>
-                ) : (
-                  <>
-                    <IconUserPlus className="h-4 w-4 shrink-0" />
-                    Добавить в контакты
-                  </>
-                )}
-              </button>
-            ) : (
+            {isOwnProfile ? (
               <Link
                 href={profileHref}
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
@@ -619,19 +605,55 @@ export function ProfilePreviewCard({
                 }`}
               >
                 <IconExternalLink className="h-4 w-4 shrink-0" />
-                Профиль
+                Мой профиль
               </Link>
+            ) : (
+              <>
+                {showContactButton && onToggleContact ? (
+                  <button
+                    type="button"
+                    onClick={onToggleContact}
+                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border font-medium transition-all ${
+                      isInContacts
+                        ? "border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
+                        : "border-emerald-300 text-emerald-600 hover:border-emerald-400 hover:bg-emerald-50"
+                    } ${isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"}`}
+                  >
+                    {isInContacts ? (
+                      <>
+                        <IconUserMinus className="h-4 w-4 shrink-0" />
+                        Удалить из контактов
+                      </>
+                    ) : (
+                      <>
+                        <IconUserPlus className="h-4 w-4 shrink-0" />
+                        Добавить в контакты
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <Link
+                    href={profileHref}
+                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
+                      isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
+                    }`}
+                  >
+                    <IconExternalLink className="h-4 w-4 shrink-0" />
+                    Профиль
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={onWrite}
+                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 font-medium text-white transition-all hover:from-emerald-600 hover:to-emerald-700 ${
+                    isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
+                  }`}
+                >
+                  <IconMessageSquare className="h-4 w-4 shrink-0" />
+                  Написать
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              onClick={onWrite}
-              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 font-medium text-white transition-all hover:from-emerald-600 hover:to-emerald-700 ${
-                isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
-              }`}
-            >
-              <IconMessageSquare className="h-4 w-4 shrink-0" />
-              Написать
-            </button>
           </div>
           {showBlockButton && onToggleBlock ? (
             <button

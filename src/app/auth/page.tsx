@@ -236,6 +236,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
   const router = useRouter();
 
   // если уже есть сессия: recovery → установка пароля, иначе на главную
@@ -414,6 +415,7 @@ export default function AuthPage() {
               type="button"
               onClick={() => {
                 setMode("signin");
+                setConsentChecked(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -429,6 +431,7 @@ export default function AuthPage() {
               type="button"
               onClick={() => {
                 setMode("signup");
+                setConsentChecked(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -508,9 +511,32 @@ export default function AuthPage() {
             </p>
           )}
 
+          {mode === "signup" && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                required
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#009966]"
+              />
+              <span>
+                Я даю согласие на обработку персональных данных в соответствии с{" "}
+                <a
+                  href="/personal-data"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
+                >
+                  Согласием на обработку ПД
+                </a>
+              </span>
+            </label>
+          )}
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (mode === "signup" && !consentChecked)}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60"
           >
             {loading
@@ -528,6 +554,7 @@ export default function AuthPage() {
                 type="button"
                 onClick={() => {
                   setMode("forgot");
+                  setConsentChecked(false);
                   setError(null);
                   setInfo(null);
                 }}
@@ -544,6 +571,7 @@ export default function AuthPage() {
                 type="button"
                 onClick={() => {
                   setMode("signin");
+                  setConsentChecked(false);
                   setError(null);
                   setInfo(null);
                 }}

@@ -26,6 +26,7 @@ import {
   getSupportProfileIdFromEnv,
   isAppealMessage,
   OPEN_SUPPORT_CHAT_EVENT,
+  getChatErrorMessage,
   getErrorMessage,
   SUPPORT_STUB_PROFILE,
 } from "@/lib/support";
@@ -383,6 +384,7 @@ export default function Home() {
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const recommendedEmptyBannerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const cityInitializedRef = useRef(false);
   const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
     Record<string, boolean>
   >({});
@@ -482,6 +484,22 @@ export default function Home() {
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
 
+  useEffect(() => {
+    if (cityInitializedRef.current) return;
+    if (!currentUser?.city) return;
+
+    const savedCity =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("selected_city")
+        : null;
+
+    if (!savedCity) {
+      setSelectedCity(currentUser.city);
+    }
+
+    cityInitializedRef.current = true;
+  }, [currentUser, setSelectedCity]);
+
   // подгружаем сохранённые фильтры ленты
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -534,6 +552,7 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const chatProfileId = params.get("chat");
     if (!chatProfileId) return;
+    if (chatProfileId === currentUser.profileId) return;
     const p = profiles.find((pr) => pr.id === chatProfileId);
     if (p) {
       void openChatWithProfile(p);
@@ -1099,6 +1118,11 @@ export default function Home() {
       return;
     }
 
+    if (profile.id === currentUser.profileId) {
+      setChatError("Нельзя написать самому себе.");
+      return;
+    }
+
     setActiveChatUser(profile);
     setChatError(null);
     setChatLoading(true);
@@ -1169,8 +1193,8 @@ export default function Home() {
       setChatInput("");
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
       void markChatAsRead(chatId, currentUser.profileId);
-    } catch (err: any) {
-      setChatError(err.message ?? "Не удалось открыть диалог.");
+    } catch (err: unknown) {
+      setChatError(getChatErrorMessage(err, "Не удалось открыть диалог."));
     } finally {
       setChatLoading(false);
     }
@@ -2144,6 +2168,7 @@ export default function Home() {
                       );
                   }}
                   onOpenChat={(profileId) => {
+                    if (profileId === currentUser?.profileId) return;
                     const p = profiles.find((pr) => pr.id === profileId);
                     if (p) {
                       openChatWithProfile(p);

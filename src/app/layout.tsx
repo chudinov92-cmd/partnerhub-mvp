@@ -6,6 +6,7 @@ import { RecoveryRedirectScript } from "@/components/RecoveryRedirectScript";
 import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { PushBootstrap } from "@/components/PushBootstrap";
 import { SessionExpiredToast } from "@/components/SessionExpiredToast";
+import { CookieBanner } from "@/components/CookieBanner";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 export const metadata: Metadata = {
   title: "Zeip",
@@ -46,6 +47,7 @@ export default function RootLayout({
             <ConditionalTopBar />
             <div className="flex-1">{children}</div>
             <SessionExpiredToast />
+            <CookieBanner />
           </div>
         </SelectedCityProvider>
       </body>

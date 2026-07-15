@@ -25,7 +25,8 @@
 - `public.profiles`:
   - `id uuid` – primary key, используется как ID профиля на фронте и в ссылках `/profiles/[id]`.
   - `auth_user_id uuid unique` – связь с `auth.users.id`.
-  - Основные поля: `full_name`, `country`, `city`, `avatar_url (пока нет)`.
+  - Основные поля: `full_name`, `country` (по умолчанию «Россия», не редактируется в UI), `city`, `avatar_url (пока нет)`.
+  - **Фамилия (приватная)**: таблица `profile_private` (`last_name`), RLS — только владелец; на карте и в чатах не показывается.
   - Профессиональные поля:
     - `industry` – отрасль (справочник подгружается из `industry_catalog`; ручной вариант хранится через `industry_other`).
     - `industry_other` – ручной ввод, если выбрано `industry = 'Другое'` (при сохранении добавляется в `industry_catalog`).
