@@ -37,17 +37,12 @@ export function PushNotificationsSettings() {
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-5 w-5 text-white"
+          <img
+            src="/Icons/Bell.svg"
+            alt=""
+            className="h-5 w-5"
             aria-hidden
-          >
-            <path d="M18 8a6 6 0 0 0-12 0v5a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V8z" />
-            <path d="M10 21h4" />
-          </svg>
+          />
         </div>
         <h2 className="text-xl font-semibold text-slate-900">Уведомления</h2>
       </div>

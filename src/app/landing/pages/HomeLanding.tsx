@@ -15,7 +15,11 @@ export function HomeLanding() {
     logo: asset("zeip-logo.png"),
     heroGlow: asset("hero-illustration.png"),
     btnNoise: asset("btn-noise.png"),
-    phoneShot: asset("shot-carousel.png"),
+    profileShots: [
+      asset("shot-profile-1.png"),
+      asset("shot-profile-2.jpg"),
+      asset("shot-profile-3.jpg"),
+    ],
     mechanics: {
       pin: asset("mechanic-pin.svg"),
       map: asset("mechanic-map.svg"),
@@ -47,9 +51,9 @@ export function HomeLanding() {
           <div className="container">
             <ShotGallery
               shots={[
-                { src: assets.phoneShot, alt: "" },
-                { src: assets.phoneShot, alt: "" },
-                { src: assets.phoneShot, alt: "" },
+                { src: assets.profileShots[0], alt: "Профиль в Zeip" },
+                { src: assets.profileShots[1], alt: "Профиль в Zeip" },
+                { src: assets.profileShots[2], alt: "Профиль в Zeip" },
               ]}
             />
           </div>

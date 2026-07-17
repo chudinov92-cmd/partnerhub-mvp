@@ -519,7 +519,6 @@ export default function ProfilePage() {
             ? privateRow.last_name
             : "";
         setLastName(loadedLastName);
-        setProfileLoading(false);
 
         const [
           professionRows,
@@ -1395,20 +1394,12 @@ export default function ProfilePage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5 text-white"
+              <img
+                src="/Icons/Edit.svg"
+                alt=""
+                className="h-5 w-5"
                 aria-hidden
-              >
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <path d="M12 2v4" />
-              </svg>
+              />
             </div>
             <h2 className="text-xl font-semibold text-slate-900">
               О себе и ресурсы
@@ -1463,23 +1454,12 @@ export default function ProfilePage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5 text-white"
+              <img
+                src="/Icons/Compass.svg"
+                alt=""
+                className="h-5 w-5"
                 aria-hidden
-              >
-                <path d="M20 7h-9a3 3 0 0 0-3 3v9" />
-                <path d="M14 3v4" />
-                <path d="M18 3v4" />
-                <path d="M3 11h7" />
-                <path d="M3 15h7" />
-                <path d="M16 14l1.5 1.5L21 12" />
-              </svg>
+              />
             </div>
             <h2 className="text-xl font-semibold text-slate-900">
               Интересующие профессии
@@ -1587,6 +1567,9 @@ export default function ProfilePage() {
           <LocationPicker
             value={coords}
             onChange={handleCoordsChange}
+            markerLabel={
+              profile.full_name?.trim()?.[0]?.toUpperCase() ?? "Я"
+            }
             className={`min-h-[20rem] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${
               hasChanges
                 ? "h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-5rem-env(safe-area-inset-bottom,0px)-8rem)]"

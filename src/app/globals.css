@@ -104,6 +104,14 @@ body {
   }
 }
 
+.profile-location-marker {
+  z-index: 2;
+}
+
+.mmrgl-map .mmrgl-marker {
+  z-index: 2;
+}
+
 /* VK Maps (mmr-gl): кастомные пины партнёров */
 .partner-map-marker-root {
   position: relative;
