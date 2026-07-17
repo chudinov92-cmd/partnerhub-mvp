@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import {
   COOKIE_CONSENT_KEY,
+  COOKIE_CONSENT_ACCEPTED_EVENT,
   COOKIE_POLICY_VERSION,
   getOrCreateAnonymousUid,
   hasCookieConsentAccepted,
 } from "@/lib/cookieConsent";
+import { initYandexMetrika } from "@/lib/yandexMetrika";
+import { initVkPixel } from "@/lib/vkPixel";
 
 export function CookieBanner() {
   const [visible, setVisible] = useState(false);
@@ -39,6 +42,9 @@ export function CookieBanner() {
       }
 
       window.localStorage.setItem(COOKIE_CONSENT_KEY, "accepted");
+      initYandexMetrika();
+      initVkPixel();
+      window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_ACCEPTED_EVENT));
       setVisible(false);
     } catch {
       // Баннер остаётся открытым — повторный клик отправит запрос снова.

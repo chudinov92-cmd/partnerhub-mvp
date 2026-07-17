@@ -7,6 +7,8 @@ import { ConditionalTopBar } from "@/components/ConditionalTopBar";
 import { PushBootstrap } from "@/components/PushBootstrap";
 import { SessionExpiredToast } from "@/components/SessionExpiredToast";
 import { CookieBanner } from "@/components/CookieBanner";
+import { YandexMetrika } from "@/components/YandexMetrika";
+import { VkPixel } from "@/components/VkPixel";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 export const metadata: Metadata = {
   title: "Zeip",
@@ -48,6 +50,8 @@ export default function RootLayout({
             <div className="flex-1">{children}</div>
             <SessionExpiredToast />
             <CookieBanner />
+            <YandexMetrika />
+            <VkPixel />
           </div>
         </SelectedCityProvider>
       </body>

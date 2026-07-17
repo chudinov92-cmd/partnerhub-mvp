@@ -1,6 +1,7 @@
 export const COOKIE_CONSENT_KEY = "cookie_consent";
 export const ANONYMOUS_UID_KEY = "anonymous_uid";
 export const COOKIE_POLICY_VERSION = "v2026.1";
+export const COOKIE_CONSENT_ACCEPTED_EVENT = "zeip:cookie-consent-accepted";
 
 export const COOKIE_CONSENT_TYPES = ["all", "necessary_only", "marketing"] as const;
 export type CookieConsentType = (typeof COOKIE_CONSENT_TYPES)[number];
