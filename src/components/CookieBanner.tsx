@@ -1,23 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const COOKIE_CONSENT_KEY = "cookie_consent";
+import {
+  COOKIE_CONSENT_KEY,
+  COOKIE_POLICY_VERSION,
+  getOrCreateAnonymousUid,
+  hasCookieConsentAccepted,
+} from "@/lib/cookieConsent";
 
 export function CookieBanner() {
   const [visible, setVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const accepted = window.localStorage.getItem(COOKIE_CONSENT_KEY) === "accepted";
-    setVisible(!accepted);
+    getOrCreateAnonymousUid();
+    setVisible(!hasCookieConsentAccepted());
   }, []);
 
-  const handleAccept = () => {
-    if (typeof window !== "undefined") {
+  const handleAccept = async () => {
+    if (typeof window === "undefined" || submitting) return;
+
+    setSubmitting(true);
+    try {
+      const anonymousUid = getOrCreateAnonymousUid();
+      const response = await fetch("/api/v1/privacy/cookie-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anonymous_uid: anonymousUid,
+          policy_version: COOKIE_POLICY_VERSION,
+          consent_type: "all",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Не удалось сохранить согласие");
+      }
+
       window.localStorage.setItem(COOKIE_CONSENT_KEY, "accepted");
+      setVisible(false);
+    } catch {
+      // Баннер остаётся открытым — повторный клик отправит запрос снова.
+    } finally {
+      setSubmitting(false);
     }
-    setVisible(false);
   };
 
   if (!visible) return null;
@@ -57,10 +84,11 @@ export function CookieBanner() {
         </div>
         <button
           type="button"
-          onClick={handleAccept}
-          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-[#009966] hover:to-emerald-700"
+          onClick={() => void handleAccept()}
+          disabled={submitting}
+          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-[#009966] hover:to-emerald-700 disabled:opacity-60"
         >
-          Принять
+          {submitting ? "Сохраняем..." : "Принять"}
         </button>
       </div>
     </div>

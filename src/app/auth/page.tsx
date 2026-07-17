@@ -8,6 +8,7 @@ import {
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
+import { linkAnonymousCookieConsent } from "@/lib/cookieConsent";
 import {
   AUTH_FORM_TIMEOUT_MS,
   AUTH_OPERATION_TIMEOUT_MS,
@@ -308,6 +309,7 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
+        linkAnonymousCookieConsent();
         setInfo(
           "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
         );
@@ -320,6 +322,7 @@ export default function AuthPage() {
         } = supabase.auth.onAuthStateChange((event) => {
           if (event === "SIGNED_IN" && !redirected) {
             redirected = true;
+            linkAnonymousCookieConsent();
             window.location.replace(target);
           }
         });
@@ -336,6 +339,7 @@ export default function AuthPage() {
           if (error) throw error;
           if (!redirected) {
             redirected = true;
+            linkAnonymousCookieConsent();
             window.location.replace(target);
           }
         } catch (err: unknown) {
@@ -353,6 +357,7 @@ export default function AuthPage() {
               );
               if (session?.user) {
                 redirected = true;
+                linkAnonymousCookieConsent();
                 window.location.replace(target);
                 return;
               }
