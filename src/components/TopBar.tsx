@@ -14,7 +14,15 @@ import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
 import { USEFUL_CONTACTS_CHANGED_EVENT } from "@/lib/usefulContactEvents";
 import { fetchUsefulContactsCount } from "@/services/statsService";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
+import { CityOnboardingBanner } from "@/components/CityOnboardingBanner";
+import { ProfileOnboardingBanner } from "@/components/ProfileOnboardingBanner";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
+import {
+  acknowledgeCityOnboarding,
+  isCityOnboardingAcknowledged,
+  shouldShowCityOnboarding,
+} from "@/lib/cityOnboarding";
+import { shouldShowProfileOnboarding } from "@/lib/profileOnboarding";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;
@@ -43,6 +51,10 @@ export function TopBar() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [fullName, setFullName] = useState<string | null>(null);
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
+  const [profileCity, setProfileCity] = useState<string | null>(null);
+  const [onboardingAcknowledged, setOnboardingAcknowledged] = useState(() =>
+    typeof window !== "undefined" ? isCityOnboardingAcknowledged() : true,
+  );
   const [contactCount, setContactCount] = useState(0);
   const [usefulContactsCount, setUsefulContactsCount] = useState<number | null>(
     null,
@@ -53,7 +65,53 @@ export function TopBar() {
   const [mapContactsActive, setMapContactsActive] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { selectedCity } = useSelectedCity();
+  const { selectedCity, setSelectedCity } = useSelectedCity();
+
+  const showCityOnboarding =
+    pathname === "/map" &&
+    shouldShowCityOnboarding({
+      selectedCity,
+      profileCity,
+      isAuthed,
+      acknowledged: onboardingAcknowledged,
+    });
+
+  const showProfileOnboarding = shouldShowProfileOnboarding({
+    pathname,
+    isAuthed,
+    profileCity,
+  });
+
+  const handleCityChosen = useCallback(() => {
+    acknowledgeCityOnboarding();
+    setOnboardingAcknowledged(true);
+  }, []);
+
+  const applyTopBarProfile = useCallback(
+    async (
+      authUserId: string,
+      opts?: { resetMapCityFromProfile?: boolean },
+    ) => {
+      const p = await fetchTopBarProfile(authUserId);
+      const name = p?.full_name ?? null;
+      setFullName(name);
+      setMyProfileId(p?.id ?? null);
+
+      if (!p?.id) {
+        setProfileCity(null);
+        return p;
+      }
+
+      setProfileCity(p.city ?? null);
+
+      if (opts?.resetMapCityFromProfile && p.city?.trim()) {
+        setSelectedCity(p.city.trim());
+      }
+
+      return p;
+    },
+    [setSelectedCity],
+  );
 
   const loadUsefulContactsCount = useCallback(async () => {
     setUsefulContactsLoading(true);
@@ -147,15 +205,12 @@ export function TopBar() {
           setIsAuthed(false);
           setFullName(null);
           setMyProfileId(null);
+          setProfileCity(null);
           return;
         }
 
         setIsAuthed(true);
-
-        const p = await fetchTopBarProfile(user.id);
-        const name = p?.full_name ?? null;
-        setFullName(name);
-        setMyProfileId(p?.id ?? null);
+        await applyTopBarProfile(user.id);
       } finally {
         setLoading(false);
       }
@@ -165,25 +220,23 @@ export function TopBar() {
 
     const {
       data: { subscription },
-    } = authOnAuthStateChange(async (_event, session) => {
+    } = authOnAuthStateChange(async (event, session) => {
       const user = session?.user;
       if (user) {
         setIsAuthed(true);
-        // Не await: supabase auth ждёт все колбэки перед resolve signInWithPassword.
-        void fetchTopBarProfile(user.id)
-          .then((p) => {
-            setFullName(p?.full_name ?? null);
-            setMyProfileId(p?.id ?? null);
-          })
-          .catch(() => {
-            setFullName(null);
-            setMyProfileId(null);
-          });
+        void applyTopBarProfile(user.id, {
+          resetMapCityFromProfile: event === "SIGNED_IN",
+        }).catch(() => {
+          setFullName(null);
+          setMyProfileId(null);
+          setProfileCity(null);
+        });
         return;
       }
       setIsAuthed(false);
       setFullName(null);
       setMyProfileId(null);
+      setProfileCity(null);
       setContactCount(0);
       setLoading(false);
     });
@@ -191,7 +244,15 @@ export function TopBar() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [applyTopBarProfile]);
+
+  useEffect(() => {
+    if (pathname !== "/map" || !isAuthed) return;
+
+    void authGetUser().then(({ data: { user } }) => {
+      if (user) void applyTopBarProfile(user.id);
+    });
+  }, [pathname, isAuthed, applyTopBarProfile]);
 
   const reloadContactCount = useCallback(() => {
     if (!myProfileId) {
@@ -297,7 +358,7 @@ export function TopBar() {
             priority
           />
           <span className="truncate text-xl font-semibold text-slate-900">
-            Zeip
+            ЗЕИП
           </span>
         </Link>
         <p className="flex items-baseline gap-1 overflow-hidden text-[10px] leading-tight text-slate-600 sm:text-xs">
@@ -315,8 +376,12 @@ export function TopBar() {
         </p>
       </div>
 
-      <div className="justify-self-center">
-        <TopBarCitySelect />
+      <div className="flex flex-col items-center justify-self-center gap-1">
+        <TopBarCitySelect
+          onCityChosen={() => handleCityChosen()}
+          highlight={showCityOnboarding}
+        />
+        {showCityOnboarding ? <CityOnboardingBanner /> : null}
       </div>
 
       <div className="flex items-center justify-end gap-2 md:gap-3">
@@ -340,13 +405,18 @@ export function TopBar() {
           </button>
         ) : null}
 
-        <div className="relative" ref={menuRef}>
+        <div className="relative flex items-center gap-1.5 sm:gap-2" ref={menuRef}>
           {isAuthed ? (
             <>
+              {showProfileOnboarding ? <ProfileOnboardingBanner /> : null}
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-100"
+                className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-100 ${
+                  showProfileOnboarding
+                    ? "ring-2 ring-emerald-400 ring-offset-1"
+                    : ""
+                }`}
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-slate-900 text-sm font-medium text-white">
                   {displayInitial}
@@ -425,6 +495,7 @@ export function TopBar() {
                       setIsAuthed(false);
                       setFullName(null);
                       setMyProfileId(null);
+                      setProfileCity(null);
                       setLoading(false);
                       router.push("/auth");
                     }}

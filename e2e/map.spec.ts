@@ -12,6 +12,7 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/map");
     await openMobileTab(page, "Карта");
+    await expect(page.getByText("Выберите город")).toBeVisible();
     const cityStorage = await page.evaluate(() =>
       localStorage.getItem("selected_city"),
     );
@@ -19,6 +20,27 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
     await expect(page.locator(".mmrgl-map").first()).toBeVisible({
       timeout: 25_000,
     });
+  });
+
+  test("TC-3.1b Онбординг города скрывается после выбора", async ({
+    page,
+  }) => {
+    await clearClientStorage(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/map");
+    await expect(page.getByText("Выберите город")).toBeVisible();
+    const cityButton = page
+      .locator("header")
+      .getByRole("button")
+      .filter({ hasText: /Россия|Пермь|Москва/i })
+      .first();
+    await cityButton.click();
+    await page.getByText("Пермь", { exact: true }).click();
+    await expect(page.getByText("Выберите город")).toBeHidden();
+    const ack = await page.evaluate(() =>
+      localStorage.getItem("city_onboarding_acknowledged"),
+    );
+    expect(ack).toBe("1");
   });
 
   test("TC-3.4 Панель фильтров открывается", async ({ page }) => {
@@ -43,6 +65,12 @@ test.describe("Фаза 3: Карта и поиск — smoke", () => {
 describeWithUser("Фаза 3: Карта — авторизованный", () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUi(page, e2eUser.email, e2eUser.password);
+  });
+
+  test("TC-3.7 authed не видит онбординг «Выберите город»", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/map");
+    await expect(page.getByText("Выберите город")).toBeHidden();
   });
 
   test("TC-3.2 Выбор города сохраняется в localStorage", async ({ page }) => {

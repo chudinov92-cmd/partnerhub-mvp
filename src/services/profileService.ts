@@ -149,13 +149,13 @@ export async function countContactsForOwner(profileId: string): Promise<number> 
 
 export async function fetchTopBarProfile(
   authUserId: string,
-): Promise<{ id: string; full_name: string | null } | null> {
+): Promise<{ id: string; full_name: string | null; city: string | null } | null> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name")
+    .select("id, full_name, city")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
-  const p = profile as { id: string; full_name: string | null } | null;
+  const p = profile as { id: string; full_name: string | null; city: string | null } | null;
   return p;
 }
 

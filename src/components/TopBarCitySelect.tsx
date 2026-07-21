@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { RUSSIA_LABEL, SORTED_CITY_OPTIONS } from "@/data/cities";
 
-export function TopBarCitySelect() {
+type TopBarCitySelectProps = {
+  onCityChosen?: (city: string) => void;
+  highlight?: boolean;
+};
+
+export function TopBarCitySelect({
+  onCityChosen,
+  highlight = false,
+}: TopBarCitySelectProps) {
   const { selectedCity, setSelectedCity } = useSelectedCity();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -51,7 +59,9 @@ export function TopBarCitySelect() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-800 sm:text-[11px]"
+        className={`flex w-full items-center justify-between rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-emerald-800 sm:text-[11px] ${
+          highlight ? "ring-2 ring-emerald-400 ring-offset-1" : ""
+        }`}
       >
         <span className="truncate">
           {selectedCity ? selectedCity : "Выберите город"}
@@ -79,6 +89,7 @@ export function TopBarCitySelect() {
                 setSelectedCity(RUSSIA_LABEL);
                 setOpen(false);
                 setSearch("");
+                onCityChosen?.(RUSSIA_LABEL);
               }}
               className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 sm:py-1 sm:text-[11px]"
             >
@@ -98,6 +109,7 @@ export function TopBarCitySelect() {
                     setSelectedCity(city);
                     setOpen(false);
                     setSearch("");
+                    onCityChosen?.(city);
                   }}
                   className="flex w-full items-center rounded-lg px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 sm:py-1 sm:text-[11px]"
                 >

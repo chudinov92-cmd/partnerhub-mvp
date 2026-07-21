@@ -14,7 +14,7 @@ export function Hero({ assets }: HeroProps) {
       <div className="container hero__grid">
         <div className="hero__copy">
           <h1 className="hero__title">
-            <span className="hero__brand">Zeip</span> — место, где твои идеи становятся реальностью.
+            <span className="hero__brand">ЗЕИП</span> — место, где твои идеи становятся реальностью.
           </h1>
           <p className="hero__subtitle">
             Хватит планировать в одиночку. Найди тех, кто готов включиться с тобой в работу над проектом и разделить
