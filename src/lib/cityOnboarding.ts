@@ -5,7 +5,10 @@ export { RUSSIA_LABEL };
 export const CITY_ONBOARDING_ACK_KEY = "city_onboarding_acknowledged";
 
 export function isSpecificCity(city: string): boolean {
-  return city !== RUSSIA_LABEL && CITY_OPTIONS.includes(city);
+  return (
+    city !== RUSSIA_LABEL &&
+    (CITY_OPTIONS as readonly string[]).includes(city)
+  );
 }
 
 export function isCityOnboardingAcknowledged(): boolean {
