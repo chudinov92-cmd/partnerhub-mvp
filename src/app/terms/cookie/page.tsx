@@ -5,7 +5,7 @@ import cookie from "@/data/legal/cookie.json";
 export const metadata: Metadata = {
   title: "Условия обработки cookie-файлов — Zeip",
   description:
-    "Условия обработки cookie-файлов на сайте zeip.ru: категории, цели, управление и отзыв согласия.",
+    "Условия обработки cookie-файлов на сайте test.zeip.ru: категории, цели, управление и отзыв согласия.",
 };
 
 export default function CookiePolicyPage() {

@@ -1,4 +1,4 @@
-export const baseURL = process.env.E2E_BASE_URL ?? "https://zeip.ru";
+export const baseURL = process.env.E2E_BASE_URL ?? "https://test.zeip.ru";
 
 function readE2eSecret(value: string | undefined): string {
   return (value ?? "").trim();

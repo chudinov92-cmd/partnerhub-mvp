@@ -12,7 +12,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(
 dotenv.config({ path: path.resolve(__dirname, ".env.e2e") });
 dotenv.config({ path: path.resolve(__dirname, ".env.local"), override: false });
 
-const baseURL = process.env.E2E_BASE_URL ?? "https://zeip.ru";
+const baseURL = process.env.E2E_BASE_URL ?? "https://test.zeip.ru";
 
 export default defineConfig({
   testDir: "./e2e",

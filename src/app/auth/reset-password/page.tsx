@@ -22,7 +22,7 @@ function getAuthErrorMessage(err: unknown) {
     if (/code verifier|bad_code_verifier/i.test(raw)) {
       return (
         "Ссылка открыта не в том браузере, где вы нажимали «Забыли пароль?». " +
-        "Запросите новое письмо на https://zeip.ru/auth в Safari и откройте ссылку там же " +
+        "Запросите новое письмо на https://test.zeip.ru/auth в Safari и откройте ссылку там же " +
         "(не в превью Telegram)."
       );
     }

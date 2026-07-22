@@ -1,4 +1,4 @@
-zeip.ru {
+test.zeip.ru {
   encode gzip zstd
   reverse_proxy 127.0.0.1:3001
 }
@@ -6,4 +6,9 @@ zeip.ru {
 supabase.zeip.ru {
   encode gzip zstd
   reverse_proxy 127.0.0.1:8443
+}
+
+# Основной домен закрыт до возврата на prod (152-ФЗ / РКН):
+zeip.ru, www.zeip.ru {
+  respond "Сайт временно недоступен" 404
 }
