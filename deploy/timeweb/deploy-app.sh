@@ -45,6 +45,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-07-17-cookie-consent-logs.sql" "coo
 run_sql_migration "${ROOT}/docs/profile_views_content_version.sql" "profile-views-content-version"
 run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-public-read"
 run_sql_migration "${ROOT}/docs/profile_last_name_private.sql" "profile-last-name-private"
+run_sql_migration "${ROOT}/supabase/sql/2026-07-21-account-settings.sql" "account-settings"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

@@ -8,7 +8,7 @@ import {
   isPushSupported,
 } from "@/lib/push";
 
-/** Блок в настройках профиля: отключение push на этом устройстве. */
+/** Блок на /settings: отключение push на этом устройстве. */
 export function PushNotificationsSettings() {
   const [state, setState] = useState<
     "loading" | "unsupported" | "denied" | "off" | "on"

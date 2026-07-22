@@ -74,7 +74,16 @@ export function CookieBanner() {
             id="cookie-banner-description"
             className="mt-1 text-sm leading-snug text-slate-600"
           >
-            Мы используем cookie для работы сервиса, аналитики (Яндекс.Метрика)
+            Мы используем{" "}
+            <a
+              href="/terms/cookie"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
+            >
+              cookie
+            </a>{" "}
+            для работы сервиса, аналитики (Яндекс.Метрика)
             и показа рекламы (ВКонтакте). Продолжая использовать сайт, вы
             соглашаетесь с{" "}
             <a
@@ -94,7 +103,7 @@ export function CookieBanner() {
           disabled={submitting}
           className="inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-[#009966] hover:to-emerald-700 disabled:opacity-60"
         >
-          {submitting ? "Сохраняем..." : "Принять"}
+          {submitting ? "Сохраняем..." : "Согласен"}
         </button>
       </div>
     </div>

@@ -55,9 +55,27 @@ export function profileMatchesProfession(
 }
 
 export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
+  const select = `${PROFILE_MAP_SELECT}, profile_work(id, role_title, industry, subindustry, experience_years, sort_order)`;
+  const withFilters = await supabasePublic
+    .from("profiles")
+    .select(select)
+    .is("deleted_at", null)
+    .eq("map_visible", true)
+    .limit(limit);
+
+  if (!withFilters.error) {
+    return ((withFilters.data ?? []) as ProfileMapRow[]).map(normalizeMapProfile);
+  }
+
+  // До миграции 2026-07-21-account-settings.sql колонок ещё нет.
+  const msg = String(withFilters.error.message ?? "");
+  if (!/deleted_at|map_visible|column/i.test(msg)) {
+    throw withFilters.error;
+  }
+
   const { data, error } = await supabasePublic
     .from("profiles")
-    .select(`${PROFILE_MAP_SELECT}, profile_work(id, role_title, industry, subindustry, experience_years, sort_order)`)
+    .select(select)
     .limit(limit);
   if (error) throw error;
   return ((data ?? []) as ProfileMapRow[]).map(normalizeMapProfile);
@@ -74,6 +92,8 @@ export type CurrentProfileRow = {
   is_blocked: boolean | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  map_visible?: boolean | null;
+  deleted_at?: string | null;
 };
 
 export function parseInterestedProfessions(raw: string | null | undefined) {
@@ -96,13 +116,33 @@ export function profileInterestedInProfession(
 export async function fetchCurrentUserProfileRow(
   authUserId: string,
 ): Promise<CurrentProfileRow | null> {
+  // Без .is("deleted_at", null): после soft delete auth_user_id = null,
+  // а до миграции фильтр по несуществующей колонке ломает TopBar/settings.
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at")
+    .select(
+      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, map_visible, deleted_at",
+    )
     .eq("auth_user_id", authUserId)
     .maybeSingle();
-  if (error) throw error;
-  return (data as CurrentProfileRow | null) ?? null;
+
+  if (error) {
+    // Колонки map_visible/deleted_at ещё не накатаны — fallback без них.
+    const msg = String(error.message ?? "");
+    if (/map_visible|deleted_at|column/i.test(msg)) {
+      const { data: fallback, error: fbErr } = await supabase
+        .from("profiles")
+        .select("id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at")
+        .eq("auth_user_id", authUserId)
+        .maybeSingle();
+      if (fbErr) throw fbErr;
+      return (fallback as CurrentProfileRow | null) ?? null;
+    }
+    throw error;
+  }
+  const row = data as CurrentProfileRow | null;
+  if (row?.deleted_at) return null;
+  return row;
 }
 
 export async function fetchProfilesInterestedIn(
@@ -113,14 +153,32 @@ export async function fetchProfilesInterestedIn(
   if (!trimmed) return [];
 
   const limit = options?.limit ?? 200;
-  const { data, error } = await supabasePublic
+  const withFilters = await supabasePublic
     .from("profiles")
     .select(PROFILE_MAP_SELECT)
+    .is("deleted_at", null)
+    .eq("map_visible", true)
     .ilike("interested_in", `%${trimmed}%`)
     .limit(limit);
-  if (error) throw error;
 
-  let rows = ((data ?? []) as Profile[]).filter((profile) =>
+  let rawRows: Profile[];
+  if (!withFilters.error) {
+    rawRows = (withFilters.data ?? []) as Profile[];
+  } else {
+    const msg = String(withFilters.error.message ?? "");
+    if (!/deleted_at|map_visible|column/i.test(msg)) {
+      throw withFilters.error;
+    }
+    const { data, error } = await supabasePublic
+      .from("profiles")
+      .select(PROFILE_MAP_SELECT)
+      .ilike("interested_in", `%${trimmed}%`)
+      .limit(limit);
+    if (error) throw error;
+    rawRows = (data ?? []) as Profile[];
+  }
+
+  let rows = rawRows.filter((profile) =>
     profileInterestedInProfession(profile, trimmed),
   );
 
@@ -150,13 +208,15 @@ export async function countContactsForOwner(profileId: string): Promise<number> 
 export async function fetchTopBarProfile(
   authUserId: string,
 ): Promise<{ id: string; full_name: string | null; city: string | null } | null> {
-  const { data: profile } = await supabase
+  // Не фильтруем deleted_at в SQL: до миграции колонки нет → запрос падает и TopBar
+  // показывает «Профиль». После soft delete auth_user_id = null — запись всё равно не найдётся.
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("id, full_name, city")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
-  const p = profile as { id: string; full_name: string | null; city: string | null } | null;
-  return p;
+  if (error) throw error;
+  return (profile as { id: string; full_name: string | null; city: string | null } | null) ?? null;
 }
 
 /** Точки карты (locations). */
@@ -184,6 +244,32 @@ export async function fetchActiveLocations(
     lng: row.lng,
     city: row.city ?? null,
   }));
+}
+
+/** Вкл/выкл видимость на карте: profiles.map_visible + locations.is_active. */
+export async function setProfileMapVisible(
+  profileId: string,
+  visible: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ map_visible: visible })
+    .eq("id", profileId);
+  if (error) {
+    const msg = String(error.message ?? "");
+    if (/map_visible|column/i.test(msg)) {
+      throw new Error(
+        "Миграция видимости на карте ещё не применена. Выполните 2026-07-21-account-settings.sql",
+      );
+    }
+    throw error;
+  }
+
+  const { error: locErr } = await supabase
+    .from("locations")
+    .update({ is_active: visible })
+    .eq("user_id", profileId);
+  if (locErr) throw locErr;
 }
 
 /** Лайки на карточке профиля (ProfilePreviewCard). */

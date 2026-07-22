@@ -1,6 +1,7 @@
 # Zeip Migration Runbook (Timeweb, Variant A)
 
-This runbook migrates production from Vercel/Supabase Cloud to one Timeweb server:
+Исторический runbook переноса продакшена на один сервер Timeweb
+(ранее хостинг приложения был на Vercel; сейчас прод только Timeweb):
 
 - `zeip.ru` -> Next.js `app-web` container
 - `supabase.zeip.ru` -> self-hosted Supabase (Kong/PostgREST/Auth)

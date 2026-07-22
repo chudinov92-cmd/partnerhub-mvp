@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { LegalDocumentContent } from "@/components/legal/LegalDocumentContent";
 
 type LegalDocumentPageProps = {
@@ -6,6 +7,7 @@ type LegalDocumentPageProps = {
   paragraphs: string[];
   backHref?: string;
   backLabel?: string;
+  intro?: ReactNode;
 };
 
 export function LegalDocumentPage({
@@ -13,6 +15,7 @@ export function LegalDocumentPage({
   paragraphs,
   backHref = "/terms",
   backLabel = "← Условия",
+  intro,
 }: LegalDocumentPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-4 py-8">
@@ -23,6 +26,8 @@ export function LegalDocumentPage({
         >
           {backLabel}
         </Link>
+
+        {intro ? <div className="mt-4">{intro}</div> : null}
 
         <h1 className="mt-4 text-2xl font-semibold text-slate-900">{title}</h1>
 

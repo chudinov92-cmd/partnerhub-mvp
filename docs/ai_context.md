@@ -3,20 +3,23 @@
 ## 1. Architecture & Stack
 
 - **Frontend**: Next.js 16 (App Router, `app/`), TypeScript, Tailwind CSS.
-- **Backend**: Supabase (Postgres, Auth, Realtime).
-- **Hosting**: Vercel; environment variables (в **Settings → Environment Variables** для Production / Preview):
-  - `NEXT_PUBLIC_SUPABASE_URL` — URL проекта Supabase (например `https://xxxx.supabase.co`).
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon public key из Supabase → Project Settings → API.
+- **Backend**: self-hosted Supabase (Postgres, Auth, Realtime) на `supabase.zeip.ru`.
+- **Hosting**: Timeweb VPS (`zeip.ru` → Docker `app-web`); переменные окружения в `deploy/timeweb/.env.app` на сервере и в локальном `.env.local`:
+  - `NEXT_PUBLIC_SUPABASE_URL` — например `https://supabase.zeip.ru`.
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon key из self-hosted Supabase.
+  - `SUPABASE_SERVICE_ROLE_KEY` — только сервер (`/api/**`), не в клиент.
 - **Client data access**: `src/lib/supabaseClient.ts` (browser-safe anon client).
 
-### Деплой на Vercel (чеклист)
+### Деплой на Timeweb (чеклист)
 
-1. **Репозиторий**: корень Git должен совпадать с папкой Next-приложения **или** в Vercel указать **Root Directory** = `my-app` (если в монорепо выше лежит только оболочка).
-2. **Framework Preset**: Next.js; команда сборки по умолчанию `next build`, выход `.next`.
-3. **Переменные**: без обеих `NEXT_PUBLIC_*` приложение на проде падает при обращении к Supabase (пустой URL / ключ) — проверить, что они заданы для **Production** и сделан **Redeploy** после добавления.
-4. **Локально перед пушем**: `cd my-app && npm run build` — та же команда, что на Vercel; если билд падает локально, на Vercel упадёт так же.
-5. **Подключение домена**: Vercel → Project → Domains; в Supabase → Authentication → URL Configuration добавить production URL в **Site URL** и **Redirect URLs**, иначе OAuth / magic link дадут ошибку редиректа.
-6. **CLI** (альтернатива Git): из `my-app` после `npx vercel login` и `npx vercel link` — `npx vercel --prod` (переменные задаются в дашборде или через `vercel env`).
+1. Код приложения: репозиторий `my-app/` (на VPS: `/root/zeip/my-app`).
+2. Сборка: Docker Compose `deploy/timeweb/docker-compose.app.yml`, образ Next.js standalone.
+3. Переменные: `deploy/timeweb/.env.app` — без `NEXT_PUBLIC_SUPABASE_*` и `SUPABASE_SERVICE_ROLE_KEY` прод не работает.
+4. Локально перед пушем: `cd my-app && npm run build`.
+5. Деплой с Mac: `bash scripts/vps/run-deploy-remote.sh` или на сервере:
+   `cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh`.
+6. Auth redirect: в Supabase Auth → URL Configuration — Site URL / Redirect URLs для `https://zeip.ru` (и localhost при необходимости).
+7. Runbook / миграция: `docs/timeweb-migration-runbook.md`.
 
 ## 2. Core Domain & Data Model (Supabase)
 

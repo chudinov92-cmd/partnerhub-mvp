@@ -69,13 +69,34 @@ export default function PublicProfilePage() {
         const { data, error } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count",
+            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count, deleted_at",
           )
           .eq("id", profileId)
           .maybeSingle();
 
-        if (error) throw error;
-        setProfile((data as PublicProfile) ?? null);
+        if (error) {
+          const msg = String(error.message ?? "");
+          if (/deleted_at|column/i.test(msg)) {
+            const fallback = await supabase
+              .from("profiles")
+              .select(
+                "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count",
+              )
+              .eq("id", profileId)
+              .maybeSingle();
+            if (fallback.error) throw fallback.error;
+            setProfile((fallback.data as PublicProfile) ?? null);
+            return;
+          }
+          throw error;
+        }
+        const row = data as (PublicProfile & { deleted_at?: string | null }) | null;
+        if (row?.deleted_at) {
+          setProfile(null);
+          setError("Профиль удалён");
+          return;
+        }
+        setProfile(row ?? null);
       } catch (err: any) {
         setError(err.message ?? "Не удалось загрузить профиль");
       } finally {

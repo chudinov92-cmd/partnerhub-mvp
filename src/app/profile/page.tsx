@@ -13,7 +13,6 @@ import {
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
-import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { maskProfanity } from "@/lib/profanity";
 import {
   getIndustryLabelsForSelect,
@@ -803,8 +802,17 @@ export default function ProfilePage() {
         // best-effort: do not block profile save
       }
 
-      // обновляем / создаём локацию
+      // обновляем / создаём локацию (is_active следует за map_visible)
       if (coords) {
+        const { data: visibilityRow } = await supabase
+          .from("profiles")
+          .select("map_visible")
+          .eq("id", profile.id)
+          .maybeSingle();
+        const mapVisible =
+          (visibilityRow as { map_visible?: boolean | null } | null)
+            ?.map_visible !== false;
+
         if (location) {
           const { error: locErr } = await supabase
             .from("locations")
@@ -812,7 +820,7 @@ export default function ProfilePage() {
               lat: coords.lat,
               lng: coords.lng,
               city: profile.city,
-              is_active: true,
+              is_active: mapVisible,
             })
             .eq("id", location.id);
 
@@ -823,7 +831,7 @@ export default function ProfilePage() {
             lat: coords.lat,
             lng: coords.lng,
             city: profile.city,
-            is_active: true,
+            is_active: mapVisible,
           });
 
           if (insertErr) throw insertErr;
@@ -947,8 +955,6 @@ export default function ProfilePage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-emerald-600">{success}</p>}
-
-        {profile ? <PushNotificationsSettings /> : null}
 
         {catalogLoading ? (
           <p className="text-xs text-slate-500">Загрузка справочников...</p>

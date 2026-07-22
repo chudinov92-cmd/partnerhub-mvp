@@ -77,10 +77,10 @@ export function PushOptInBanner({ hasSession }: Props) {
         <span className="font-medium text-emerald-700">Уведомления о сообщениях включены</span>
         <span className="text-slate-500">на этом устройстве.</span>
         <Link
-          href="/profile"
+          href="/settings"
           className="font-medium text-[#009966] underline-offset-2 hover:underline"
         >
-          Отключить в профиле
+          Отключить в настройках
         </Link>
       </div>
     );

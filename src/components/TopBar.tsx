@@ -441,6 +441,16 @@ export function TopBar() {
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
+                      router.push("/settings");
+                    }}
+                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
+                  >
+                    Настройки
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
                       router.push("/map?contacts=1");
                     }}
                     className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
