@@ -21,8 +21,17 @@ if [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
   ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
 elif [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v expect >/dev/null 2>&1; then
   export VPS_SSH_PASSWORD
-  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" "$ROOT/scripts/vps/migrate-to-test-domain.sh"
-  ssh -o StrictHostKeyChecking=accept-new "$HOST" "cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh"
+  expect -f - <<EXPECT
+set timeout 1800
+spawn ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
+expect {
+  -re "(?i)password:" {
+    send "\$env(VPS_SSH_PASSWORD)\r"
+    exp_continue
+  }
+  eof {}
+}
+EXPECT
 else
   ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
 fi
