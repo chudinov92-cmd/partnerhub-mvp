@@ -76,7 +76,7 @@ export function CookieBanner() {
           >
             Мы используем{" "}
             <a
-              href="/terms/cookie"
+              href="/terms/cookies"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"

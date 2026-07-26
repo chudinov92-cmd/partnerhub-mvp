@@ -1,6 +1,7 @@
 export const COOKIE_CONSENT_KEY = "cookie_consent";
 export const ANONYMOUS_UID_KEY = "anonymous_uid";
-export const COOKIE_POLICY_VERSION = "v2026.1";
+/** При изменении — синхронно обновите поле `version` в `src/data/legal/cookie.json`. */
+export const COOKIE_POLICY_VERSION = "v2026.2";
 export const COOKIE_CONSENT_ACCEPTED_EVENT = "zeip:cookie-consent-accepted";
 
 export const COOKIE_CONSENT_TYPES = ["all", "necessary_only", "marketing"] as const;

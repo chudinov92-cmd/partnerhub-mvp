@@ -20,7 +20,7 @@ export default function PersonalDataConsentPage() {
         <p className="text-sm text-slate-600">
           Также см.{" "}
           <Link
-            href="/terms/cookie"
+            href="/terms/cookies"
             className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
           >
             Условия обработки cookie-файлов

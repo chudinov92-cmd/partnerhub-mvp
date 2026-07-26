@@ -19,9 +19,10 @@ const DOCUMENTS = [
     description: "Как мы обрабатываем персональные данные посетителей сайта",
   },
   {
-    href: "/terms/cookie",
+    href: "/terms/cookies",
     title: "Условия обработки cookie-файлов",
-    description: "Какие cookie используются на сайте и как ими управлять",
+    description:
+      "Реестр cookie, localStorage и sessionStorage: категории, сроки, согласие",
   },
   {
     href: "/terms/consent",

@@ -1,0 +1,13 @@
+User-agent: *
+Disallow: /api/
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /settings/
+Disallow: /profile/edit/
+
+Allow: /
+Allow: /map/
+Allow: /terms/
+Allow: /subscription/
+
+Sitemap: https://zeip.ru/sitemap.xml
