@@ -28,6 +28,7 @@ function isNumberedSection(text: string): boolean {
 
 type Block =
   | { type: "heading"; text: string }
+  | { type: "subheading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] };
 
@@ -38,6 +39,18 @@ function buildBlocks(paragraphs: string[], title: string): Block[] {
 
   while (i < body.length) {
     const text = body[i];
+
+    if (text.startsWith("## ")) {
+      blocks.push({ type: "heading", text: text.slice(3) });
+      i += 1;
+      continue;
+    }
+
+    if (text.startsWith("### ")) {
+      blocks.push({ type: "subheading", text: text.slice(4) });
+      i += 1;
+      continue;
+    }
 
     if (isAllCapsHeading(text)) {
       blocks.push({ type: "heading", text });
@@ -104,6 +117,17 @@ export function LegalDocumentContent({
             >
               {block.text}
             </h2>
+          );
+        }
+
+        if (block.type === "subheading") {
+          return (
+            <h3
+              key={`sh-${index}`}
+              className="pt-1 text-sm font-semibold text-slate-800"
+            >
+              {block.text}
+            </h3>
           );
         }
 
