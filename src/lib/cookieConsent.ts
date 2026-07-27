@@ -2,10 +2,18 @@ export const COOKIE_CONSENT_KEY = "cookie_consent";
 export const ANONYMOUS_UID_KEY = "anonymous_uid";
 /** При изменении — синхронно обновите поле `version` в `src/data/legal/cookie.json`. */
 export const COOKIE_POLICY_VERSION = "v2026.2";
+/** При изменении пользовательского соглашения — обновите `src/data/legal/user-agreement.json`. */
+export const USER_AGREEMENT_VERSION = "ua-v2026.1";
 export const COOKIE_CONSENT_ACCEPTED_EVENT = "zeip:cookie-consent-accepted";
 
 export const COOKIE_CONSENT_TYPES = ["all", "necessary_only", "marketing"] as const;
 export type CookieConsentType = (typeof COOKIE_CONSENT_TYPES)[number];
+
+export const CONSENT_LOG_TYPES = [
+  ...COOKIE_CONSENT_TYPES,
+  "user_agreement",
+] as const;
+export type ConsentLogType = (typeof CONSENT_LOG_TYPES)[number];
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -65,11 +73,11 @@ export function getClientIpFromRequest(req: Request): string | null {
 }
 
 export function isSupportedPolicyVersion(value: string): boolean {
-  return value === COOKIE_POLICY_VERSION;
+  return value === COOKIE_POLICY_VERSION || value === USER_AGREEMENT_VERSION;
 }
 
-export function isSupportedConsentType(value: string): value is CookieConsentType {
-  return (COOKIE_CONSENT_TYPES as readonly string[]).includes(value);
+export function isSupportedConsentType(value: string): value is ConsentLogType {
+  return (CONSENT_LOG_TYPES as readonly string[]).includes(value);
 }
 
 /** Fire-and-forget: привязка anonymous_uid к текущей сессии после входа/регистрации. */
@@ -82,6 +90,23 @@ export function linkAnonymousCookieConsent(): void {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ anonymous_uid: anonymousUid }),
     credentials: "include",
+  }).catch(() => {
+    // не блокируем UX
+  });
+}
+
+/** Fire-and-forget: лог принятия пользовательского соглашения при регистрации. */
+export function recordAgreementConsent(): void {
+  const anonymousUid = getOrCreateAnonymousUid();
+
+  void fetch("/api/v1/privacy/cookie-consent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      anonymous_uid: anonymousUid,
+      policy_version: USER_AGREEMENT_VERSION,
+      consent_type: "user_agreement",
+    }),
   }).catch(() => {
     // не блокируем UX
   });

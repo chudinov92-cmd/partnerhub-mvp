@@ -8,7 +8,7 @@ import {
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { supabase } from "@/lib/supabaseClient";
-import { linkAnonymousCookieConsent } from "@/lib/cookieConsent";
+import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import {
   AUTH_FORM_TIMEOUT_MS,
   AUTH_OPERATION_TIMEOUT_MS,
@@ -238,6 +238,7 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [consentChecked, setConsentChecked] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
   const router = useRouter();
 
   // если уже есть сессия: recovery → установка пароля, иначе на главную
@@ -309,6 +310,7 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
+        recordAgreementConsent();
         linkAnonymousCookieConsent();
         setInfo(
           "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
@@ -421,6 +423,7 @@ export default function AuthPage() {
               onClick={() => {
                 setMode("signin");
                 setConsentChecked(false);
+                setAgreementChecked(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -437,6 +440,7 @@ export default function AuthPage() {
               onClick={() => {
                 setMode("signup");
                 setConsentChecked(false);
+                setAgreementChecked(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -517,31 +521,56 @@ export default function AuthPage() {
           )}
 
           {mode === "signup" && (
-            <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                required
-                checked={consentChecked}
-                onChange={(e) => setConsentChecked(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#009966]"
-              />
-              <span>
-                Я даю согласие на обработку персональных данных в соответствии с{" "}
-                <a
-                  href="/personal-data"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
-                >
-                  Согласием на обработку ПД
-                </a>
-              </span>
-            </label>
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  required
+                  checked={consentChecked}
+                  onChange={(e) => setConsentChecked(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#009966]"
+                />
+                <span>
+                  Я даю согласие на обработку персональных данных в соответствии с{" "}
+                  <a
+                    href="/personal-data"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
+                  >
+                    Согласием на обработку ПД
+                  </a>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  required
+                  checked={agreementChecked}
+                  onChange={(e) => setAgreementChecked(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#009966]"
+                />
+                <span>
+                  Я принимаю условия{" "}
+                  <a
+                    href="/terms/agreement"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
+                  >
+                    Пользовательского соглашения
+                  </a>
+                </span>
+              </label>
+            </div>
           )}
 
           <button
             type="submit"
-            disabled={loading || (mode === "signup" && !consentChecked)}
+            disabled={
+              loading ||
+              (mode === "signup" && (!consentChecked || !agreementChecked))
+            }
             className="flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60"
           >
             {loading
@@ -560,6 +589,7 @@ export default function AuthPage() {
                 onClick={() => {
                   setMode("forgot");
                   setConsentChecked(false);
+                  setAgreementChecked(false);
                   setError(null);
                   setInfo(null);
                 }}
@@ -577,6 +607,7 @@ export default function AuthPage() {
                 onClick={() => {
                   setMode("signin");
                   setConsentChecked(false);
+                  setAgreementChecked(false);
                   setError(null);
                   setInfo(null);
                 }}
