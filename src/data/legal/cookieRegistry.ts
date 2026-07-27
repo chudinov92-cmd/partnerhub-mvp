@@ -315,7 +315,7 @@ export const COOKIE_REGISTRY_SECTIONS: CookieRegistrySection[] = [
     id: "third-party-payment",
     title: "Сторонний оператор — при оплате",
     description:
-      "Cookie устанавливаются только при переходе на страницу оплаты Robokassa. Оператор Zeip не контролирует их состав.",
+      "Cookie устанавливаются только при переходе на страницу оплаты Robokassa. Оператор ЗЕИП не контролирует их состав.",
     entries: [
       {
         name: "cookie домена auth.robokassa.ru",
