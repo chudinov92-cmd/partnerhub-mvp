@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Возврат приложения на zeip.ru (VPS: Caddy + GoTrue).
-# Запуск на VPS после SSH:
-#   bash /root/zeip/my-app/scripts/vps/migrate-to-prod-domain.sh
+#
+# ⚠️  Запускать НА VPS (после ssh root@186.246.2.104), не с Mac:
+#   cd /root/zeip/my-app && git pull --ff-only && bash scripts/vps/migrate-to-prod-domain.sh
+#
+# С Mac (без ручного SSH) — другой скрипт:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+#   bash scripts/vps/run-migrate-prod-domain-remote.sh
 #
 # DNS (вручную в панели Timeweb ДО или ПОСЛЕ):
 #   zeip.ru, www.zeip.ru  A  186.246.2.104

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Caddy + GoTrue + push_dispatch_url на VPS (возврат на zeip.ru).
-# Папка:
-#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
 #
-# Интерактивный SSH:
+# ⚠️  Запускать с Mac (локальный терминал), НЕ внутри ssh root@186.246.2.104:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
 #   bash scripts/vps/run-migrate-prod-domain-remote.sh
+#
+# Если уже на VPS — используйте migrate-to-prod-domain.sh (см. DNS-prod-domain.md).
 #
 # С паролем:
 #   VPS_SSH_PASSWORD='***' bash scripts/vps/run-migrate-prod-domain-remote.sh

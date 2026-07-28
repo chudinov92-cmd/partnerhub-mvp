@@ -25,17 +25,20 @@ dig +short test.zeip.ru A @8.8.8.8
 
 Ожидание: `zeip.ru` и `www.zeip.ru` → `186.246.2.104`; `test.zeip.ru` — пусто.
 
-После DNS — на VPS:
+## Вариант A — уже в SSH на VPS (`root@186.246.2.104`)
 
 ```bash
-ssh root@186.246.2.104
-bash /root/zeip/my-app/scripts/vps/migrate-to-prod-domain.sh
-cd /root/zeip/my-app && bash deploy/timeweb/deploy-app.sh
+cd /root/zeip/my-app
+git pull --ff-only
+bash scripts/vps/migrate-to-prod-domain.sh
+bash deploy/timeweb/deploy-app.sh
 ```
 
-Или с Mac:
+## Вариант B — с Mac (одна команда, сам подключится по SSH)
 
 ```bash
 cd /Users/vladimirchudinov/Desktop/my-startup/my-app
 bash scripts/vps/run-migrate-prod-domain-remote.sh
 ```
+
+> Не смешивайте пути: `/Users/vladimirchudinov/...` — только на Mac, `/root/zeip/my-app` — только на VPS.
