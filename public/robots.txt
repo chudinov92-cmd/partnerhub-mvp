@@ -3,7 +3,8 @@ Disallow: /api/
 Disallow: /admin/
 Disallow: /auth/
 Disallow: /settings/
-Disallow: /profile/edit/
+Disallow: /profile
+Disallow: /personal-data
 
 Allow: /
 Allow: /map/

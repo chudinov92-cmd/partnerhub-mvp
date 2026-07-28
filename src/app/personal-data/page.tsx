@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalDocumentPage } from "@/components/legal/LegalDocumentPage";
 import consent from "@/data/legal/consent.json";
+import { privatePageRobots } from "@/lib/pageMetadata";
 
 export const metadata: Metadata = {
   title: "Согласие на обработку персональных данных — Zeip",
   description:
     "Согласие на обработку персональных данных ООО «ЗЕИП» в соответствии с Федеральным законом № 152-ФЗ.",
+  robots: privatePageRobots,
 };
 
 export default function PersonalDataConsentPage() {

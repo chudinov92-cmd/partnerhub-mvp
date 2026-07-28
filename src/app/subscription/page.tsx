@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { authGetUser } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import {
@@ -83,8 +82,8 @@ function IconX({ className }: { className?: string }) {
 }
 
 export default function SubscriptionPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
@@ -99,11 +98,17 @@ export default function SubscriptionPage() {
         data: { user },
       } = await authGetUser();
       if (!user) {
-        router.replace("/auth");
+        setIsAuthenticated(false);
+        setProfileId(null);
+        setIsPro(false);
+        setExpiresAt(null);
         return;
       }
+
+      setIsAuthenticated(true);
       const row = await fetchCurrentUserProfileRow(user.id);
       if (!row?.id) {
+        setProfileId(null);
         setError("Профиль не найден. Завершите регистрацию.");
         return;
       }
@@ -118,10 +123,10 @@ export default function SubscriptionPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
-    loadStatus();
+    void loadStatus();
   }, [loadStatus]);
 
   const handleBuy = async () => {
@@ -137,6 +142,12 @@ export default function SubscriptionPage() {
       setPayLoading(false);
     }
   };
+
+  const freePlanHint = !isAuthenticated
+    ? "Базовый тариф при регистрации"
+    : isPro
+      ? "Базовый план"
+      : "Ваш текущий тариф";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-4 py-8 md:py-12">
@@ -158,7 +169,7 @@ export default function SubscriptionPage() {
           </div>
         ) : (
           <>
-            {isPro ? (
+            {isAuthenticated && isPro ? (
               <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
                 <p className="text-sm font-medium text-emerald-900">
                   Подписка Pro активна
@@ -180,7 +191,9 @@ export default function SubscriptionPage() {
               <article className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-slate-900">Free</h2>
-                  <p className="mt-1 text-xs text-slate-500">Текущий план</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {isAuthenticated ? "Текущий план" : "После регистрации"}
+                  </p>
                   <p className="mt-3 text-3xl font-bold text-slate-900">
                     0 ₽
                     <span className="text-sm font-normal text-slate-500">
@@ -198,7 +211,7 @@ export default function SubscriptionPage() {
                   ))}
                 </ul>
                 <p className="mt-6 text-center text-xs text-slate-400">
-                  {isPro ? "Базовый план" : "Ваш текущий тариф"}
+                  {freePlanHint}
                 </p>
               </article>
 
@@ -222,7 +235,7 @@ export default function SubscriptionPage() {
                     {PRO_PRICE}
                     <span className="text-sm font-normal text-slate-500">
                       {" "}
-                      / мес
+                      / 30 дней
                     </span>
                   </p>
                 </div>
@@ -255,10 +268,28 @@ export default function SubscriptionPage() {
                     );
                   })}
                 </ul>
-                {isPro ? (
+                {isAuthenticated && isPro ? (
                   <div className="mt-6 rounded-xl bg-emerald-50 py-3 text-center text-sm font-medium text-emerald-800">
                     Активен
                   </div>
+                ) : !isAuthenticated ? (
+                  <>
+                    <Link
+                      href="/auth?redirect=/subscription"
+                      className="mt-6 block w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700"
+                    >
+                      Зарегистрироваться и оформить Pro
+                    </Link>
+                    <p className="mt-1 text-center text-xs text-slate-400">
+                      Оплата доступна после входа в аккаунт. Условия — в{" "}
+                      <Link
+                        href="/terms/oferta"
+                        className="underline hover:text-slate-600"
+                      >
+                        публичной оферте
+                      </Link>
+                    </p>
+                  </>
                 ) : (
                   <>
                     <button
@@ -284,8 +315,8 @@ export default function SubscriptionPage() {
             </div>
 
             <p className="mt-8 text-center text-xs text-slate-500">
-              Оплата через Robokassa. После подключения webhook подписка
-              активируется автоматически.{" "}
+              Оплата через Robokassa. После оплаты подписка активируется
+              автоматически.{" "}
               <Link href="/" className="text-emerald-700 hover:underline">
                 На главную
               </Link>

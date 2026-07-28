@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { privatePageRobots } from "@/lib/pageMetadata";
 
 export const metadata: Metadata = {
   title: "Zeip — Админка",
-  robots: { index: false, follow: false },
+  robots: privatePageRobots,
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
