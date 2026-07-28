@@ -12,26 +12,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${VPS_HOST:-root@186.246.2.104}"
-REMOTE="cd /root/zeip/my-app && git pull --ff-only && bash scripts/vps/migrate-to-prod-domain.sh && bash deploy/timeweb/deploy-app.sh"
+REMOTE_BODY="${ROOT}/scripts/vps/migrate-prod-domain-remote-body.sh"
 
 cd "$ROOT"
 
 if [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
   export SSHPASS="$VPS_SSH_PASSWORD"
-  sshpass -e ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
+  sshpass -e ssh -o StrictHostKeyChecking=accept-new "$HOST" "bash -s" < "$REMOTE_BODY"
 elif [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v expect >/dev/null 2>&1; then
   export VPS_SSH_PASSWORD
-  expect -f - <<EXPECT
-set timeout 1800
-spawn ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
-expect {
-  -re "(?i)password:" {
-    send "\$env(VPS_SSH_PASSWORD)\r"
-    exp_continue
-  }
-  eof {}
-}
-EXPECT
+  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" "$REMOTE_BODY"
 else
-  ssh -o StrictHostKeyChecking=accept-new "$HOST" "$REMOTE"
+  ssh -o StrictHostKeyChecking=accept-new "$HOST" "bash -s" < "$REMOTE_BODY"
 fi
