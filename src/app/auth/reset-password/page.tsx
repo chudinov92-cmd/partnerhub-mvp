@@ -10,6 +10,14 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 
+function authPageUrl(): string {
+  const origin =
+    typeof process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN === "string"
+      ? process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN.trim()
+      : "";
+  return origin ? `${origin.replace(/\/$/, "")}/auth` : "https://zeip.ru/auth";
+}
+
 function getAuthErrorMessage(err: unknown) {
   if (!err) return "Ошибка";
   if (typeof err === "string") return err;
@@ -22,7 +30,7 @@ function getAuthErrorMessage(err: unknown) {
     if (/code verifier|bad_code_verifier/i.test(raw)) {
       return (
         "Ссылка открыта не в том браузере, где вы нажимали «Забыли пароль?». " +
-        "Запросите новое письмо на https://test.zeip.ru/auth в Safari и откройте ссылку там же " +
+        `Запросите новое письмо на ${authPageUrl()} в Safari и откройте ссылку там же ` +
         "(не в превью Telegram)."
       );
     }

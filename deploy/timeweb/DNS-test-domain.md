@@ -1,4 +1,6 @@
-# DNS для test.zeip.ru
+# DNS для test.zeip.ru (архив)
+
+> **Актуально:** см. [`DNS-prod-domain.md`](DNS-prod-domain.md) — возврат на **`zeip.ru`**.
 
 **Папка:** панель DNS домена `zeip.ru` (Timeweb / регистратор).
 

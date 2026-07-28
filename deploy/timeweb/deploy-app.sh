@@ -83,6 +83,20 @@ fi
 docker compose "${COMPOSE_BUILD[@]}"
 docker compose --env-file .env.app -f docker-compose.app.yml up -d
 
+echo "=== fix supabase caddy proxy (8443 -> 8000) ==="
+if [[ -f "${ROOT}/scripts/vps/fix-supabase-caddy-proxy.sh" ]]; then
+  bash "${ROOT}/scripts/vps/fix-supabase-caddy-proxy.sh"
+else
+  echo "WARN: fix-supabase-caddy-proxy.sh не найден — проверьте /etc/caddy/Caddyfile вручную"
+fi
+
+echo "=== check cookie-consent API ==="
+sleep 2
+curl -sS -o /dev/null -w "cookie-consent: HTTP %{http_code}\n" \
+  -X POST http://127.0.0.1:3001/api/v1/privacy/cookie-consent \
+  -H "Content-Type: application/json" \
+  -d '{"anonymous_uid":"550e8400-e29b-41d4-a716-446655440000","policy_version":"v2026.2","consent_type":"all"}' || true
+
 echo "=== check /subscription ==="
 sleep 3
 curl -sI http://127.0.0.1:3001/subscription | head -5

@@ -1,6 +1,8 @@
-# Внешние интеграции: test.zeip.ru
+# Внешние интеграции: test.zeip.ru (архив)
 
-Публичный URL приложения: **https://test.zeip.ru**  
+> **Актуально:** см. [`integrations-prod-domain.md`](integrations-prod-domain.md) — публичный URL **`https://zeip.ru`**.
+
+Публичный URL приложения: **https://test.zeip.ru** (закрыт 2026-07-28)  
 Backend Supabase без изменений: **https://supabase.zeip.ru**
 
 ## Robokassa
