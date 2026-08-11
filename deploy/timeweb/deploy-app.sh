@@ -81,8 +81,8 @@ else
   echo "Базовый образ node:20-alpine не найден — pull включён"
 fi
 
-docker compose "${COMPOSE_BUILD[@]}"
-docker compose --env-file .env.app -f docker-compose.app.yml up -d
+docker compose "${COMPOSE_BUILD[@]}" app-web
+docker compose --env-file .env.app -f docker-compose.app.yml up -d app-web
 
 echo "=== fix supabase caddy proxy (8443 -> 8000) ==="
 if [[ -f "${ROOT}/scripts/vps/fix-supabase-caddy-proxy.sh" ]]; then
