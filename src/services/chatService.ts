@@ -422,49 +422,58 @@ export async function updateMessageContent(
     .single();
 }
 
-async function notifyPushAfterMessage(messageId: string): Promise<void> {
+export async function insertMessage(payload: {
+  chatId: string;
+  senderId: string;
+  content: string;
+}) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const token = session?.access_token;
-  if (!token) return;
+  if (!token) {
+    return {
+      data: null,
+      error: new Error("Нужно войти в аккаунт"),
+    };
+  }
 
   try {
-    await fetch("/api/push/notify", {
+    const res = await fetch("/api/chat/send-message", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       credentials: "same-origin",
-      body: JSON.stringify({ message_id: messageId }),
+      body: JSON.stringify({
+        chat_id: payload.chatId,
+        content: payload.content,
+      }),
     });
-  } catch {
-    /* fire-and-forget: pg_net trigger — запасной путь */
+
+    const json = (await res.json()) as {
+      message?: ChatMessage;
+      error?: string;
+    };
+
+    if (!res.ok) {
+      return {
+        data: null,
+        error: new Error(json.error ?? "Не удалось отправить сообщение"),
+      };
+    }
+
+    return {
+      data: json.message ?? null,
+      error: null,
+    };
+  } catch (e) {
+    return {
+      data: null,
+      error: e instanceof Error ? e : new Error("Не удалось отправить сообщение"),
+    };
   }
-}
-
-export async function insertMessage(payload: {
-  chatId: string;
-  senderId: string;
-  content: string;
-}) {
-  const result = await supabase
-    .from("messages")
-    .insert({
-      chat_id: payload.chatId,
-      sender_id: payload.senderId,
-      content: payload.content,
-    })
-    .select("id, content, sender_id, created_at, edited_at")
-    .single();
-
-  const row = result.data as ChatMessage | null;
-  if (!result.error && row?.id) {
-    void notifyPushAfterMessage(row.id);
-  }
-
-  return result;
 }
 
 type MessageRealtimePayload =
