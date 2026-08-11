@@ -422,12 +422,34 @@ export async function updateMessageContent(
     .single();
 }
 
+async function notifyPushAfterMessage(messageId: string): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return;
+
+  try {
+    await fetch("/api/push/notify", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ message_id: messageId }),
+    });
+  } catch {
+    /* fire-and-forget: pg_net trigger — запасной путь */
+  }
+}
+
 export async function insertMessage(payload: {
   chatId: string;
   senderId: string;
   content: string;
 }) {
-  return supabase
+  const result = await supabase
     .from("messages")
     .insert({
       chat_id: payload.chatId,
@@ -436,6 +458,13 @@ export async function insertMessage(payload: {
     })
     .select("id, content, sender_id, created_at, edited_at")
     .single();
+
+  const row = result.data as ChatMessage | null;
+  if (!result.error && row?.id) {
+    void notifyPushAfterMessage(row.id);
+  }
+
+  return result;
 }
 
 type MessageRealtimePayload =

@@ -47,6 +47,7 @@ run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-publ
 run_sql_migration "${ROOT}/docs/profile_last_name_private.sql" "profile-last-name-private"
 run_sql_migration "${ROOT}/supabase/sql/2026-07-21-account-settings.sql" "account-settings"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-11-subscription-trial.sql" "subscription-trial"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-11-push-dispatch-internal-url.sql" "push-dispatch-internal-url"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"
@@ -58,7 +59,7 @@ set -a
 source "${ENV_FILE}"
 set +a
 
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY; do
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT INTERNAL_PUSH_SECRET; do
   if [[ -z "${!var:-}" ]] || [[ "${!var}" == REPLACE_* ]]; then
     echo "ОШИБКА: в ${ENV_FILE} не задано или плейсхолдер: ${var}"
     exit 1

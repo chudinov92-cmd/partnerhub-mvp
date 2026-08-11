@@ -238,7 +238,8 @@ where key = 'push_internal_secret';
 
 ```sql
 select key, value from public.app_config;
--- push_dispatch_url: https://zeip.ru/api/push/dispatch
+-- push_dispatch_url (self-hosted Timeweb): http://172.17.0.1:3001/api/push/dispatch
+-- pg_net из supabase-db не ходит на https://zeip.ru; app-web слушает 3001 на Docker bridge (см. docker-compose.app.yml).
 ```
 
 На сервере в `deploy/timeweb/.env.app` заполнить переменные из шаблона [`deploy/timeweb/.env.app.example`](../deploy/timeweb/.env.app.example). VAPID:

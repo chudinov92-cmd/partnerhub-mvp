@@ -19,8 +19,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env.app
+    # 0.0.0.0:3001 — pg_net из supabase-db ходит на http://172.17.0.1:3001/api/push/dispatch
     ports:
-      - "127.0.0.1:3001:3000"
+      - "3001:3000"
 
   app-web-test:
     build:
