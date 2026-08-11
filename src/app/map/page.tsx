@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -34,8 +34,39 @@ import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import {
   getDmPartnersDailyLimit,
+  getSubscriptionStatus,
   isActiveProProfile,
 } from "@/services/subscriptionService";
+import { isPaidGateMode } from "@/lib/accessMode";
+import {
+  canGuestOpenProfile,
+  isLastFreeGuestView,
+  recordGuestProfileView,
+} from "@/lib/guestProfileViews";
+import { AuthGateModal, type AuthGateReason } from "@/components/AuthGateModal";
+import { PaywallDrawer } from "@/components/PaywallDrawer";
+import { PaywallSoftBanner } from "@/components/PaywallSoftBanner";
+import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
+import {
+  clearPaywallQueryParams,
+  clearPendingPaywallContext,
+  parseMapSearchParams,
+  readPendingPaywallContext,
+  savePendingPaywallContext,
+  type PaywallIntentContext,
+} from "@/lib/paywallIntent";
+import {
+  canShowPaywallDrawer,
+  dismissPaywallSoftBanner,
+  recordPaywallDismiss,
+  shouldShowPaywallSoftBanner,
+} from "@/lib/paywallFrequency";
+import {
+  trackAuthGateShown,
+  trackPaywallDismissed,
+  trackPaywallShown,
+  trackPaymentSuccessAha,
+} from "@/lib/paywallAnalytics";
 import { AdBanner } from "@/components/AdBanner";
 import {
   updatePostBody,
@@ -384,6 +415,23 @@ export default function Home() {
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
     useState<Profile | null>(null);
+  const [authGateOpen, setAuthGateOpen] = useState(false);
+  const [authGateReason, setAuthGateReason] =
+    useState<AuthGateReason>("view_limit");
+  const [authGateProfile, setAuthGateProfile] = useState<Profile | null>(null);
+  const [guestLastViewHint, setGuestLastViewHint] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallContext, setPaywallContext] = useState<PaywallIntentContext>({
+    intent: "dm",
+  });
+  const [softBannerVisible, setSoftBannerVisible] = useState(false);
+  const [paymentToast, setPaymentToast] = useState<{
+    message: string;
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
+  const paywallResumeHandledRef = useRef(false);
+  const paymentSuccessHandledRef = useRef(false);
   const [focusedProfileId, setFocusedProfileId] = useState<string | null>(null);
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const recommendedEmptyBannerRef = useRef<HTMLDivElement | null>(null);
@@ -396,6 +444,7 @@ export default function Home() {
     Record<string, boolean>
   >({});
   const router = useRouter();
+
   const {
     contactsOnlyMode,
     mapContactsOnly,
@@ -410,10 +459,73 @@ export default function Home() {
     chatList,
     setChatList,
     currentUser,
+    setCurrentUser,
     loading,
     error,
     chatMembershipRef,
   } = useAuth([]);
+
+  const openProfileOverlay = useCallback(
+    (profile: Profile) => {
+      if (isPaidGateMode() && !currentUser) {
+        if (!canGuestOpenProfile(profile.id)) {
+          setAuthGateReason("view_limit");
+          setAuthGateProfile(null);
+          setAuthGateOpen(true);
+          trackAuthGateShown("view_limit");
+          return;
+        }
+        setGuestLastViewHint(isLastFreeGuestView(profile.id));
+        recordGuestProfileView(profile.id);
+      } else {
+        setGuestLastViewHint(false);
+      }
+      setActiveProfileOverlay(profile);
+    },
+    [currentUser],
+  );
+
+  const isSupportProfile = useCallback(
+    (profileId: string) => {
+      const sid = supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
+      return sid != null && profileId === sid;
+    },
+    [supportProfileId],
+  );
+
+  const openPaywallDrawer = useCallback(
+    (ctx: PaywallIntentContext) => {
+      if (!canShowPaywallDrawer(ctx.intent)) {
+        setSoftBannerVisible(shouldShowPaywallSoftBanner());
+        return;
+      }
+      setPaywallContext(ctx);
+      setPaywallOpen(true);
+      trackPaywallShown(ctx.intent);
+    },
+    [],
+  );
+
+  const closePaywallDrawer = useCallback(() => {
+    trackPaywallDismissed(paywallContext.intent);
+    recordPaywallDismiss(paywallContext.intent);
+    setPaywallOpen(false);
+    setSoftBannerVisible(shouldShowPaywallSoftBanner());
+  }, [paywallContext.intent]);
+
+  const refreshCurrentUserPro = useCallback(async () => {
+    if (!currentUser) return;
+    const status = await getSubscriptionStatus(currentUser.profileId);
+    setCurrentUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            isPro: status.isPro,
+            trialUsed: status.trialUsed,
+          }
+        : prev,
+    );
+  }, [currentUser, setCurrentUser]);
 
   const {
     contactProfileIds,
@@ -973,7 +1085,9 @@ export default function Home() {
     }
     if (!currentUser.isPro) {
       setCreateError(
-        "Писать в общий чат доступно только с подпиской Pro. Оформите Pro в разделе «Подписка».",
+        isPaidGateMode()
+          ? "Писать в общий чат доступно только с активной подпиской. Оформите подписку в разделе «Подписка»."
+          : "Писать в общий чат доступно только с подпиской Pro. Оформите Pro в разделе «Подписка».",
       );
       return;
     }
@@ -1140,6 +1254,17 @@ export default function Home() {
         supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
       const isSupportPeer = sid != null && profile.id === sid;
 
+      if (isPaidGateMode() && !currentUser.isPro && !isSupportPeer) {
+        openPaywallDrawer({
+          intent: "dm",
+          profileId: profile.id,
+          profileName: profile.full_name,
+          profileRole: profile.role_title ?? profile.city,
+        });
+        setChatLoading(false);
+        return;
+      }
+
       if (!isSupportPeer) {
         const limit = getDmPartnersDailyLimit(currentUser.isPro);
         const partnersToday = await getUniqueChatPartnersToday(
@@ -1150,11 +1275,13 @@ export default function Home() {
           partnersToday.size >= limit
         ) {
           setChatError(
-            `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
-              currentUser.isPro
-                ? ""
-                : "Оформите Pro для лимита 50."
-            }`.trim(),
+            isPaidGateMode()
+              ? `Лимит ${limit} уникальных собеседников в сутки исчерпан.`
+              : `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
+                  currentUser.isPro
+                    ? ""
+                    : "Оформите Pro для лимита 50."
+                }`.trim(),
           );
           setChatLoading(false);
           return;
@@ -1208,12 +1335,30 @@ export default function Home() {
   };
 
   const handleWriteToProfile = async (profile: Profile) => {
+    if (isPaidGateMode() && !currentUser) {
+      setAuthGateReason("write");
+      setAuthGateProfile(profile);
+      setAuthGateOpen(true);
+      trackAuthGateShown("write");
+      return;
+    }
+
     setActiveProfileOverlay(null);
 
     if (!currentUser) {
       router.push(
         `/auth?redirect=${encodeURIComponent(`/map?chat=${profile.id}`)}`,
       );
+      return;
+    }
+
+    if (isPaidGateMode() && !currentUser.isPro && !isSupportProfile(profile.id)) {
+      openPaywallDrawer({
+        intent: "dm",
+        profileId: profile.id,
+        profileName: profile.full_name,
+        profileRole: profile.role_title ?? profile.city,
+      });
       return;
     }
 
@@ -1439,12 +1584,99 @@ export default function Home() {
     };
   }, [activeProfileOverlay]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || loading) return;
+    if (!isPaidGateMode()) return;
+
+    const { writeProfileId, payment } = parseMapSearchParams(
+      window.location.search,
+    );
+
+    if (payment === "success" && !paymentSuccessHandledRef.current) {
+      paymentSuccessHandledRef.current = true;
+      trackPaymentSuccessAha();
+      const pending = readPendingPaywallContext();
+      const resumeProfileId = writeProfileId ?? pending?.profileId ?? null;
+      const resumeProfile = resumeProfileId
+        ? profiles.find((p) => p.id === resumeProfileId)
+        : null;
+
+      if (currentUser?.isPro && pending?.intent === "dm" && resumeProfile) {
+        setPaymentToast({
+          message: "Подписка активна",
+          actionLabel: `Написать ${resumeProfile.full_name ?? "участнику"}`,
+          onAction: () => {
+            void openChatWithProfile(resumeProfile);
+            setMobileTab("my-chats");
+          },
+        });
+      } else if (currentUser?.isPro && pending?.intent === "chat") {
+        setPaymentToast({
+          message: "Подписка активна — можно писать в общий чат",
+        });
+      } else if (currentUser?.isPro) {
+        setPaymentToast({ message: "Подписка активна" });
+      }
+
+      clearPendingPaywallContext();
+      clearPaywallQueryParams();
+    }
+
+    if (
+      writeProfileId &&
+      currentUser &&
+      !paywallResumeHandledRef.current
+    ) {
+      paywallResumeHandledRef.current = true;
+      const target = profiles.find((p) => p.id === writeProfileId);
+      if (!currentUser.isPro && target) {
+        openPaywallDrawer({
+          intent: "dm",
+          profileId: target.id,
+          profileName: target.full_name,
+          profileRole: target.role_title ?? target.city,
+        });
+      } else if (currentUser.isPro && target) {
+        void openChatWithProfile(target);
+        setMobileTab("my-chats");
+      }
+      clearPaywallQueryParams();
+    }
+  }, [
+    currentUser,
+    loading,
+    profiles,
+    openPaywallDrawer,
+    openChatWithProfile,
+    setMobileTab,
+  ]);
+
+  useEffect(() => {
+    if (!isPaidGateMode() || !currentUser || currentUser.isPro) {
+      setSoftBannerVisible(false);
+      return;
+    }
+    setSoftBannerVisible(shouldShowPaywallSoftBanner());
+  }, [currentUser]);
+
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
   const hideMobileMainStack = isMobileLayout && !!activeChatUser;
 
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
+      {softBannerVisible &&
+      isPaidGateMode() &&
+      currentUser &&
+      !currentUser.isPro ? (
+        <PaywallSoftBanner
+          onOpenPaywall={() => openPaywallDrawer({ intent: "dm" })}
+          onDismiss={() => {
+            dismissPaywallSoftBanner();
+            setSoftBannerVisible(false);
+          }}
+        />
+      ) : null}
       <main
         className={`flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row lg:pb-0 ${
           isMobileLayout && mobileTab === "map"
@@ -1560,7 +1792,7 @@ export default function Home() {
                 const openAuthorCard = () => {
                   const p = profiles.find((pr) => pr.id === post.author_id);
                   if (p) {
-                    setActiveProfileOverlay(p);
+                    openProfileOverlay(p);
                     void markProfileViewed(
                       p.id,
                       p.content_updated_at ?? new Date().toISOString(),
@@ -1659,29 +1891,41 @@ export default function Home() {
           </div>
           </div>
 
-          {currentUser && !currentUser.isPro ? (
+          {currentUser && !currentUser.isPro && !isPaidGateMode() ? (
             <div className="shrink-0">
               <AdBanner />
             </div>
           ) : null}
 
-          {/* Форма нового сообщения / заглушка Free */}
+          {/* Форма нового сообщения / заглушка без подписки */}
           {currentUser && !canWriteGeneralChat ? (
             <div className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
               <p className="text-xs text-slate-700">
                 {currentUser.isBlocked
                   ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
-                  : isRussiaChat
-                    ? "Это общероссийский чат. На тарифе Free доступен только просмотр. Оформите Pro, чтобы писать сообщения."
-                    : "На тарифе Free чат города доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
+                  : isPaidGateMode()
+                    ? "Общий чат доступен для чтения. Чтобы писать сообщения, оформите подписку."
+                    : isRussiaChat
+                      ? "Это общероссийский чат. На тарифе Free доступен только просмотр. Оформите Pro, чтобы писать сообщения."
+                      : "На тарифе Free чат города доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
               </p>
               {!currentUser.isBlocked ? (
-                <Link
-                  href="/subscription"
-                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                >
-                  Оформить Pro
-                </Link>
+                isPaidGateMode() ? (
+                  <button
+                    type="button"
+                    onClick={() => openPaywallDrawer({ intent: "chat" })}
+                    className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                  >
+                    Оформить подписку
+                  </button>
+                ) : (
+                  <Link
+                    href="/subscription"
+                    className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                  >
+                    Оформить Pro
+                  </Link>
+                )
               ) : null}
             </div>
           ) : (
@@ -2172,13 +2416,13 @@ export default function Home() {
                   zoom={mapConfig.zoom}
                   onOpenProfile={(p) => {
                     const full = profiles.find((x) => x.id === p.id) ?? null;
-                    setActiveProfileOverlay(full);
+                    if (!full) return;
+                    openProfileOverlay(full);
                     setFocusedProfileId(null);
-                    if (full)
-                      void markProfileViewed(
-                        full.id,
-                        full.content_updated_at ?? new Date().toISOString(),
-                      );
+                    void markProfileViewed(
+                      full.id,
+                      full.content_updated_at ?? new Date().toISOString(),
+                    );
                   }}
                   onOpenChat={(profileId) => {
                     if (profileId === currentUser?.profileId) return;
@@ -2244,7 +2488,7 @@ export default function Home() {
                           key={p.id}
                           type="button"
                           onClick={() => {
-                            setActiveProfileOverlay(p);
+                            openProfileOverlay(p);
                             setFocusedProfileId(null);
                             void markProfileViewed(
                       p.id,
@@ -2395,7 +2639,7 @@ export default function Home() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setActiveProfileOverlay(item.profile);
+                            openProfileOverlay(item.profile);
                             void markProfileViewed(
                               item.profile.id,
                               item.profile.content_updated_at ??
@@ -2475,7 +2719,7 @@ export default function Home() {
                       const fullProfile =
                         profiles.find((p) => p.id === activeChatUser.id) ??
                         activeChatUser;
-                      setActiveProfileOverlay(fullProfile);
+                      openProfileOverlay(fullProfile);
                       void markProfileViewed(
                         fullProfile.id,
                         fullProfile.content_updated_at ??
@@ -2768,6 +3012,9 @@ export default function Home() {
             className={activeChatUser ? "!z-[1700]" : undefined}
             profile={activeProfileOverlay}
             online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
+            guestLastViewHint={
+              isPaidGateMode() && !currentUser && guestLastViewHint
+            }
             viewerProfileId={currentUser?.profileId ?? null}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}
@@ -2810,6 +3057,43 @@ export default function Home() {
           activeTab={mobileTab}
           onTabChange={handleMobileTab}
           unreadChatsCount={unreadChatsTotal}
+        />
+      ) : null}
+      <AuthGateModal
+        open={authGateOpen}
+        onClose={() => {
+          setAuthGateOpen(false);
+          setAuthGateProfile(null);
+        }}
+        reason={authGateReason}
+        profileId={authGateProfile?.id}
+        profileName={authGateProfile?.full_name}
+      />
+      <PaywallDrawer
+        open={paywallOpen}
+        onClose={closePaywallDrawer}
+        context={paywallContext}
+        profileId={currentUser?.profileId ?? null}
+        trialUsed={currentUser?.trialUsed ?? false}
+        onTrialStarted={() => {
+          void refreshCurrentUserPro().then(() => {
+            const ctx = paywallContext;
+            if (ctx.intent === "dm" && ctx.profileId) {
+              const target = profiles.find((p) => p.id === ctx.profileId);
+              if (target) {
+                void openChatWithProfile(target);
+                setMobileTab("my-chats");
+              }
+            }
+          });
+        }}
+      />
+      {paymentToast ? (
+        <PaymentSuccessToast
+          message={paymentToast.message}
+          actionLabel={paymentToast.actionLabel}
+          onAction={paymentToast.onAction}
+          onDismiss={() => setPaymentToast(null)}
         />
       ) : null}
     </div>

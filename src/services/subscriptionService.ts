@@ -1,15 +1,18 @@
 "use client";
 
 import { supabase } from "@/lib/supabaseClient";
+import { isPaidGateMode } from "@/lib/accessMode";
 
 export type SubscriptionStatus = {
   isPro: boolean;
   expiresAt: string | null;
+  trialUsed: boolean;
 };
 
 export type ProProfileFields = {
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  trial_used?: boolean | null;
 };
 
 export const PRO_PIN_COLOR = "#FDE047";
@@ -30,6 +33,9 @@ export function isActiveProProfile(row: ProProfileFields | null | undefined): bo
 export const isProActive = isActiveProProfile;
 
 export function getDmPartnersDailyLimit(isPro: boolean): number {
+  if (isPaidGateMode()) {
+    return isPro ? PRO_DM_PARTNERS_PER_DAY : 0;
+  }
   return isPro ? PRO_DM_PARTNERS_PER_DAY : FREE_DM_PARTNERS_PER_DAY;
 }
 
@@ -38,7 +44,7 @@ export async function getSubscriptionStatus(
 ): Promise<SubscriptionStatus> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("is_pro, pro_expires_at")
+    .select("is_pro, pro_expires_at, trial_used")
     .eq("id", profileId)
     .maybeSingle();
 
@@ -50,6 +56,7 @@ export async function getSubscriptionStatus(
   return {
     isPro: isActiveProProfile(row),
     expiresAt,
+    trialUsed: Boolean(row?.trial_used),
   };
 }
 
@@ -75,6 +82,27 @@ export async function initRobokassaPayment(
 
   const data = (await res.json()) as { paymentUrl: string; invId: number };
   return { paymentUrl: data.paymentUrl, invId: data.invId };
+}
+
+/** Пробный период 3 дня (paid_gate, один раз на аккаунт). */
+export async function startTrialSubscription(): Promise<{ proExpiresAt: string }> {
+  const res = await fetch("/api/subscription/start-trial", {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    let message = "Не удалось активировать пробный период";
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      //
+    }
+    throw new Error(message);
+  }
+
+  return (await res.json()) as { proExpiresAt: string };
 }
 
 /** Заглушка отмены: сброс Pro у текущего профиля (до webhook Robokassa — только dev/тест). */

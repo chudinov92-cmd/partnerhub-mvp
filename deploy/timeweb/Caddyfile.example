@@ -3,6 +3,11 @@ zeip.ru, www.zeip.ru {
   reverse_proxy 127.0.0.1:3001
 }
 
+test.zeip.ru {
+  encode gzip zstd
+  reverse_proxy 127.0.0.1:3002
+}
+
 # Kong: HTTP :8000, HTTPS :8443. Caddy уже снимает TLS — проксируем на :8000.
 supabase.zeip.ru {
   encode gzip zstd

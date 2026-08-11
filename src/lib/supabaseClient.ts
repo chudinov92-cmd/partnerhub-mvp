@@ -41,4 +41,3 @@ export const supabaseAuthForms = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
-

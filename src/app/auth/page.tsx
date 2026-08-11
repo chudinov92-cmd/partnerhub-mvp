@@ -247,6 +247,14 @@ export default function AuthPage() {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlMode = new URLSearchParams(window.location.search).get("mode");
+    if (urlMode === "signup") {
+      setMode("signup");
+    }
+  }, []);
+
   // если уже есть сессия: recovery → установка пароля, иначе на главную
   useEffect(() => {
     const check = async () => {

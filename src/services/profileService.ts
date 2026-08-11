@@ -92,6 +92,7 @@ export type CurrentProfileRow = {
   is_blocked: boolean | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  trial_used?: boolean | null;
   map_visible?: boolean | null;
   deleted_at?: string | null;
 };
@@ -121,7 +122,7 @@ export async function fetchCurrentUserProfileRow(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, map_visible, deleted_at",
+      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, trial_used, map_visible, deleted_at",
     )
     .eq("auth_user_id", authUserId)
     .maybeSingle();

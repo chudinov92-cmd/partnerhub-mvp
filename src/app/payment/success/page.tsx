@@ -2,12 +2,15 @@
 
 import { Suspense } from "react";
 import { PaymentSuccessView } from "@/components/PaymentSuccessView";
+import { isPaidGateMode } from "@/lib/accessMode";
 
 function PaymentSuccessContent() {
   return (
     <PaymentSuccessView
-      successRedirectPath="/map"
-      subscriptionLabel="Pro"
+      successRedirectPath={
+        isPaidGateMode() ? "/map?payment=success" : "/map"
+      }
+      subscriptionLabel={isPaidGateMode() ? "Zeip" : "Pro"}
     />
   );
 }

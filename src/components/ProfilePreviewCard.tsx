@@ -193,6 +193,8 @@ type ProfilePreviewCardProps = {
   variant?: "floating" | "embedded";
   /** для закрытия по клику вне — маркер корня (главная страница) */
   rootDataAttr?: boolean;
+  /** paid_gate: предупреждение о последнем бесплатном просмотре гостем */
+  guestLastViewHint?: boolean;
 };
 
 export function ProfilePreviewCard({
@@ -215,6 +217,7 @@ export function ProfilePreviewCard({
   style,
   variant = "floating",
   rootDataAttr,
+  guestLastViewHint = false,
 }: ProfilePreviewCardProps) {
   const name = profile.full_name || "Пользователь";
   const initial = (name[0] || "?").toLocaleUpperCase("ru-RU");
@@ -590,6 +593,11 @@ export function ProfilePreviewCard({
         </div>
 
         <div className={`w-full min-w-0 shrink-0 space-y-3 border-t border-gray-200 bg-gray-50 ${footerPad}`}>
+          {guestLastViewHint ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+              Это последний бесплатный просмотр. Войдите, чтобы смотреть всех участников.
+            </p>
+          ) : null}
           {likesError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700">
               {likesError}

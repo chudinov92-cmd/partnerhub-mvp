@@ -1,35 +1,34 @@
-# DNS для test.zeip.ru (архив)
+# DNS: test.zeip.ru параллельно prod
 
-> **Актуально:** см. [`DNS-prod-domain.md`](DNS-prod-domain.md) — возврат на **`zeip.ru`**.
+> **Режим:** `test.zeip.ru` работает **рядом** с `zeip.ru`, не вместо него.
 
-**Папка:** панель DNS домена `zeip.ru` (Timeweb / регистратор).
+**Папка:** панель DNS домена `zeip.ru` (Timeweb).
 
-## Добавить
+## Добавить / проверить
 
 | Тип | Имя | Значение | TTL |
 |-----|-----|----------|-----|
 | A | `test` | `186.246.2.104` | 300 |
+| A | `@` | `186.246.2.104` | 300 |
+| A | `www` | `186.246.2.104` | 300 |
 
-## Закрыть zeip.ru
-
-Удалить записи A/AAAA для:
-
-- `@` (корень zeip.ru)
-- `www`
-
-Проверка с Mac:
+## Проверка с Mac
 
 ```bash
-dig +short test.zeip.ru A
-dig +short zeip.ru A
+dig +short zeip.ru A @8.8.8.8
+dig +short test.zeip.ru A @8.8.8.8
 ```
 
-Ожидание: `test.zeip.ru` → `186.246.2.104`, `zeip.ru` — пусто или NXDOMAIN.
+Ожидание: оба → `186.246.2.104`.
 
-После DNS — на VPS:
+## VPS
 
 ```bash
 ssh root@186.246.2.104
-bash /root/zeip/my-app/scripts/vps/migrate-to-test-domain.sh
-cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh
+cd /root/zeip/my-app
+git checkout paid-access && git pull --ff-only
+bash scripts/vps/enable-parallel-test-domain.sh
+bash deploy/timeweb/deploy-app-test.sh
 ```
+
+См. также [`integrations-test-domain.md`](integrations-test-domain.md).
