@@ -46,6 +46,7 @@ run_sql_migration "${ROOT}/docs/profile_views_content_version.sql" "profile-view
 run_sql_migration "${ROOT}/docs/profile_work_public_read.sql" "profile-work-public-read"
 run_sql_migration "${ROOT}/docs/profile_last_name_private.sql" "profile-last-name-private"
 run_sql_migration "${ROOT}/supabase/sql/2026-07-21-account-settings.sql" "account-settings"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-11-subscription-trial.sql" "subscription-trial"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

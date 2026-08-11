@@ -17,7 +17,6 @@ import {
   isActiveProProfile,
 } from "@/services/subscriptionService";
 import { isPaidGateMode } from "@/lib/accessMode";
-import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
 
 function getEmailRedirectOrigin(): string {
   const raw =
