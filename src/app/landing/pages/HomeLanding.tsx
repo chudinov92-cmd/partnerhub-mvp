@@ -7,10 +7,16 @@ import { FinalCta } from "@/app/landing/components/FinalCta";
 import { Hero } from "@/app/landing/components/Hero";
 import { Mechanics } from "@/app/landing/components/Mechanics";
 import { ShotGallery } from "@/app/landing/components/ShotGallery";
+import { StatsBar } from "@/app/landing/components/StatsBar";
+import type { PublicStats } from "@/services/statsPublicService";
 
 const asset = (p: string) => `/assets/landing${p.startsWith("/") ? "" : "/"}${p}`;
 
-export function HomeLanding() {
+type HomeLandingProps = {
+  stats?: PublicStats | null;
+};
+
+export function HomeLanding({ stats = null }: HomeLandingProps) {
   const assets = {
     logo: asset("zeip-logo.png"),
     heroGlow: asset("hero-illustration.png"),
@@ -30,6 +36,8 @@ export function HomeLanding() {
   return (
     <div className="page">
       <Hero assets={{ logo: assets.logo, glow: assets.heroGlow, btnNoise: assets.btnNoise }} />
+
+      <StatsBar stats={stats} />
 
       <main>
         <FeatureSplit
@@ -92,19 +100,21 @@ export function HomeLanding() {
           }
         />
 
-        <Mechanics
-          title="Механика"
-          items={[
-            { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Заполни профиль" },
-            { iconSrc: assets.mechanics.map, title: "Открой карту", text: "Найди нужных экспертов" },
-            { iconSrc: assets.mechanics.send, title: "Начни строить", text: "Напиши и реши свою задачу уже сегодня" },
-          ]}
-        />
+        <div id="how-it-works">
+          <Mechanics
+            title="Механика"
+            items={[
+              { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Заполни профиль и появись на карте" },
+              { iconSrc: assets.mechanics.map, title: "Открой карту", text: "Найди нужных экспертов" },
+              { iconSrc: assets.mechanics.send, title: "Начни строить", text: "Напиши и реши свою задачу уже сегодня" },
+            ]}
+          />
+        </div>
 
         <FeatureSplit
           reverse
           title="Начни со своего двора, охвати всю страну."
-          body="Если нужного профессионала не оказалось в твоем квартале - просто расширь радиус поиска. Мы покажем тебе специалистов по всему городу и стране. Твои люди найдутся в любом масштабе."
+          body="Если нужного профессионала не оказалось в твоём городе — просто расширь радиус поиска. Мы покажем тебе специалистов по всему городу и стране. Твои люди найдутся в любом масштабе."
           visual={
             <Image
               src={asset("image-group.png")}

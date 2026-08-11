@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import FocusTrap from "focus-trap-react";
 import {
   paywallIntentSubtitle,
   paywallIntentTitle,
@@ -96,68 +97,93 @@ export function PaywallDrawer({
       aria-labelledby="paywall-drawer-title"
       onClick={handleDismiss}
     >
-      <div
-        className="w-full max-w-md rounded-t-2xl border border-emerald-100 bg-white p-6 shadow-xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
+      <FocusTrap
+        active={open}
+        focusTrapOptions={{
+          returnFocusOnDeactivate: true,
+          escapeDeactivates: true,
+          onDeactivate: handleDismiss,
+        }}
       >
-        <h2
-          id="paywall-drawer-title"
-          className="text-lg font-semibold text-slate-900"
+        <div
+          className="w-full max-w-md rounded-t-2xl border border-emerald-100 bg-white p-6 shadow-xl sm:rounded-2xl"
+          onClick={(e) => e.stopPropagation()}
         >
-          {paywallIntentTitle(context)}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {paywallIntentSubtitle(context)}
-        </p>
-        <p className="mt-4 text-2xl font-bold text-slate-900">
-          {SUBSCRIPTION_PRICE}
-          <span className="text-sm font-normal text-slate-500"> / 30 дней</span>
-        </p>
-        <ul className="mt-4 space-y-2 text-sm text-slate-700">
-          <li>· Личные сообщения участникам</li>
-          <li>· Публикация в общем чате</li>
-          <li>· Ваш пин на карте</li>
-        </ul>
-        {error ? (
-          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-        <div className="mt-6 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => void handleBuy()}
-            disabled={buyLoading || !profileId}
-            className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
+          <h2
+            id="paywall-drawer-title"
+            className="text-lg font-semibold text-slate-900"
           >
-            {buyLoading ? "Переход к оплате…" : "Оформить подписку"}
-          </button>
-          {!trialUsed ? (
+            {paywallIntentTitle(context)}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {paywallIntentSubtitle(context)}
+          </p>
+          <p className="mt-4 text-2xl font-bold text-slate-900">
+            {SUBSCRIPTION_PRICE}
+            <span className="text-sm font-normal text-slate-500"> / 30 дней</span>
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+            <li>· Личные сообщения участникам</li>
+            <li>· Публикация в общем чате</li>
+            <li>· Ваш пин на карте</li>
+          </ul>
+          <p className="mt-3 text-xs leading-relaxed text-slate-400">
+            {!trialUsed
+              ? "3 дня бесплатно · затем подписка за 249 ₽ / 30 дней"
+              : "Подписка на 30 дней"}
+            {" · без автопродления · "}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-slate-600"
+            >
+              Условия
+            </a>
+          </p>
+          <div role="alert" aria-live="assertive" aria-atomic="true">
+            {error ? (
+              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </p>
+            ) : null}
+          </div>
+          <div className="mt-6 flex flex-col gap-2">
             <button
               type="button"
-              onClick={() => void handleTrial()}
-              disabled={trialLoading || !profileId}
-              className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+              onClick={() => void handleBuy()}
+              disabled={buyLoading || !profileId}
+              className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
             >
-              {trialLoading ? "Активируем…" : "Попробовать 3 дня бесплатно"}
+              {buyLoading ? "Переход к оплате…" : "Оформить подписку"}
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-gray-50"
-          >
-            Не сейчас
-          </button>
-          <button
-            type="button"
-            onClick={handleSupport}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700"
-          >
-            Написать в поддержку
-          </button>
+            {!trialUsed ? (
+              <button
+                type="button"
+                onClick={() => void handleTrial()}
+                disabled={trialLoading || !profileId}
+                className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+              >
+                {trialLoading ? "Активируем…" : "Попробовать 3 дня бесплатно"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleDismiss}
+              className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-gray-50"
+            >
+              Не сейчас
+            </button>
+            <button
+              type="button"
+              onClick={handleSupport}
+              className="text-sm font-medium text-slate-500 hover:text-slate-700"
+            >
+              Написать в поддержку
+            </button>
+          </div>
         </div>
-      </div>
+      </FocusTrap>
     </div>
   );
 }

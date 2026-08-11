@@ -1,5 +1,7 @@
 import { HomeLanding } from "@/app/landing/pages/HomeLanding";
+import { fetchPublicStats } from "@/services/statsPublicService";
 
-export default function HomePage() {
-  return <HomeLanding />;
+export default async function HomePage() {
+  const stats = await fetchPublicStats();
+  return <HomeLanding stats={stats} />;
 }

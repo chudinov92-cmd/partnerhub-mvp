@@ -17,11 +17,11 @@ export function Hero({ assets }: HeroProps) {
       <div className="container hero__grid">
         <div className="hero__copy">
           <h1 className="hero__title">
-            <span className="hero__brand">ЗЕИП</span> — место, где твои идеи становятся реальностью.
+            <span className="hero__brand">ЗЕИП</span> — карта людей в твоём городе, которые хотят делать проекты.
           </h1>
           <p className="hero__subtitle">
             Хватит планировать в одиночку. Найди тех, кто готов включиться с тобой в работу над проектом и разделить
-            твои амбиции — прямо в твоем квартале.
+            твои амбиции — прямо в твоём городе.
           </p>
 
           {isPaidGateMode() ? (
@@ -30,9 +30,17 @@ export function Hero({ assets }: HeroProps) {
             </p>
           ) : null}
 
-          <ButtonLink href="/map" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
-            На карту
-          </ButtonLink>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <ButtonLink href="/map" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
+              На карту
+            </ButtonLink>
+            <a
+              href="#how-it-works"
+              className="inline-flex items-center text-sm font-medium text-slate-600 underline underline-offset-4 hover:text-slate-900"
+            >
+              Как это работает
+            </a>
+          </div>
         </div>
 
         <div className="hero__art" aria-hidden="true">

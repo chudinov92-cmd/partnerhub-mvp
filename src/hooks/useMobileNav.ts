@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MobileMainTab } from "@/components/MainMobileNav";
 
-/** Query-param навигация: ?contacts=1, ?mapContacts=1, табы нижней панели. */
+/** Query-param навигация: ?contacts=1, табы нижней панели. */
 export function useMobileNav() {
   const router = useRouter();
   const [contactsOnlyMode, setContactsOnlyMode] = useState(false);
-  const [mapContactsOnly, setMapContactsOnly] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileMainTab>("map");
 
   useEffect(() => {
@@ -17,7 +16,6 @@ export function useMobileNav() {
     const read = () => {
       const params = new URLSearchParams(window.location.search);
       setContactsOnlyMode(params.get("contacts") === "1");
-      setMapContactsOnly(params.get("mapContacts") === "1");
     };
 
     read();
@@ -79,7 +77,6 @@ export function useMobileNav() {
 
   return {
     contactsOnlyMode,
-    mapContactsOnly,
     mobileTab,
     setMobileTab,
     resetContactsMode,

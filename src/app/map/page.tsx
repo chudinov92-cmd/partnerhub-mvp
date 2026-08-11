@@ -46,6 +46,7 @@ import {
 import { AuthGateModal, type AuthGateReason } from "@/components/AuthGateModal";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { PaywallSoftBanner } from "@/components/PaywallSoftBanner";
+import { WelcomeBanner } from "@/components/WelcomeBanner";
 import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
 import {
   clearPaywallQueryParams,
@@ -81,6 +82,10 @@ import type {
   ChatListItem,
 } from "@/types";
 import { DEFAULT_FEED_FILTERS } from "@/types";
+import {
+  markWelcomeOnboardingShown,
+  shouldShowWelcomeOnboarding,
+} from "@/lib/welcomeOnboarding";
 import { maskProfanity } from "@/lib/profanity";
 import {
   getProfessionLabelsForSelect,
@@ -425,6 +430,7 @@ export default function Home() {
     intent: "dm",
   });
   const [softBannerVisible, setSoftBannerVisible] = useState(false);
+  const [welcomeBannerVisible, setWelcomeBannerVisible] = useState(false);
   const [paymentToast, setPaymentToast] = useState<{
     message: string;
     actionLabel?: string;
@@ -447,7 +453,6 @@ export default function Home() {
 
   const {
     contactsOnlyMode,
-    mapContactsOnly,
     mobileTab,
     handleMobileTab,
     resetContactsMode,
@@ -846,7 +851,7 @@ export default function Home() {
         return true;
       }
 
-      if (contactsOnlyMode || mapContactsOnly) {
+      if (contactsOnlyMode) {
         if (!contactProfileIds.includes(p.id)) return false;
       }
       if (feedFilters.profession) {
@@ -880,7 +885,6 @@ export default function Home() {
     recommendedProfiles,
     feedFilters,
     contactsOnlyMode,
-    mapContactsOnly,
     contactProfileIds,
     selectedCity,
     blockedProfileIds,
@@ -1659,12 +1663,29 @@ export default function Home() {
     setSoftBannerVisible(shouldShowPaywallSoftBanner());
   }, [currentUser]);
 
+  useEffect(() => {
+    setWelcomeBannerVisible(
+      shouldShowWelcomeOnboarding({
+        isAuthed: Boolean(currentUser),
+        profileCity: currentUser?.city ?? null,
+      }),
+    );
+  }, [currentUser]);
+
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
   const hideMobileMainStack = isMobileLayout && !!activeChatUser;
 
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
+      {welcomeBannerVisible ? (
+        <WelcomeBanner
+          onDismiss={() => {
+            markWelcomeOnboardingShown();
+            setWelcomeBannerVisible(false);
+          }}
+        />
+      ) : null}
       {softBannerVisible &&
       isPaidGateMode() &&
       currentUser &&
@@ -2411,7 +2432,7 @@ export default function Home() {
                   viewedProfileIds={effectiveViewedProfileIds}
                   focusedProfileId={focusedProfileId}
                   currentUserProfileId={currentUser?.profileId ?? null}
-                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapContactsOnly ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${profiles.length}`}
+                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${profiles.length}`}
                   center={mapConfig.center}
                   zoom={mapConfig.zoom}
                   onOpenProfile={(p) => {

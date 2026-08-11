@@ -87,43 +87,85 @@ function isInvalidLoginCredentials(err: unknown): boolean {
   );
 }
 
+const GENERIC_AUTH_ERROR =
+  "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
+
+function sanitizeSupabaseMessage(m: string): string {
+  if (
+    /неверный|invalid login|wrong password|invalid email or password/i.test(m)
+  ) {
+    return "Неверный логин или пароль";
+  }
+  if (/rate.?limit|only request this after/i.test(m)) {
+    return "Слишком частые запросы. Подождите минуту.";
+  }
+  if (/email.*confirm|подтверд/i.test(m)) {
+    return "Проверьте почту и перейдите по ссылке подтверждения.";
+  }
+  return GENERIC_AUTH_ERROR;
+}
+
+function authUserMessage(
+  err: unknown,
+  mode: Mode | undefined,
+  message: string,
+): string {
+  console.error("[auth] getAuthErrorMessage:", { err, mode, message });
+  return message;
+}
+
 function getAuthErrorMessage(err: unknown, mode?: Mode) {
   if (isAuthTimeoutError(err)) {
     if (mode === "signup") {
-      return "Регистрация заняла слишком много времени. Проверьте почту (и «Спам») — письмо могло уйти. Если письма нет, попробуйте снова через минуту.";
+      return authUserMessage(
+        err,
+        mode,
+        "Регистрация заняла слишком много времени. Проверьте почту (и «Спам») — письмо могло уйти. Если письма нет, попробуйте снова через минуту.",
+      );
     }
     if (mode === "forgot") {
-      return "Запрос на сброс пароля занял слишком много времени. Проверьте почту или попробуйте снова через минуту.";
+      return authUserMessage(
+        err,
+        mode,
+        "Запрос на сброс пароля занял слишком много времени. Проверьте почту или попробуйте снова через минуту.",
+      );
     }
-    return "Сервис авторизации не отвечает. Проверьте интернет и попробуйте ещё раз через минуту.";
+    return authUserMessage(
+      err,
+      mode,
+      "Сервис авторизации не отвечает. Проверьте интернет и попробуйте ещё раз через минуту.",
+    );
   }
-
-  const redirectHint =
-    "Если адрес уже в списке redirect, посмотрите логи: на сервере в каталоге supabase-stack выполните docker compose logs auth --tail 100 (ошибки SMTP GoTrue там виднее). На localhost добавьте в ADDITIONAL_REDIRECT_URLS строку http://localhost:3000/auth/reset-password.";
 
   const meta = authErrMeta(err);
   if (meta.isRateLimit) {
     const excerpt =
       typeof meta.messageExcerpt === "string" ? meta.messageExcerpt : "";
     const sec = excerpt.match(/after\s+(\d+)\s+seconds?/i)?.[1];
-    return sec
-      ? `Слишком частые запросы письма. Подождите ${sec} сек. и попробуйте снова.`
-      : "Слишком частые запросы письма. Подождите минуту и попробуйте снова.";
+    return authUserMessage(
+      err,
+      mode,
+      sec
+        ? `Слишком частые запросы письма. Подождите ${sec} сек. и попробуйте снова.`
+        : "Слишком частые запросы письма. Подождите минуту и попробуйте снова.",
+    );
   }
 
   if (isInvalidLoginCredentials(err)) {
-    return "Неверный логин или пароль";
+    return authUserMessage(err, mode, "Неверный логин или пароль");
   }
 
-  if (!err) return "Ошибка авторизации";
+  if (!err) return authUserMessage(err, mode, "Ошибка авторизации");
 
-  if (typeof err === "string") return err;
+  if (typeof err === "string") {
+    return authUserMessage(err, mode, sanitizeSupabaseMessage(err));
+  }
 
   if (typeof err !== "object" || err === null) {
     try {
-      return String(err);
+      return authUserMessage(err, mode, sanitizeSupabaseMessage(String(err)));
     } catch {
-      return "Ошибка авторизации";
+      return authUserMessage(err, mode, "Ошибка авторизации");
     }
   }
 
@@ -140,37 +182,48 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
       msgRaw === "{}" || msgRaw === "" ? "" : msgRaw;
 
     if (st === 504) {
-      return "Таймаут шлюза (HTTP 504): Auth слишком долго отвечал при отправке письма — чаще всего контейнер «завис» на подключении к SMTP (порт/firewall TLS). На сервере выполните: cd ~/zeip/supabase-stack && docker compose logs auth --tail 200. Проверьте связь до smtp.timeweb.ru из контейнера (см. команды ниже), попробуйте SMTP_PORT=587 при STARTTLS или 465 для SSL.";
+      return authUserMessage(
+        err,
+        mode,
+        "Сервис временно недоступен. Попробуйте через 1–2 минуты.",
+      );
     }
 
     if (msg) {
       if (msg.toLowerCase().includes("context deadline exceeded")) {
-        return "Сервис регистрации не успел отправить письмо. Проверьте SMTP Auth на сервере и попробуйте снова.";
+        return authUserMessage(
+          err,
+          mode,
+          "Письмо не успело уйти. Проверьте папку «Спам» или попробуйте снова.",
+        );
       }
       if (/redirect/i.test(msg) && /invalid|not allowed|mismatch/i.test(msg)) {
-        return `${msg} Проверьте ADDITIONAL_REDIRECT_URLS и SITE_URL на сервере Supabase (.env контейнера auth).`;
+        return authUserMessage(
+          err,
+          mode,
+          "Ошибка конфигурации сервиса. Напишите в поддержку — мы разберёмся.",
+        );
       }
-      const code = formatAuthCode(ae.code);
-      const suffix =
-        code || st !== undefined
-          ? ` (${[code ? `code ${code}` : null, st !== undefined ? `HTTP ${st}` : null].filter(Boolean).join(", ")})`
-          : "";
-      return `${msg}${suffix}`;
+      return authUserMessage(err, mode, sanitizeSupabaseMessage(msg));
     }
 
     const code = formatAuthCode(ae.code);
     if (code || st !== undefined) {
-      return `Ошибка Auth${code ? `: ${code}` : ""}${st !== undefined ? ` [HTTP ${st}]` : ""}. ${redirectHint}`;
+      return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
     }
 
     const fromProps = describeAuthObject(err);
-    if (fromProps) return `${fromProps}. ${redirectHint}`;
-    return `Не удалось отправить письмо (пустое сообщение от сервера). ${redirectHint}`;
+    if (fromProps) return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
+    return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
   }
 
   const keys = Object.keys(err as object);
   if (keys.length === 0) {
-    return `Сервис авторизации вернул пустой ответ. ${redirectHint}`;
+    return authUserMessage(
+      err,
+      mode,
+      "Сервис авторизации не ответил. Попробуйте ещё раз.",
+    );
   }
 
   const maybeError = err as {
@@ -183,19 +236,31 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
   if (typeof maybeError.message === "string" && maybeError.message.trim()) {
     const m = maybeError.message.trim();
     if (m.toLowerCase().includes("context deadline exceeded")) {
-      return "Сервис регистрации не успел отправить письмо подтверждения. Проверьте SMTP-настройки Supabase Auth и попробуйте снова.";
+      return authUserMessage(
+        err,
+        mode,
+        "Письмо не успело уйти. Проверьте папку «Спам» или попробуйте снова.",
+      );
     }
     if (/redirect/i.test(m) && /invalid|not allowed|mismatch/i.test(m)) {
-      return `${m} Проверьте ADDITIONAL_REDIRECT_URLS на сервере.`;
+      return authUserMessage(
+        err,
+        mode,
+        "Ошибка конфигурации сервиса. Напишите в поддержку — мы разберёмся.",
+      );
     }
-    return m;
+    return authUserMessage(err, mode, sanitizeSupabaseMessage(m));
   }
 
   if (
     typeof maybeError.error_description === "string" &&
     maybeError.error_description.trim()
   ) {
-    return maybeError.error_description.trim();
+    return authUserMessage(
+      err,
+      mode,
+      sanitizeSupabaseMessage(maybeError.error_description.trim()),
+    );
   }
 
   const code = formatAuthCode(maybeError.code);
@@ -203,16 +268,20 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
     typeof maybeError.status === "number" ? maybeError.status : undefined;
 
   if (status === 504) {
-    return "Таймаут шлюза (HTTP 504): Auth слишком долго отвечал при отправке письма — чаще всего контейнер «завис» на подключении к SMTP. На сервере: docker compose logs auth --tail 200. Проверьте порты smtp.timeweb.ru из контейнера, попробуйте SMTP_PORT=587 вместо 465.";
+    return authUserMessage(
+      err,
+      mode,
+      "Сервис временно недоступен. Попробуйте через 1–2 минуты.",
+    );
   }
 
   if (code || status !== undefined) {
-    return `Ошибка авторизации${code ? ` (${code})` : ""}${status !== undefined ? ` [HTTP ${status}]` : ""}. ${redirectHint}`;
+    return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
   }
 
   const desc = describeAuthObject(err);
-  if (desc) return `${desc}. ${redirectHint}`;
-  return `Не удалось выполнить запрос к Auth (${keys.length ? `поля: ${keys.join(", ")}` : "нет полей"}, без текста ошибки). ${redirectHint}`;
+  if (desc) return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
+  return authUserMessage(err, mode, "Ошибка авторизации. Попробуйте ещё раз.");
 }
 
 function getEmailAuthRedirectOrigin(): string {
@@ -245,6 +314,7 @@ export default function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [consentChecked, setConsentChecked] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -438,6 +508,7 @@ export default function AuthPage() {
                 setMode("signin");
                 setConsentChecked(false);
                 setAgreementChecked(false);
+                setSubmitAttempted(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -455,6 +526,7 @@ export default function AuthPage() {
                 setMode("signup");
                 setConsentChecked(false);
                 setAgreementChecked(false);
+                setSubmitAttempted(false);
                 setError(null);
                 setInfo(null);
               }}
@@ -522,17 +594,27 @@ export default function AuthPage() {
             </div>
           )}
 
-          {error && (
-            <p className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
+          <div role="alert" aria-live="assertive" aria-atomic="true">
+            {error ? (
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <span aria-hidden="true" className="mt-0.5 shrink-0">
+                  ⚠
+                </span>
+                <span>{error}</span>
+              </div>
+            ) : null}
+          </div>
 
-          {info && (
-            <p className="text-sm text-emerald-600">
-              {info}
-            </p>
-          )}
+          <div aria-live="polite" aria-atomic="true">
+            {info ? (
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                <span aria-hidden="true" className="mt-0.5 shrink-0">
+                  ✓
+                </span>
+                <span>{info}</span>
+              </div>
+            ) : null}
+          </div>
 
           {mode === "signup" && (
             <div className="space-y-3">
@@ -585,6 +667,14 @@ export default function AuthPage() {
               loading ||
               (mode === "signup" && (!consentChecked || !agreementChecked))
             }
+            onClick={() => {
+              if (
+                mode === "signup" &&
+                (!consentChecked || !agreementChecked)
+              ) {
+                setSubmitAttempted(true);
+              }
+            }}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60"
           >
             {loading
@@ -596,6 +686,15 @@ export default function AuthPage() {
                   : "Войти"}
           </button>
 
+          {mode === "signup" &&
+          submitAttempted &&
+          !loading &&
+          (!consentChecked || !agreementChecked) ? (
+            <p className="text-center text-xs text-slate-500" role="alert">
+              Отметьте оба согласия выше, чтобы продолжить
+            </p>
+          ) : null}
+
           {mode === "signin" && (
             <div className="text-center">
               <button
@@ -604,6 +703,7 @@ export default function AuthPage() {
                   setMode("forgot");
                   setConsentChecked(false);
                   setAgreementChecked(false);
+                  setSubmitAttempted(false);
                   setError(null);
                   setInfo(null);
                 }}
@@ -622,6 +722,7 @@ export default function AuthPage() {
                   setMode("signin");
                   setConsentChecked(false);
                   setAgreementChecked(false);
+                  setSubmitAttempted(false);
                   setError(null);
                   setInfo(null);
                 }}

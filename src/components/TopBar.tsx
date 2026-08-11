@@ -63,7 +63,7 @@ export function TopBar() {
   const [usefulContactsLoading, setUsefulContactsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mapContactsActive, setMapContactsActive] = useState(false);
+  const [contactsActive, setContactsActive] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { selectedCity, setSelectedCity } = useSelectedCity();
@@ -155,7 +155,7 @@ export function TopBar() {
 
     const read = () => {
       const params = new URLSearchParams(window.location.search);
-      setMapContactsActive(params.get("mapContacts") === "1");
+      setContactsActive(params.get("contacts") === "1");
     };
 
     read();
@@ -392,8 +392,8 @@ export function TopBar() {
             onClick={() => {
               if (typeof window === "undefined") return;
               const url = new URL(window.location.href);
-              if (mapContactsActive) url.searchParams.delete("mapContacts");
-              else url.searchParams.set("mapContacts", "1");
+              if (contactsActive) url.searchParams.delete("contacts");
+              else url.searchParams.set("contacts", "1");
               router.replace(url.pathname + url.search);
             }}
             className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-gray-100 hover:text-slate-900"
@@ -480,16 +480,7 @@ export function TopBar() {
                   >
                     Поддержка
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      router.push("/");
-                    }}
-                    className="flex w-full items-center px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
-                  >
-                    О проекте
-                  </button>
+                  <hr className="my-1 border-gray-100" />
                   <button
                     type="button"
                     onClick={() => {

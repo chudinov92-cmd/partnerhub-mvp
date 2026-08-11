@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { isPaidGateMode } from "@/lib/accessMode";
 import { GUEST_PROFILE_VIEW_LIMIT } from "@/lib/guestProfileViews";
 
 type GuestSubscribeModalProps = {
@@ -10,6 +11,13 @@ type GuestSubscribeModalProps = {
 
 export function GuestSubscribeModal({ open, onClose }: GuestSubscribeModalProps) {
   if (!open) return null;
+
+  const paidGate = isPaidGateMode();
+  const description = paidGate
+    ? `Гостям доступно ${GUEST_PROFILE_VIEW_LIMIT} профилей. Войдите и оформите участие за 249 ₽ / 30 дней.`
+    : `Гостям доступно ${GUEST_PROFILE_VIEW_LIMIT} профилей. Войдите бесплатно — и смотрите всех участников.`;
+  const ctaHref = paidGate ? "/auth?redirect=/subscription" : "/auth?redirect=/map";
+  const ctaLabel = paidGate ? "Войти и оформить участие" : "Войти бесплатно";
 
   return (
     <div
@@ -27,12 +35,9 @@ export function GuestSubscribeModal({ open, onClose }: GuestSubscribeModalProps)
           id="guest-subscribe-title"
           className="text-lg font-semibold text-slate-900"
         >
-          Лимит просмотров
+          Хотите увидеть больше участников?
         </h2>
-        <p className="mt-3 text-sm text-slate-600">
-          Гостям доступно {GUEST_PROFILE_VIEW_LIMIT} профилей. Оформите подписку,
-          чтобы смотреть всех участников, писать в чат и появляться на карте.
-        </p>
+        <p className="mt-3 text-sm text-slate-600">{description}</p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
@@ -42,10 +47,10 @@ export function GuestSubscribeModal({ open, onClose }: GuestSubscribeModalProps)
             Продолжить смотреть карту
           </button>
           <Link
-            href="/auth?redirect=/subscription"
+            href={ctaHref}
             className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
           >
-            Оформить подписку
+            {ctaLabel}
           </Link>
         </div>
       </div>

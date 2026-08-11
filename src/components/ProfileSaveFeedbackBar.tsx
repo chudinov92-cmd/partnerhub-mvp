@@ -5,6 +5,7 @@ import Link from "next/link";
 export type ProfileSaveFeedback = {
   successMessage: string;
   subscriptionHint: string | null;
+  nextStepHint: string | null;
 };
 
 type ProfileSaveFeedbackBarProps = {
@@ -36,6 +37,17 @@ export function ProfileSaveFeedbackBar({
                   className="font-semibold underline hover:text-amber-950"
                 >
                   Оформить подписку
+                </Link>
+              </p>
+            ) : null}
+            {feedback.nextStepHint ? (
+              <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900">
+                {feedback.nextStepHint}{" "}
+                <Link
+                  href="/profile#section-skills"
+                  className="font-semibold underline hover:text-sky-950"
+                >
+                  Добавить →
                 </Link>
               </p>
             ) : null}

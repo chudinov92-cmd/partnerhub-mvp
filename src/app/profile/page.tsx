@@ -888,12 +888,18 @@ export default function ProfilePage() {
       const subscriptionActive = isActiveProProfile(profile);
       const needsSubscriptionForMap =
         isPaidGateMode() && !subscriptionActive && Boolean(coords);
+      const skillsEmpty =
+        !profile.skills?.trim() && !profile.resources?.trim();
 
       showSaveFeedback({
         successMessage: "Профиль успешно сохранён",
         subscriptionHint: needsSubscriptionForMap
           ? "Чтобы ваш профиль отображался на карте, оформите подписку."
           : null,
+        nextStepHint:
+          !needsSubscriptionForMap && skillsEmpty
+            ? "Расскажите о своих навыках — так вас заметят другие участники."
+            : null,
       });
       setIsSaved(true);
       savedSnapshotRef.current = buildProfileSnapshot(
@@ -1021,14 +1027,24 @@ export default function ProfilePage() {
           ) : null}
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        ) : null}
 
         {catalogLoading ? (
           <p className="text-xs text-slate-500">Загрузка справочников...</p>
         ) : null}
 
         {/* Группа 1: Имя / Фамилия / Город / Возраст */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div
+          id="section-city"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
               <svg
@@ -1125,7 +1141,10 @@ export default function ProfilePage() {
         </div>
 
         {/* Группа 2: Профессия / Отрасль / Подотрасль / Стаж (повторяемая) */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div
+          id="section-experience"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
               <svg
@@ -1464,7 +1483,10 @@ export default function ProfilePage() {
         </div>
 
         {/* Группа 3: Описания */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div
+          id="section-skills"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
           <div className="mb-5 flex items-center gap-2">
             <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
               <img
