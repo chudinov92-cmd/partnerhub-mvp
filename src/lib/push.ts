@@ -55,12 +55,39 @@ export function clearPushDismissFlag(): void {
   }
 }
 
-async function authHeader(): Promise<string | null> {
+async function accessTokenFresh(): Promise<string | null> {
+  // getUser проверяет JWT на Supabase и при необходимости обновляет cookie-сессию.
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error || !user) return null;
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const t = session?.access_token;
+  return session?.access_token ?? null;
+}
+
+async function authHeader(): Promise<string | null> {
+  const t = await accessTokenFresh();
   return t ? `Bearer ${t}` : null;
+}
+
+function formatPushApiError(errText: string, status: number): string {
+  if (status === 401) {
+    return "Сессия истекла. Обновите страницу (F5) или войдите снова.";
+  }
+  try {
+    const json = JSON.parse(errText) as { error?: string };
+    if (json.error === "Unauthorized") {
+      return "Сессия истекла. Обновите страницу (F5) или войдите снова.";
+    }
+    if (json.error) return json.error;
+  } catch {
+    /* not json */
+  }
+  return errText.trim() || `Ошибка сервера ${status}`;
 }
 
 /** Состояние разрешения + факт регистрации endpoint в БД. */
@@ -139,7 +166,7 @@ export async function enablePush(): Promise<{ ok: boolean; error?: string }> {
     const errText = await res.text();
     return {
       ok: false,
-      error: errText || `Ошибка сервера ${res.status}`,
+      error: formatPushApiError(errText, res.status),
     };
   }
 
@@ -166,7 +193,7 @@ export async function disablePush(): Promise<{ ok: boolean; error?: string }> {
 
   if (!del.ok) {
     const errText = await del.text();
-    return { ok: false, error: errText || `Ошибка ${del.status}` };
+    return { ok: false, error: formatPushApiError(errText, del.status) };
   }
   return { ok: true };
 }

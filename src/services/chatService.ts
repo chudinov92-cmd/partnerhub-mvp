@@ -430,11 +430,27 @@ export async function insertMessage(payload: {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  let token = session?.access_token ?? null;
+
+  if (!token) {
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return {
+        data: null,
+        error: new Error("Нужно войти в аккаунт"),
+      };
+    }
+    const refreshed = await supabase.auth.getSession();
+    token = refreshed.data.session?.access_token ?? null;
+  }
+
   if (!token) {
     return {
       data: null,
-      error: new Error("Нужно войти в аккаунт"),
+      error: new Error("Сессия истекла. Обновите страницу или войдите снова."),
     };
   }
 
