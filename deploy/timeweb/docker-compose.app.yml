@@ -1,8 +1,6 @@
-# NEXT_PUBLIC_* подставляются при docker build. Загрузите .env.app при вызове compose:
-#   cd deploy/timeweb
-#   docker compose --env-file .env.app -f docker-compose.app.yml up -d --build
-# Или из корня репо:
-#   docker compose --env-file deploy/timeweb/.env.app -f deploy/timeweb/docker-compose.app.yml up -d --build
+# NEXT_PUBLIC_* подставляются при docker build.
+# Prod:  docker compose --env-file .env.app -f docker-compose.app.yml up -d --build
+# Test:  docker compose --env-file .env.app.test -f docker-compose.app.yml up -d --build app-web-test
 
 services:
   app-web:
@@ -16,9 +14,29 @@ services:
         NEXT_PUBLIC_SUPPORT_PROFILE_ID: ${NEXT_PUBLIC_SUPPORT_PROFILE_ID}
         NEXT_PUBLIC_VK_MAPS_API_KEY: ${NEXT_PUBLIC_VK_MAPS_API_KEY}
         NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN: ${NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN}
+        NEXT_PUBLIC_ACCESS_MODE: ${NEXT_PUBLIC_ACCESS_MODE:-freemium}
     container_name: app-web
     restart: unless-stopped
     env_file:
       - ./.env.app
     ports:
       - "127.0.0.1:3001:3000"
+
+  app-web-test:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+        NEXT_PUBLIC_SUPPORT_PROFILE_ID: ${NEXT_PUBLIC_SUPPORT_PROFILE_ID}
+        NEXT_PUBLIC_VK_MAPS_API_KEY: ${NEXT_PUBLIC_VK_MAPS_API_KEY}
+        NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN: ${NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN}
+        NEXT_PUBLIC_ACCESS_MODE: ${NEXT_PUBLIC_ACCESS_MODE:-paid_gate}
+    container_name: app-web-test
+    restart: unless-stopped
+    env_file:
+      - ./.env.app.test
+    ports:
+      - "127.0.0.1:3002:3000"

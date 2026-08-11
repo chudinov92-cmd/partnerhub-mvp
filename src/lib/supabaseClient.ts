@@ -29,3 +29,15 @@ export const supabasePublic = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/**
+ * Регистрация и сброс пароля — без cookie-сессии до подтверждения email.
+ * Отдельный клиент не делит Web Lock с createBrowserClient.
+ */
+export const supabaseAuthForms = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
+

@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
+import { isPaidGateMode } from "@/lib/accessMode";
+import {
+  canGuestOpenProfile,
+  recordGuestProfileView,
+} from "@/lib/guestProfileViews";
+import { AuthGateModal } from "@/components/AuthGateModal";
+import { buildAuthRedirectForMapWrite, buildMapWriteRedirect } from "@/lib/paywallIntent";
 
 type PublicProfile = {
   id: string;
@@ -35,6 +42,7 @@ function splitLines(value: string | null | undefined) {
 export default function PublicProfilePage() {
   const params = useParams<{ id: string }>();
   const profileId = params?.id;
+  const router = useRouter();
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +50,8 @@ export default function PublicProfilePage() {
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const [isContact, setIsContact] = useState(false);
   const [contactLoading, setContactLoading] = useState(false);
+  const [guestPaywallOpen, setGuestPaywallOpen] = useState(false);
+  const [guestBlocked, setGuestBlocked] = useState(false);
 
   useEffect(() => {
     if (!profileId) return;
@@ -64,6 +74,15 @@ export default function PublicProfilePage() {
           setCurrentProfileId(myId);
         } else {
           setCurrentProfileId(null);
+          if (isPaidGateMode() && profileId) {
+            if (!canGuestOpenProfile(profileId)) {
+              setGuestBlocked(true);
+              setGuestPaywallOpen(true);
+              setLoading(false);
+              return;
+            }
+            recordGuestProfileView(profileId);
+          }
         }
 
         const { data, error } = await supabase
@@ -145,6 +164,33 @@ export default function PublicProfilePage() {
     );
   }
 
+  if (guestBlocked) {
+    return (
+      <>
+        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
+          <p className="max-w-sm text-center text-sm text-slate-600">
+            Лимит просмотров профилей для гостей исчерпан. Войдите или
+            зарегистрируйтесь, чтобы смотреть всех участников.
+          </p>
+          <Link
+            href="/map"
+            className="mt-4 text-sm font-medium text-emerald-700 hover:underline"
+          >
+            На карту
+          </Link>
+        </div>
+        <AuthGateModal
+          open={guestPaywallOpen}
+          onClose={() => {
+            setGuestPaywallOpen(false);
+            router.push("/map");
+          }}
+          reason="view_limit"
+        />
+      </>
+    );
+  }
+
   if (!profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -216,12 +262,25 @@ export default function PublicProfilePage() {
                 {isContact ? "Удалить" : "Добавить в контакты"}
               </button>
             ) : null}
-            <Link
-              href={`/?chat=${profile.id}`}
-              className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-            >
-              Написать
-            </Link>
+            {isPaidGateMode() && !currentProfileId ? (
+              <Link
+                href={buildAuthRedirectForMapWrite(profile.id)}
+                className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+              >
+                Написать
+              </Link>
+            ) : (
+              <Link
+                href={
+                  isPaidGateMode()
+                    ? buildMapWriteRedirect(profile.id)
+                    : `/?chat=${profile.id}`
+                }
+                className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+              >
+                Написать
+              </Link>
+            )}
           </div>
         </div>
 

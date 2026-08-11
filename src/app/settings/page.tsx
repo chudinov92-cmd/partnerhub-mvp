@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
+import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { supabase } from "@/lib/supabaseClient";
 import { authGetUser, authSignOut } from "@/services/authService";
 import {
@@ -14,6 +15,8 @@ import {
   getSubscriptionStatus,
   isActiveProProfile,
 } from "@/services/subscriptionService";
+import { isPaidGateMode } from "@/lib/accessMode";
+import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
 
 function getEmailRedirectOrigin(): string {
   const raw =
@@ -48,6 +51,8 @@ export default function SettingsPage() {
   const [mapBusy, setMapBusy] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [proExpiresAt, setProExpiresAt] = useState<string | null>(null);
+  const [trialUsed, setTrialUsed] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
@@ -86,6 +91,7 @@ export default function SettingsPage() {
       const status = await getSubscriptionStatus(profile.id);
       setIsPro(status.isPro);
       setProExpiresAt(status.expiresAt);
+      setTrialUsed(status.trialUsed);
     } catch (err) {
       console.error("[settings] load", err);
       router.replace("/auth?redirect=/settings");
@@ -95,11 +101,33 @@ export default function SettingsPage() {
   }, [router]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (isRobokassaReturnUrl(window.location.search)) {
+      router.replace(`/payment/success?${params.toString()}`);
+      return;
+    }
+    if (params.get("payment") === "success") {
+      router.replace(
+        isPaidGateMode() ? "/map?payment=success" : "/payment/success",
+      );
+      return;
+    }
+    if (params.get("payment") === "fail") {
+      router.replace("/payment/fail");
+    }
+  }, [router]);
+
+  useEffect(() => {
     void load();
   }, [load]);
 
   const onToggleMapVisible = async (next: boolean) => {
     if (!profileId || mapBusy) return;
+    if (isPaidGateMode() && next && !isPro) {
+      setPaywallOpen(true);
+      return;
+    }
     setMapBusy(true);
     try {
       await setProfileMapVisible(profileId, next);
@@ -245,6 +273,12 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-slate-600">
             Если выключить, ваш пин и профиль не будут видны другим на карте и в
             ленте карты. Чаты и контакты сохранятся.
+            {isPaidGateMode() && !isPro ? (
+              <>
+                {" "}
+                Без подписки пин на карте недоступен.
+              </>
+            ) : null}
           </p>
           <label className="mt-4 flex cursor-pointer items-center justify-between gap-3">
             <span className="text-sm font-medium text-slate-800">
@@ -335,14 +369,20 @@ export default function SettingsPage() {
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">Подписка Pro</h2>
+          <h2 className="text-xl font-semibold text-slate-900">
+            {isPaidGateMode() ? "Подписка" : "Подписка Pro"}
+          </h2>
           {isPro || isActiveProProfile({ is_pro: isPro, pro_expires_at: proExpiresAt }) ? (
             <p className="mt-2 text-sm text-emerald-800">
-              Pro активна
+              {isPaidGateMode() ? "Подписка активна" : "Pro активна"}
               {proExpiresAt ? ` до ${formatExpiresAt(proExpiresAt)}` : ""}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-slate-600">Сейчас активен бесплатный тариф</p>
+            <p className="mt-2 text-sm text-slate-600">
+              {isPaidGateMode()
+                ? "Подписка не оформлена — пин на карте и переписка недоступны"
+                : "Сейчас активен бесплатный тариф"}
+            </p>
           )}
           <Link
             href="/subscription"
@@ -403,6 +443,17 @@ export default function SettingsPage() {
           </button>
         </section>
       </div>
+      <PaywallDrawer
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        context={{ intent: "pin" }}
+        profileId={profileId}
+        trialUsed={trialUsed}
+        onTrialStarted={() => {
+          void load();
+          setPaywallOpen(false);
+        }}
+      />
     </div>
   );
 }

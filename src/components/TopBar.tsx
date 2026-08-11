@@ -23,6 +23,7 @@ import {
   shouldShowCityOnboarding,
 } from "@/lib/cityOnboarding";
 import { shouldShowProfileOnboarding } from "@/lib/profileOnboarding";
+import { isPaidGateMode } from "@/lib/accessMode";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;
@@ -466,9 +467,11 @@ export function TopBar() {
                     className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-slate-700 hover:bg-gray-50"
                   >
                     Подписка
-                    <span className="rounded bg-[#FDE047] px-1 text-[10px] font-bold text-slate-900">
-                      Pro
-                    </span>
+                    {!isPaidGateMode() ? (
+                      <span className="rounded bg-[#FDE047] px-1 text-[10px] font-bold text-slate-900">
+                        Pro
+                      </span>
+                    ) : null}
                   </button>
                   <button
                     type="button"

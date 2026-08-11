@@ -5,6 +5,7 @@ import {
   isRobokassaTestMode,
   signPaymentRequest,
 } from "@/lib/robokassa";
+import { getSiteUrl } from "@/lib/paymentReturn";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -94,5 +95,9 @@ export async function POST() {
     url.searchParams.set("IsTest", "1");
   }
 
-  return NextResponse.json({ paymentUrl: url.toString() });
+  const siteUrl = getSiteUrl();
+  url.searchParams.set("SuccessURL", `${siteUrl}/payment/success`);
+  url.searchParams.set("FailURL", `${siteUrl}/payment/fail`);
+
+  return NextResponse.json({ paymentUrl: url.toString(), invId });
 }

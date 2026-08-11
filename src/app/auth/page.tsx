@@ -7,7 +7,7 @@ import {
   isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, supabaseAuthForms } from "@/lib/supabaseClient";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import {
   AUTH_FORM_TIMEOUT_MS,
@@ -87,8 +87,14 @@ function isInvalidLoginCredentials(err: unknown): boolean {
   );
 }
 
-function getAuthErrorMessage(err: unknown) {
+function getAuthErrorMessage(err: unknown, mode?: Mode) {
   if (isAuthTimeoutError(err)) {
+    if (mode === "signup") {
+      return "Регистрация заняла слишком много времени. Проверьте почту (и «Спам») — письмо могло уйти. Если письма нет, попробуйте снова через минуту.";
+    }
+    if (mode === "forgot") {
+      return "Запрос на сброс пароля занял слишком много времени. Проверьте почту или попробуйте снова через минуту.";
+    }
     return "Сервис авторизации не отвечает. Проверьте интернет и попробуйте ещё раз через минуту.";
   }
 
@@ -241,6 +247,14 @@ export default function AuthPage() {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlMode = new URLSearchParams(window.location.search).get("mode");
+    if (urlMode === "signup") {
+      setMode("signup");
+    }
+  }, []);
+
   // если уже есть сессия: recovery → установка пароля, иначе на главную
   useEffect(() => {
     const check = async () => {
@@ -283,7 +297,7 @@ export default function AuthPage() {
         const origin = getEmailAuthRedirectOrigin();
         const redirectTo = `${origin}/auth/reset-password`;
         const { error } = await withAuthTimeout(
-          supabase.auth.resetPasswordForEmail(email, {
+          supabaseAuthForms.auth.resetPasswordForEmail(email, {
             redirectTo,
           }),
           "resetPasswordForEmail",
@@ -296,7 +310,7 @@ export default function AuthPage() {
       } else if (mode === "signup") {
         const origin = getEmailAuthRedirectOrigin();
         const { error } = await withAuthTimeout(
-          supabase.auth.signUp({
+          supabaseAuthForms.auth.signUp({
             email,
             password,
             options: {
@@ -368,7 +382,7 @@ export default function AuthPage() {
             }
           }
           if (!redirected) {
-            setError(getAuthErrorMessage(err));
+            setError(getAuthErrorMessage(err, "signin"));
           }
         } finally {
           subscription.unsubscribe();
@@ -379,7 +393,7 @@ export default function AuthPage() {
         return;
       }
     } catch (err: unknown) {
-      setError(getAuthErrorMessage(err));
+      setError(getAuthErrorMessage(err, mode));
     } finally {
       setLoading(false);
     }

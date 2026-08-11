@@ -82,3 +82,11 @@ export function initYandexMetrika(): void {
     trackLinks: true,
   });
 }
+
+/** Кастомная цель Яндекс.Метрики (reachGoal). Безопасна до init — ym буферизует вызовы. */
+export function reachYandexMetrikaGoal(goal: string): void {
+  if (typeof window === "undefined") return;
+  const counterId = getMetrikaId();
+  if (!counterId || !goal.trim()) return;
+  window.ym?.(counterId, "reachGoal", goal.trim());
+}

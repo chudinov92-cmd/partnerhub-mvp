@@ -1,4 +1,7 @@
+"use client";
+
 import { ButtonLink } from "@/app/landing/components/Button";
+import { isPaidGateMode } from "@/lib/accessMode";
 
 type HeroProps = {
   assets: {
@@ -20,6 +23,12 @@ export function Hero({ assets }: HeroProps) {
             Хватит планировать в одиночку. Найди тех, кто готов включиться с тобой в работу над проектом и разделить
             твои амбиции — прямо в твоем квартале.
           </p>
+
+          {isPaidGateMode() ? (
+            <p className="mt-3 text-sm text-slate-600">
+              Карту смотреть бесплатно · участие от 249 ₽ / 30 дней
+            </p>
+          ) : null}
 
           <ButtonLink href="/map" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
             На карту

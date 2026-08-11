@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import { authGetUser } from "@/services/authService";
@@ -26,6 +27,11 @@ import {
 } from "@/lib/industryCatalog";
 import { CITY_VIEWS } from "@/data/cityMapViews";
 import { isActiveProProfile } from "@/services/subscriptionService";
+import { isPaidGateMode } from "@/lib/accessMode";
+import {
+  ProfileSaveFeedbackBar,
+  type ProfileSaveFeedback,
+} from "@/components/ProfileSaveFeedbackBar";
 
 const INDUSTRY_OPTIONS = [
   "Природные ресурсы",
@@ -334,7 +340,12 @@ export default function ProfilePage() {
   const profileLoadInFlightRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<ProfileSaveFeedback | null>(
+    null,
+  );
+  const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [interestedProfessionDraft, setInterestedProfessionDraft] = useState<
     string | null
   >(null);
@@ -349,6 +360,11 @@ export default function ProfilePage() {
     // "Профиль сохранен" сбрасываем при любом изменении после успешного сохранения.
     if (isSaved && savedSnapshotRef.current && current !== savedSnapshotRef.current) {
       setIsSaved(false);
+      setSaveFeedback(null);
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+        saveFeedbackTimerRef.current = null;
+      }
     }
 
     // Показ "Отмена" только если есть несохранённые изменения относительно базовой версии.
@@ -358,6 +374,33 @@ export default function ProfilePage() {
       setHasChanges(false);
     }
   }, [isSaved, profile, workBlocks, lastName, coords]);
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showSaveFeedback = useCallback((feedback: ProfileSaveFeedback) => {
+    if (saveFeedbackTimerRef.current) {
+      clearTimeout(saveFeedbackTimerRef.current);
+    }
+    setSaveFeedback(feedback);
+    saveFeedbackTimerRef.current = setTimeout(() => {
+      setSaveFeedback(null);
+      saveFeedbackTimerRef.current = null;
+    }, 7000);
+  }, []);
+
+  const dismissSaveFeedback = useCallback(() => {
+    if (saveFeedbackTimerRef.current) {
+      clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+    setSaveFeedback(null);
+  }, []);
 
   const isExtraBlockStock = (wb: WorkBlock) => {
     const roleTitle = (wb.role_title ?? "").trim();
@@ -623,13 +666,13 @@ export default function ProfilePage() {
 
     if (!coords) {
       setError("Укажите местоположение на карте — кликните по нужному месту.");
-      setSuccess(null);
+      dismissSaveFeedback();
       return;
     }
 
     setSaving(true);
     setError(null);
-    setSuccess(null);
+    dismissSaveFeedback();
     setIsSaved(false);
 
     try {
@@ -809,9 +852,13 @@ export default function ProfilePage() {
           .select("map_visible")
           .eq("id", profile.id)
           .maybeSingle();
-        const mapVisible =
+        const mapVisibleSetting =
           (visibilityRow as { map_visible?: boolean | null } | null)
             ?.map_visible !== false;
+        const subscriptionActive = isActiveProProfile(profile);
+        const mapVisible = isPaidGateMode()
+          ? subscriptionActive && mapVisibleSetting
+          : mapVisibleSetting;
 
         if (location) {
           const { error: locErr } = await supabase
@@ -838,7 +885,16 @@ export default function ProfilePage() {
         }
       }
 
-      setSuccess("Профиль сохранён");
+      const subscriptionActive = isActiveProProfile(profile);
+      const needsSubscriptionForMap =
+        isPaidGateMode() && !subscriptionActive && Boolean(coords);
+
+      showSaveFeedback({
+        successMessage: "Профиль успешно сохранён",
+        subscriptionHint: needsSubscriptionForMap
+          ? "Чтобы ваш профиль отображался на карте, оформите подписку."
+          : null,
+      });
       setIsSaved(true);
       savedSnapshotRef.current = buildProfileSnapshot(
         profile,
@@ -944,17 +1000,28 @@ export default function ProfilePage() {
           {profile && isActiveProProfile(profile) ? (
             <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
               <p className="text-sm font-medium text-emerald-900">
-                Подписка Pro активна
+                {isPaidGateMode()
+                  ? "Подписка активна"
+                  : "Подписка Pro активна"}
                 {profile.pro_expires_at
                   ? ` до ${formatProExpiresAt(profile.pro_expires_at)}`
                   : " (без даты окончания)"}
+              </p>
+            </div>
+          ) : isPaidGateMode() ? (
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+              <p className="text-sm text-amber-900">
+                Без подписки профиль можно заполнить, но пин на карте и переписка
+                будут доступны после оплаты.{" "}
+                <Link href="/subscription" className="font-medium underline">
+                  Оформить подписку
+                </Link>
               </p>
             </div>
           ) : null}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-emerald-600">{success}</p>}
 
         {catalogLoading ? (
           <p className="text-xs text-slate-500">Загрузка справочников...</p>
@@ -1610,9 +1677,11 @@ export default function ProfilePage() {
 
         <div
           className={`fixed inset-x-0 bottom-0 z-[1450] border-t border-gray-200 bg-white/95 shadow-lg backdrop-blur transition-transform duration-300 ease-out ${
-            hasChanges ? "translate-y-0" : "pointer-events-none translate-y-full"
+            hasChanges && !saveFeedback
+              ? "translate-y-0"
+              : "pointer-events-none translate-y-full"
           }`}
-          aria-hidden={!hasChanges}
+          aria-hidden={!hasChanges || !!saveFeedback}
         >
           <div className="mx-auto flex w-full max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
             <button
@@ -1624,6 +1693,13 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+
+        {saveFeedback ? (
+          <ProfileSaveFeedbackBar
+            feedback={saveFeedback}
+            onClose={dismissSaveFeedback}
+          />
+        ) : null}
       </form>
     </div>
   );

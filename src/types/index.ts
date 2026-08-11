@@ -39,6 +39,7 @@ export type Profile = {
   interested_in?: string | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  trial_used?: boolean | null;
   work_blocks?: ProfileWorkBlock[];
 };
 
@@ -71,6 +72,7 @@ export type CurrentUser = {
   roleTitle: string | null;
   isBlocked: boolean;
   isPro: boolean;
+  trialUsed: boolean;
 };
 
 export type ChatMessage = {

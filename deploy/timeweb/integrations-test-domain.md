@@ -1,36 +1,54 @@
-# Внешние интеграции: test.zeip.ru (архив)
+# Внешние интеграции: test.zeip.ru (параллельно prod)
 
-> **Актуально:** см. [`integrations-prod-domain.md`](integrations-prod-domain.md) — публичный URL **`https://zeip.ru`**.
+> Prod: [`integrations-prod-domain.md`](integrations-prod-domain.md) — `https://zeip.ru`  
+> Test: **`https://test.zeip.ru`** — режим `paid_gate`, Robokassa test mode.
 
-Публичный URL приложения: **https://test.zeip.ru** (закрыт 2026-07-28)  
-Backend Supabase без изменений: **https://supabase.zeip.ru**
+Backend Supabase общий: **https://supabase.zeip.ru**
 
 ## Robokassa
 
-В личном кабинете Robokassa добавить URL (или временно отключить оплату на стенде):
+В личном кабинете Robokassa **добавить** URL test (не удаляя prod):
 
 | Параметр | URL |
 |----------|-----|
 | Result URL | `https://test.zeip.ru/api/subscription/webhook` |
-| Success URL | `https://test.zeip.ru/settings?payment=success` |
-| Fail URL | `https://test.zeip.ru/settings?payment=fail` |
+| Success URL | `https://test.zeip.ru/payment/success` |
+| Fail URL | `https://test.zeip.ru/payment/fail` |
 
-Проверить, что `ROBOKASSA_TEST_MODE=1` в `.env.app` на VPS для test-стенда.
+На VPS в `.env.app.test`: `ROBOKASSA_TEST_MODE=1`
 
 ## VK Maps
 
 В кабинете VK Maps → ключ API → разрешённые домены:
 
+- `zeip.ru`
 - `test.zeip.ru`
-- (опционально) `localhost` для локальной разработки
+- `localhost` (локальная разработка)
 
 ## Яндекс.Метрика / VK Pixel
 
 Счётчик `110816502` и пиксель `3780633` работают на поддомене без смены ID.
 
-## Smoke после настройки
+## Яндекс.Метрика
+
+Цели return-flow + paywall (см. [`ai_docs/tasks/cjm-paywall-implementation.md`](../../../Desktop/my-startup/ai_docs/tasks/cjm-paywall-implementation.md)):
+
+- `payment_success_open`, `payment_success_activated`, `payment_success_need_login`, `payment_success_timeout`
+- paywall: `auth_gate_shown_*`, `paywall_shown_*`, `checkout_started`, `trial_start`, `payment_success_aha`
+
+## Smoke
 
 ```bash
-cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+curl -sI https://zeip.ru/ | head -3
+curl -sI https://test.zeip.ru/ | head -3
+cd "/Users/vladimirchudinov/Downloads/Zeip Paid"
 bash scripts/migration/healthcheck_timeweb.sh "https://test.zeip.ru" "https://supabase.zeip.ru"
+```
+
+## Деплой test-контейнера
+
+```bash
+ssh root@186.246.2.104
+cd /root/zeip/my-app && git checkout paid-access && git pull --ff-only
+bash deploy/timeweb/deploy-app-test.sh
 ```
