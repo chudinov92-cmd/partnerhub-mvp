@@ -56,7 +56,7 @@ export async function getSubscriptionStatus(
 /** Инициация оплаты Robokassa через серверный API route. */
 export async function initRobokassaPayment(
   _profileId: string,
-): Promise<{ paymentUrl: string }> {
+): Promise<{ paymentUrl: string; invId: number }> {
   const res = await fetch("/api/subscription/create-payment", {
     method: "POST",
     credentials: "include",
@@ -73,8 +73,8 @@ export async function initRobokassaPayment(
     throw new Error(message);
   }
 
-  const data = (await res.json()) as { paymentUrl: string };
-  return { paymentUrl: data.paymentUrl };
+  const data = (await res.json()) as { paymentUrl: string; invId: number };
+  return { paymentUrl: data.paymentUrl, invId: data.invId };
 }
 
 /** Заглушка отмены: сброс Pro у текущего профиля (до webhook Robokassa — только dev/тест). */

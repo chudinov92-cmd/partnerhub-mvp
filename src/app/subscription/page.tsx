@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { authGetUser } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import {
   getSubscriptionStatus,
   initRobokassaPayment,
 } from "@/services/subscriptionService";
+import {
+  buildPaymentSuccessPath,
+  savePendingPaymentInvId,
+  shouldRedirectRobokassaReturnFromSubscription,
+} from "@/lib/paymentReturn";
 
 const PRO_PRICE = "249 ₽";
 const PRO_ACCENT = "#FDE047";
@@ -82,6 +88,7 @@ function IconX({ className }: { className?: string }) {
 }
 
 export default function SubscriptionPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -126,6 +133,14 @@ export default function SubscriptionPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const search = window.location.search;
+    if (shouldRedirectRobokassaReturnFromSubscription("/subscription", search)) {
+      router.replace(buildPaymentSuccessPath(search));
+    }
+  }, [router]);
+
+  useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
 
@@ -134,7 +149,8 @@ export default function SubscriptionPage() {
     setPayLoading(true);
     setError(null);
     try {
-      const { paymentUrl } = await initRobokassaPayment(profileId);
+      const { paymentUrl, invId } = await initRobokassaPayment(profileId);
+      savePendingPaymentInvId(String(invId));
       window.location.href = paymentUrl;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка инициации оплаты");

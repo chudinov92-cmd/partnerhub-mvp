@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { supabase } from "@/lib/supabaseClient";
+import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
 import { authGetUser, authSignOut } from "@/services/authService";
 import {
   fetchCurrentUserProfileRow,
@@ -64,6 +65,18 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (isRobokassaReturnUrl(window.location.search) || params.get("payment") === "success") {
+      router.replace(`/payment/success?${params.toString()}`);
+      return;
+    }
+    if (params.get("payment") === "fail") {
+      router.replace("/payment/fail");
+    }
+  }, [router]);
 
   const load = useCallback(async () => {
     setLoading(true);

@@ -10,8 +10,8 @@ Backend Supabase без изменений: **https://supabase.zeip.ru**
 | Параметр | URL |
 |----------|-----|
 | Result URL | `https://zeip.ru/api/subscription/webhook` |
-| Success URL | `https://zeip.ru/settings?payment=success` |
-| Fail URL | `https://zeip.ru/settings?payment=fail` |
+| Success URL | `https://zeip.ru/payment/success` |
+| Fail URL | `https://zeip.ru/payment/fail` |
 
 ## VK Maps
 
@@ -25,6 +25,15 @@ Backend Supabase без изменений: **https://supabase.zeip.ru**
 ## Яндекс.Метрика / VK Pixel
 
 Счётчик `110816502` и пиксель `3780633` работают на основном домене без смены ID.
+
+## Яндекс.Метрика
+
+Цели return-flow (добавить в интерфейсе Метрики):
+
+- `payment_success_open`
+- `payment_success_activated`
+- `payment_success_need_login`
+- `payment_success_timeout`
 
 ## Smoke после настройки
 
