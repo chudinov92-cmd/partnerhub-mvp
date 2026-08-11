@@ -22,8 +22,8 @@ self.addEventListener("push", (event) => {
   const tag = profileId ? `chat-profile:${profileId}` : "zeip-message";
 
   const url = profileId
-    ? `${self.location.origin}/?chat=${encodeURIComponent(profileId)}`
-    : self.location.origin;
+    ? `${self.location.origin}/map?chat=${encodeURIComponent(profileId)}`
+    : `${self.location.origin}/map`;
 
   const options = {
     body,
@@ -42,20 +42,25 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const url = data.url || self.location.origin;
+  const url =
+    typeof data.url === "string" && data.url.startsWith("http")
+      ? data.url
+      : `${self.location.origin}/map`;
   const profileId = data.profileId || "";
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          client.postMessage({
-            type: "ZEIP_OPEN_CHAT",
-            profileId,
-            url,
-          });
-          return client.focus();
+        if (!client.url.startsWith(self.location.origin)) continue;
+        if ("navigate" in client) {
+          return client.navigate(url).then((c) => c?.focus());
         }
+        client.postMessage({
+          type: "ZEIP_OPEN_CHAT",
+          profileId,
+          url,
+        });
+        return client.focus();
       }
       if (self.clients.openWindow) {
         return self.clients.openWindow(url);

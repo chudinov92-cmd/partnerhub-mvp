@@ -646,7 +646,7 @@ export default function Home() {
     const handler = (e: MessageEvent) => {
       const d = e.data as { type?: string; profileId?: string };
       if (d?.type === "ZEIP_OPEN_CHAT" && typeof d.profileId === "string") {
-        router.replace(`/?chat=${encodeURIComponent(d.profileId)}`);
+        router.replace(`/map?chat=${encodeURIComponent(d.profileId)}`);
         setChatDeepLinkNonce((n) => n + 1);
       }
     };
