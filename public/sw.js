@@ -29,6 +29,8 @@ self.addEventListener("push", (event) => {
     body,
     tag,
     renotify: true,
+    // Держать баннер, пока пользователь не кликнет или не закроет (Chrome/macOS/Windows).
+    requireInteraction: true,
     icon: `${self.location.origin}/Icons/icon-192.png`,
     badge: `${self.location.origin}/Icons/badge-72.png`,
     data: { url, profileId },
