@@ -167,11 +167,13 @@ body {
   display: none;
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 8px);
-  z-index: 2;
+  top: 0;
+  bottom: auto;
+  z-index: 3;
   min-width: 140px;
   max-width: 220px;
-  transform: translateX(-50%);
+  /* -100% в transform — высота самого тултипа, не родителя (у mmrgl-marker высота auto). */
+  transform: translate(-50%, calc(-100% - 8px));
   border-radius: 0.5rem;
   background: rgb(255 255 255 / 0.98);
   padding: 0.5rem 0.625rem;
@@ -183,6 +185,10 @@ body {
     0 4px 6px -4px rgb(15 23 42 / 0.08);
   pointer-events: none;
   white-space: nowrap;
+}
+
+.partner-map-marker-root:hover {
+  z-index: 4000000 !important;
 }
 
 .partner-map-marker-root:hover .partner-map-hover-tooltip {
