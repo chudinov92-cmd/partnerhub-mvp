@@ -96,6 +96,19 @@ function isInvalidLoginCredentials(err: unknown): boolean {
   );
 }
 
+function isUserAlreadyRegistered(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const row = err as { code?: unknown; message?: unknown };
+  const code =
+    typeof row.code === "string" ? row.code.toLowerCase() : "";
+  if (code === "user_already_exists") return true;
+  const msg =
+    typeof row.message === "string" ? row.message.toLowerCase() : "";
+  return /already registered|user already exists|already been registered/i.test(
+    msg,
+  );
+}
+
 const GENERIC_AUTH_ERROR =
   "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
 
@@ -162,6 +175,16 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
 
   if (isInvalidLoginCredentials(err)) {
     return authUserMessage(err, mode, "Неверный логин или пароль");
+  }
+
+  if (isUserAlreadyRegistered(err)) {
+    return authUserMessage(
+      err,
+      mode,
+      mode === "signup"
+        ? "Этот email уже зарегистрирован. Проверьте почту (и «Спам») — письмо с подтверждением могло уже уйти. Или нажмите «Отправить письмо ещё раз» ниже."
+        : "Этот email уже зарегистрирован. Перейдите на вкладку «Вход».",
+    );
   }
 
   if (!err) return authUserMessage(err, mode, "Ошибка авторизации");
@@ -542,6 +565,9 @@ export default function AuthPage() {
       }
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err, mode));
+      if (mode === "signup" && isUserAlreadyRegistered(err)) {
+        setShowResendConfirmation(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -774,7 +800,7 @@ export default function AuthPage() {
             </p>
           ) : null}
 
-          {mode === "signin" && showResendConfirmation && (
+          {(mode === "signin" || mode === "signup") && showResendConfirmation && (
             <div className="text-center">
               <button
                 type="button"
