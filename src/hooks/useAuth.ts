@@ -49,6 +49,8 @@ export function useAuth(blockedProfileIds: readonly string[]) {
           isBlocked: !!profileRow.is_blocked,
           isPro: isActiveProProfile(profileRow),
           trialUsed: Boolean(profileRow.trial_used),
+          onboardingCompleted: Boolean(profileRow.onboarding_completed),
+          onboardingStep: profileRow.onboarding_step ?? 0,
         });
         loadPrivateChatSidebarInBackground(profileRow.id);
       } else {

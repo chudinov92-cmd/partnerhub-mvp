@@ -15,14 +15,12 @@ import { USEFUL_CONTACTS_CHANGED_EVENT } from "@/lib/usefulContactEvents";
 import { fetchUsefulContactsCount } from "@/services/statsService";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
 import { CityOnboardingBanner } from "@/components/CityOnboardingBanner";
-import { ProfileOnboardingBanner } from "@/components/ProfileOnboardingBanner";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import {
   acknowledgeCityOnboarding,
   isCityOnboardingAcknowledged,
   shouldShowCityOnboarding,
 } from "@/lib/cityOnboarding";
-import { shouldShowProfileOnboarding } from "@/lib/profileOnboarding";
 import { isPaidGateMode } from "@/lib/accessMode";
 import Image from "next/image";
 
@@ -76,12 +74,6 @@ export function TopBar() {
       isAuthed,
       acknowledged: onboardingAcknowledged,
     });
-
-  const showProfileOnboarding = shouldShowProfileOnboarding({
-    pathname,
-    isAuthed,
-    profileCity,
-  });
 
   const handleCityChosen = useCallback(() => {
     acknowledgeCityOnboarding();
@@ -409,15 +401,10 @@ export function TopBar() {
         <div className="relative flex items-center gap-1.5 sm:gap-2" ref={menuRef}>
           {isAuthed ? (
             <>
-              {showProfileOnboarding ? <ProfileOnboardingBanner /> : null}
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className={`flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-100 ${
-                  showProfileOnboarding
-                    ? "ring-2 ring-emerald-400 ring-offset-1"
-                    : ""
-                }`}
+                className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-100"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-slate-900 text-sm font-medium text-white">
                   {displayInitial}

@@ -1,4 +1,4 @@
-export type PaywallIntent = "dm" | "chat" | "pin";
+export type PaywallIntent = "dm" | "chat" | "pin" | "banner";
 
 export type PaywallIntentContext = {
   intent: PaywallIntent;
@@ -13,7 +13,12 @@ export const PAYWALL_REASON_PARAM = "reason";
 export const PAYWALL_PAYMENT_PARAM = "payment";
 
 export function isPaywallIntent(value: string | null | undefined): value is PaywallIntent {
-  return value === "dm" || value === "chat" || value === "pin";
+  return (
+    value === "dm" ||
+    value === "chat" ||
+    value === "pin" ||
+    value === "banner"
+  );
 }
 
 export function buildMapWriteRedirect(profileId: string): string {
@@ -92,6 +97,9 @@ export function paywallIntentTitle(ctx: PaywallIntentContext): string {
   if (ctx.intent === "pin") {
     return "Чтобы ваш пин был виден на карте";
   }
+  if (ctx.intent === "banner") {
+    return "Доступ ко всем функциям Zeip";
+  }
   return "Оформите подписку Zeip";
 }
 
@@ -104,6 +112,9 @@ export function paywallIntentSubtitle(ctx: PaywallIntentContext): string {
   }
   if (ctx.intent === "pin") {
     return "Другие участники смогут найти вас на карте";
+  }
+  if (ctx.intent === "banner") {
+    return "Подписка открывает переписку и просмотр профилей без лимита";
   }
   return "Карту можно смотреть бесплатно. Подписка открывает действия.";
 }

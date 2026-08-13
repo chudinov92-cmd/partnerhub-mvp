@@ -3,19 +3,34 @@ import { NextResponse } from "next/server";
 import { createSupabaseMiddlewareClient } from "@/lib/supabaseServer";
 
 /**
- * Серверная защита /admin/*
- * После авторизации через JWT проверяем строку admin_users тем же ключом anon + cookies.
+ * /admin/* — JWT + admin_users
+ * /map — только авторизованные (гости → лендинг)
  */
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
   const response = NextResponse.next({
     request: { headers: request.headers },
   });
 
   const sb = createSupabaseMiddlewareClient(request, response);
-
   const {
     data: { user },
   } = await sb.auth.getUser();
+
+  if (pathname === "/map" || pathname.startsWith("/map/")) {
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
+  if (!pathname.startsWith("/admin")) {
+    return response;
+  }
 
   if (!user) {
     const url = request.nextUrl.clone();
@@ -38,5 +53,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/map", "/map/:path*"],
 };

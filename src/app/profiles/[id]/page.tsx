@@ -5,13 +5,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
-import { isPaidGateMode } from "@/lib/accessMode";
-import {
-  canGuestOpenProfile,
-  recordGuestProfileView,
-} from "@/lib/guestProfileViews";
-import { AuthGateModal } from "@/components/AuthGateModal";
-import { buildAuthRedirectForMapWrite, buildMapWriteRedirect } from "@/lib/paywallIntent";
 
 type PublicProfile = {
   id: string;
@@ -26,7 +19,7 @@ type PublicProfile = {
   skills: string | null;
   looking_for: string | null;
   resources: string | null;
-  can_help_with: string | null; // legacy in DB
+  can_help_with: string | null;
   interested_in: string | null;
   rating_count: number | null;
 };
@@ -50,8 +43,6 @@ export default function PublicProfilePage() {
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   const [isContact, setIsContact] = useState(false);
   const [contactLoading, setContactLoading] = useState(false);
-  const [guestPaywallOpen, setGuestPaywallOpen] = useState(false);
-  const [guestBlocked, setGuestBlocked] = useState(false);
 
   useEffect(() => {
     if (!profileId) return;
@@ -64,25 +55,22 @@ export default function PublicProfilePage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (user) {
-          const { data: me } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .maybeSingle();
-          const myId = (me as any)?.id ?? null;
-          setCurrentProfileId(myId);
-        } else {
-          setCurrentProfileId(null);
-          if (isPaidGateMode() && profileId) {
-            if (!canGuestOpenProfile(profileId)) {
-              setGuestBlocked(true);
-              setGuestPaywallOpen(true);
-              setLoading(false);
-              return;
-            }
-            recordGuestProfileView(profileId);
-          }
+        if (!user) {
+          router.replace("/auth?redirect=" + encodeURIComponent(`/profiles/${profileId}`));
+          return;
+        }
+
+        const { data: me } = await supabase
+          .from("profiles")
+          .select("id, onboarding_completed")
+          .eq("auth_user_id", user.id)
+          .maybeSingle();
+        const myId = (me as { id?: string; onboarding_completed?: boolean } | null)?.id ?? null;
+        setCurrentProfileId(myId);
+
+        if (me && !(me as { onboarding_completed?: boolean }).onboarding_completed) {
+          router.replace("/onboarding");
+          return;
         }
 
         const { data, error } = await supabase
@@ -116,15 +104,15 @@ export default function PublicProfilePage() {
           return;
         }
         setProfile(row ?? null);
-      } catch (err: any) {
-        setError(err.message ?? "Не удалось загрузить профиль");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить профиль");
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, [profileId]);
+  }, [profileId, router]);
 
   useEffect(() => {
     if (!profileId || !currentProfileId) {
@@ -144,7 +132,7 @@ export default function PublicProfilePage() {
       .maybeSingle()
       .then(({ data, error }) => {
         if (!alive) return;
-        if (error && (error as any).code !== "PGRST116") {
+        if (error && (error as { code?: string }).code !== "PGRST116") {
           console.error("Failed to check contact", error);
           setIsContact(false);
           return;
@@ -164,37 +152,10 @@ export default function PublicProfilePage() {
     );
   }
 
-  if (guestBlocked) {
-    return (
-      <>
-        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
-          <p className="max-w-sm text-center text-sm text-slate-600">
-            Лимит просмотров профилей для гостей исчерпан. Войдите или
-            зарегистрируйтесь, чтобы смотреть всех участников.
-          </p>
-          <Link
-            href="/map"
-            className="mt-4 text-sm font-medium text-emerald-700 hover:underline"
-          >
-            На карту
-          </Link>
-        </div>
-        <AuthGateModal
-          open={guestPaywallOpen}
-          onClose={() => {
-            setGuestPaywallOpen(false);
-            router.push("/map");
-          }}
-          reason="view_limit"
-        />
-      </>
-    );
-  }
-
   if (!profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Профиль не найден.</p>
+        <p className="text-sm text-slate-500">{error ?? "Профиль не найден."}</p>
       </div>
     );
   }
@@ -220,172 +181,80 @@ export default function PublicProfilePage() {
           <div className="ml-4 flex gap-2">
             <Link
               href="/map"
-              className="inline-flex items-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
             >
-              Назад
+              На карту
             </Link>
-            {currentProfileId && currentProfileId !== profile.id ? (
-              <button
-                type="button"
-                disabled={contactLoading}
-                onClick={async () => {
-                  if (!currentProfileId) return;
-                  setContactLoading(true);
-                  try {
-                    if (isContact) {
-                      const { error } = await supabase
-                        .from("profile_contacts")
-                        .delete()
-                        .eq("owner_id", currentProfileId)
-                        .eq("contact_profile_id", profile.id);
-                      if (error) throw error;
-                      setIsContact(false);
-                    } else {
-                      const { error } = await supabase
-                        .from("profile_contacts")
-                        .insert({
-                          owner_id: currentProfileId,
-                          contact_profile_id: profile.id,
-                        });
-                      if (error) throw error;
-                      setIsContact(true);
-                    }
-                    notifyProfileContactsChanged();
-                  } catch (e) {
-                    console.error("Failed to toggle contact", e);
-                  } finally {
-                    setContactLoading(false);
-                  }
-                }}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {isContact ? "Удалить" : "Добавить в контакты"}
-              </button>
-            ) : null}
-            {isPaidGateMode() && !currentProfileId ? (
-              <Link
-                href={buildAuthRedirectForMapWrite(profile.id)}
-                className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-              >
-                Написать
-              </Link>
-            ) : (
-              <Link
-                href={
-                  isPaidGateMode()
-                    ? buildMapWriteRedirect(profile.id)
-                    : `/?chat=${profile.id}`
-                }
-                className="inline-flex items-center rounded-full bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-              >
-                Написать
-              </Link>
-            )}
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Рейтинг
-            </p>
-            <p className="text-sm text-slate-900">
-              {profile.rating_count != null ? profile.rating_count : 0}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Отрасль
-            </p>
-            <p className="text-sm text-slate-900">
-              {industryLabel || "Не указана"}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Подотрасль
-            </p>
-            <p className="text-sm text-slate-900">
-              {profile.subindustry || "Не указана"}
+        {profile.role_title ? (
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">Профессия:</span> {profile.role_title}
+          </p>
+        ) : null}
+        {industryLabel ? (
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">Отрасль:</span> {industryLabel}
+          </p>
+        ) : null}
+        {profile.skills ? (
+          <div>
+            <h2 className="text-sm font-medium text-slate-900">О себе</h2>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+              {profile.skills}
             </p>
           </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Профессия
-            </p>
-            <p className="text-sm text-slate-900">
-              {profile.role_title || "Не указана"}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Стаж
-            </p>
-            <p className="text-sm text-slate-900">
-              {profile.experience_years != null
-                ? `${profile.experience_years} лет`
-                : "Не указан"}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3 pt-2">
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Что умеет
-            </p>
-            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
-              {profile.skills || "Не указано"}
-            </p>
-          </section>
-
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Ресурсы
-            </p>
-            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
-              {profile.resources || "Не указано"}
-            </p>
-          </section>
-
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Что ищет на платформе
-            </p>
-            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
-              {profile.looking_for || "Не указано"}
-            </p>
-          </section>
-
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Чем может помочь другим
-            </p>
-            <p className="mt-1 text-sm text-slate-900 whitespace-pre-line">
-              {profile.can_help_with || "Не указано"}
-            </p>
-          </section>
-
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Какие специалисты интересуют
-            </p>
-            <ul className="mt-1 space-y-1">
-              {(interestedProfessionItems.length
-                ? interestedProfessionItems
-                : ["Не указано"]
-              ).map((item, index) => (
-                <li key={`${item}-${index}`} className="text-sm text-slate-900">
+        ) : null}
+        {interestedProfessionItems.length > 0 ? (
+          <div>
+            <h2 className="text-sm font-medium text-slate-900">
+              Интересующие профессии
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {interestedProfessionItems.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                >
                   {item}
-                </li>
+                </span>
               ))}
-            </ul>
-          </section>
-        </div>
+            </div>
+          </div>
+        ) : null}
+
+        {currentProfileId && currentProfileId !== profileId ? (
+          <button
+            type="button"
+            disabled={contactLoading}
+            onClick={async () => {
+              setContactLoading(true);
+              try {
+                if (isContact) {
+                  await supabase
+                    .from("profile_contacts")
+                    .delete()
+                    .eq("owner_id", currentProfileId)
+                    .eq("contact_profile_id", profileId);
+                } else {
+                  await supabase.from("profile_contacts").insert({
+                    owner_id: currentProfileId,
+                    contact_profile_id: profileId,
+                  });
+                }
+                setIsContact(!isContact);
+                notifyProfileContactsChanged();
+              } finally {
+                setContactLoading(false);
+              }
+            }}
+            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {isContact ? "Убрать из контактов" : "Добавить в контакты"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
 }
-

@@ -1,0 +1,35 @@
+-- pg_cron hooks for email triggers (requires pg_cron + pg_net on Supabase self-host).
+-- Set app.internal_email_secret to match INTERNAL_EMAIL_SECRET in Next.js .env.app
+-- Replace https://zeip.ru with your app URL on test stand.
+
+-- Hourly at :30 — paywall reminder at ~20:30 local (filtered in API)
+-- SELECT cron.schedule(
+--   'zeip-paywall-reminder-hourly',
+--   '30 * * * *',
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://zeip.ru/api/email/paywall-reminder',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'x-internal-secret', current_setting('app.internal_email_secret', true)
+--     ),
+--     body := '{}'::jsonb
+--   ) AS request_id;
+--   $$
+-- );
+
+-- Daily 06:00 UTC — pioneer subscription expiry (7 days before)
+-- SELECT cron.schedule(
+--   'zeip-pioneer-expiry-daily',
+--   '0 6 * * *',
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://zeip.ru/api/email/pioneer-expiry',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'x-internal-secret', current_setting('app.internal_email_secret', true)
+--     ),
+--     body := '{}'::jsonb
+--   ) AS request_id;
+--   $$
+-- );

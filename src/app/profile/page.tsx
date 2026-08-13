@@ -855,10 +855,7 @@ export default function ProfilePage() {
         const mapVisibleSetting =
           (visibilityRow as { map_visible?: boolean | null } | null)
             ?.map_visible !== false;
-        const subscriptionActive = isActiveProProfile(profile);
-        const mapVisible = isPaidGateMode()
-          ? subscriptionActive && mapVisibleSetting
-          : mapVisibleSetting;
+        const mapVisible = mapVisibleSetting;
 
         if (location) {
           const { error: locErr } = await supabase

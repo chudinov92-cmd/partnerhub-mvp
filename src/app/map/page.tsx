@@ -39,13 +39,13 @@ import {
 } from "@/services/subscriptionService";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
-  canGuestOpenProfile,
-  isLastFreeGuestView,
-  recordGuestProfileView,
-} from "@/lib/guestProfileViews";
-import { AuthGateModal, type AuthGateReason } from "@/components/AuthGateModal";
+  canUnpaidOpenPinPopup,
+  recordUnpaidPinPopupView,
+} from "@/lib/unpaidPinViews";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { PaywallSoftBanner } from "@/components/PaywallSoftBanner";
+import { PinLimitModal } from "@/components/PinLimitModal";
+import { OnboardingPaywallBanner } from "@/components/OnboardingPaywallBanner";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
 import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
 import {
@@ -63,7 +63,6 @@ import {
   shouldShowPaywallSoftBanner,
 } from "@/lib/paywallFrequency";
 import {
-  trackAuthGateShown,
   trackPaywallDismissed,
   trackPaywallShown,
   trackPaymentSuccessAha,
@@ -420,11 +419,7 @@ export default function Home() {
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
     useState<Profile | null>(null);
-  const [authGateOpen, setAuthGateOpen] = useState(false);
-  const [authGateReason, setAuthGateReason] =
-    useState<AuthGateReason>("view_limit");
-  const [authGateProfile, setAuthGateProfile] = useState<Profile | null>(null);
-  const [guestLastViewHint, setGuestLastViewHint] = useState(false);
+  const [pinLimitOpen, setPinLimitOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallContext, setPaywallContext] = useState<PaywallIntentContext>({
     intent: "dm",
@@ -472,18 +467,17 @@ export default function Home() {
 
   const openProfileOverlay = useCallback(
     (profile: Profile) => {
-      if (isPaidGateMode() && !currentUser) {
-        if (!canGuestOpenProfile(profile.id)) {
-          setAuthGateReason("view_limit");
-          setAuthGateProfile(null);
-          setAuthGateOpen(true);
-          trackAuthGateShown("view_limit");
+      if (
+        isPaidGateMode() &&
+        currentUser &&
+        !currentUser.isPro &&
+        currentUser.profileId !== profile.id
+      ) {
+        if (!canUnpaidOpenPinPopup(currentUser.profileId)) {
+          setPinLimitOpen(true);
           return;
         }
-        setGuestLastViewHint(isLastFreeGuestView(profile.id));
-        recordGuestProfileView(profile.id);
-      } else {
-        setGuestLastViewHint(false);
+        recordUnpaidPinPopupView(currentUser.profileId);
       }
       setActiveProfileOverlay(profile);
     },
@@ -607,6 +601,13 @@ export default function Home() {
     const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
+
+  useEffect(() => {
+    if (!currentUser || loading) return;
+    if (!currentUser.onboardingCompleted) {
+      router.replace(`/onboarding?step=${currentUser.onboardingStep ?? 0}`);
+    }
+  }, [currentUser, loading, router]);
 
   useEffect(() => {
     if (cityInitializedRef.current) return;
@@ -1339,14 +1340,6 @@ export default function Home() {
   };
 
   const handleWriteToProfile = async (profile: Profile) => {
-    if (isPaidGateMode() && !currentUser) {
-      setAuthGateReason("write");
-      setAuthGateProfile(profile);
-      setAuthGateOpen(true);
-      trackAuthGateShown("write");
-      return;
-    }
-
     setActiveProfileOverlay(null);
 
     if (!currentUser) {
@@ -1696,6 +1689,14 @@ export default function Home() {
             dismissPaywallSoftBanner();
             setSoftBannerVisible(false);
           }}
+        />
+      ) : null}
+      {isPaidGateMode() &&
+      currentUser &&
+      currentUser.onboardingCompleted &&
+      !currentUser.isPro ? (
+        <OnboardingPaywallBanner
+          onBuy={() => openPaywallDrawer({ intent: "banner" })}
         />
       ) : null}
       <main
@@ -3033,9 +3034,7 @@ export default function Home() {
             className={activeChatUser ? "!z-[1700]" : undefined}
             profile={activeProfileOverlay}
             online={isOnline(activeProfileOverlay.last_seen_at ?? null)}
-            guestLastViewHint={
-              isPaidGateMode() && !currentUser && guestLastViewHint
-            }
+            guestLastViewHint={false}
             viewerProfileId={currentUser?.profileId ?? null}
             onClose={() => setActiveProfileOverlay(null)}
             profileHref={`/profiles/${activeProfileOverlay.id}`}
@@ -3080,15 +3079,9 @@ export default function Home() {
           unreadChatsCount={unreadChatsTotal}
         />
       ) : null}
-      <AuthGateModal
-        open={authGateOpen}
-        onClose={() => {
-          setAuthGateOpen(false);
-          setAuthGateProfile(null);
-        }}
-        reason={authGateReason}
-        profileId={authGateProfile?.id}
-        profileName={authGateProfile?.full_name}
+      <PinLimitModal
+        open={pinLimitOpen}
+        onClose={() => setPinLimitOpen(false)}
       />
       <PaywallDrawer
         open={paywallOpen}

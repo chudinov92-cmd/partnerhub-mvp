@@ -73,6 +73,8 @@ export type CurrentUser = {
   isBlocked: boolean;
   isPro: boolean;
   trialUsed: boolean;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
 };
 
 export type ChatMessage = {

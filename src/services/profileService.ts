@@ -95,6 +95,8 @@ export type CurrentProfileRow = {
   trial_used?: boolean | null;
   map_visible?: boolean | null;
   deleted_at?: string | null;
+  onboarding_completed?: boolean | null;
+  onboarding_step?: number | null;
 };
 
 export function parseInterestedProfessions(raw: string | null | undefined) {
@@ -103,6 +105,21 @@ export function parseInterestedProfessions(raw: string | null | undefined) {
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+const MAX_INTERESTED_PROFESSIONS = 5;
+
+export function serializeInterestedProfessions(values: string[]): string | null {
+  const unique = new Set<string>();
+  const normalized: string[] = [];
+  for (const raw of values) {
+    const value = (raw ?? "").trim();
+    if (!value || unique.has(value)) continue;
+    unique.add(value);
+    normalized.push(value);
+    if (normalized.length >= MAX_INTERESTED_PROFESSIONS) break;
+  }
+  return normalized.length > 0 ? normalized.join("\n") : null;
 }
 
 export function profileInterestedInProfession(
@@ -122,7 +139,7 @@ export async function fetchCurrentUserProfileRow(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, trial_used, map_visible, deleted_at",
+      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, trial_used, map_visible, deleted_at, onboarding_completed, onboarding_step",
     )
     .eq("auth_user_id", authUserId)
     .maybeSingle();
