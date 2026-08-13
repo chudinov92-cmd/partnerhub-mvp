@@ -3,6 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  authEmailCallbackPendingInUrl,
+  clearAuthCallbackFromUrl,
+  completeAuthEmailCallback,
+  getEmailAuthCallbackUrl,
+  getEmailAuthRedirectOrigin,
+  isEmailNotConfirmedError,
+  parseAuthEmailCallbackParams,
+} from "@/lib/authEmailCallback";
+import {
   isPasswordRecoverySession,
   isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
@@ -284,23 +293,11 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
   return authUserMessage(err, mode, "Ошибка авторизации. Попробуйте ещё раз.");
 }
 
-function getEmailAuthRedirectOrigin(): string {
-  const raw = (
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN?.trim()
-      : ""
-  ) ?? "";
-  if (typeof window !== "undefined") {
-    return raw.length > 0 ? raw.replace(/\/$/, "") : window.location.origin;
-  }
-  return raw.replace(/\/$/, "");
-}
-
 /** Безопасный путь после входа (?redirect=/admin/support). */
 function getPostAuthRedirectPath(): string {
-  if (typeof window === "undefined") return "/map";
+  if (typeof window === "undefined") return "/onboarding";
   const raw = new URLSearchParams(window.location.search).get("redirect");
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/map";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/onboarding";
   return raw;
 }
 
@@ -315,23 +312,71 @@ export default function AuthPage() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const urlMode = new URLSearchParams(window.location.search).get("mode");
+    const params = new URLSearchParams(window.location.search);
+    const urlMode = params.get("mode");
     if (urlMode === "signup") {
       setMode("signup");
     }
+    const urlError = params.get("error");
+    if (urlError) {
+      setError(urlError);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState(window.history.state, "", url.toString());
+    }
   }, []);
 
-  // если уже есть сессия: recovery → установка пароля, иначе на главную
+  // Старые письма с redirect_to=/auth: implicit hash / ?code= — поднимаем сессию здесь
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!authEmailCallbackPendingInUrl(window.location.search, window.location.hash)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const run = async () => {
+      const params = parseAuthEmailCallbackParams(
+        window.location.search,
+        window.location.hash,
+      );
+      const { error: callbackErr, redirectPath } =
+        await completeAuthEmailCallback(supabase, params);
+      if (cancelled) return;
+      if (callbackErr) {
+        setError(callbackErr);
+        clearAuthCallbackFromUrl();
+        return;
+      }
+      clearAuthCallbackFromUrl();
+      linkAnonymousCookieConsent();
+      window.location.replace(redirectPath);
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // если уже есть сессия: recovery → установка пароля, иначе на онбординг / redirect
   useEffect(() => {
     const check = async () => {
       if (recoveryCallbackPendingInUrl()) {
         window.location.replace(
           `/auth/reset-password${window.location.search}${window.location.hash}`,
         );
+        return;
+      }
+      if (
+        authEmailCallbackPendingInUrl(window.location.search, window.location.hash)
+      ) {
         return;
       }
       const {
@@ -356,10 +401,43 @@ export default function AuthPage() {
     void check();
   }, [router]);
 
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      setError("Укажите email для повторной отправки письма.");
+      return;
+    }
+    setResendLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const { error: resendErr } = await withAuthTimeout(
+        supabaseAuthForms.auth.resend({
+          type: "signup",
+          email: email.trim(),
+          options: {
+            emailRedirectTo: getEmailAuthCallbackUrl(),
+          },
+        }),
+        "resendSignupConfirmation",
+        AUTH_FORM_TIMEOUT_MS,
+      );
+      if (resendErr) throw resendErr;
+      setInfo(
+        "Письмо с подтверждением отправлено повторно. Откройте ссылку в том же браузере (Safari), где регистрировались.",
+      );
+      setShowResendConfirmation(false);
+    } catch (err: unknown) {
+      setError(getAuthErrorMessage(err, "signup"));
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    setShowResendConfirmation(false);
     setLoading(true);
 
     try {
@@ -378,13 +456,12 @@ export default function AuthPage() {
           "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в том же браузере (Safari), где запрашивали сброс — не через превью в Telegram. Проверьте почту (и папку «Спам»).",
         );
       } else if (mode === "signup") {
-        const origin = getEmailAuthRedirectOrigin();
         const { error } = await withAuthTimeout(
           supabaseAuthForms.auth.signUp({
             email,
             password,
             options: {
-              emailRedirectTo: `${origin}/auth`,
+              emailRedirectTo: getEmailAuthCallbackUrl(),
               data: {
                 full_name: fullName,
               },
@@ -453,6 +530,7 @@ export default function AuthPage() {
           }
           if (!redirected) {
             setError(getAuthErrorMessage(err, "signin"));
+            setShowResendConfirmation(isEmailNotConfirmedError(err));
           }
         } finally {
           subscription.unsubscribe();
@@ -511,6 +589,7 @@ export default function AuthPage() {
                 setSubmitAttempted(false);
                 setError(null);
                 setInfo(null);
+                setShowResendConfirmation(false);
               }}
               className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition ${
                 mode === "signin"
@@ -695,6 +774,21 @@ export default function AuthPage() {
             </p>
           ) : null}
 
+          {mode === "signin" && showResendConfirmation && (
+            <div className="text-center">
+              <button
+                type="button"
+                disabled={resendLoading}
+                onClick={() => void handleResendConfirmation()}
+                className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
+              >
+                {resendLoading
+                  ? "Отправляем…"
+                  : "Отправить письмо подтверждения ещё раз"}
+              </button>
+            </div>
+          )}
+
           {mode === "signin" && (
             <div className="text-center">
               <button
@@ -706,6 +800,7 @@ export default function AuthPage() {
                   setSubmitAttempted(false);
                   setError(null);
                   setInfo(null);
+                  setShowResendConfirmation(false);
                 }}
                 className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline"
               >
