@@ -37,6 +37,8 @@ export type Profile = {
   experience_years?: number | null;
   current_status?: string | null;
   interested_in?: string | null;
+  seeking?: string[] | null;
+  has_resources?: string[] | null;
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
   trial_used?: boolean | null;

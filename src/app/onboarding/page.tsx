@@ -56,6 +56,24 @@ const CURRENT_STATUS_OPTIONS = [
   "Фрилансер",
 ] as const;
 
+const SEEKING_OPTIONS = [
+  { value: "ideas", label: "Идеи" },
+  { value: "project", label: "Проект(ы)" },
+  { value: "team", label: "Команду" },
+] as const;
+
+const HAS_OPTIONS = [
+  { value: "ideas", label: "Идеи" },
+  { value: "project", label: "Проект(ы)" },
+  { value: "motivation", label: "Желание" },
+] as const;
+
+function toggleArrayItem(arr: string[], value: string): string[] {
+  return arr.includes(value)
+    ? arr.filter((v) => v !== value)
+    : [...arr, value];
+}
+
 const MAX_INTERESTED = 5;
 const DEFAULT_COUNTRY = "Россия";
 const TOTAL_STEPS = 4;
@@ -81,6 +99,8 @@ type OnboardingProfile = {
   skills: string | null;
   resources: string | null;
   interested_in: string | null;
+  seeking: string[];
+  has_resources: string[];
   onboarding_step: number;
   onboarding_completed: boolean;
 };
@@ -160,7 +180,7 @@ export default function OnboardingPage() {
         let { data: prof, error: profErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, onboarding_step, onboarding_completed",
+            "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, has_resources, onboarding_step, onboarding_completed",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -170,9 +190,14 @@ export default function OnboardingPage() {
         if (!prof) {
           const { data: created, error: createErr } = await supabase
             .from("profiles")
-            .insert({ auth_user_id: user.id, country: DEFAULT_COUNTRY })
+            .insert({
+              auth_user_id: user.id,
+              country: DEFAULT_COUNTRY,
+              seeking: [],
+              has_resources: [],
+            })
             .select(
-              "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, onboarding_step, onboarding_completed",
+              "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, has_resources, onboarding_step, onboarding_completed",
             )
             .single();
           if (createErr) throw createErr;
@@ -191,7 +216,11 @@ export default function OnboardingPage() {
         const initialStep =
           urlStep != null ? clampStep(Number(urlStep)) : clampStep(row.onboarding_step ?? 0);
 
-        setProfile(row);
+        setProfile({
+          ...row,
+          seeking: row.seeking ?? [],
+          has_resources: row.has_resources ?? [],
+        });
         setStep(initialStep);
 
         const { data: privateRow } = await supabase
@@ -350,6 +379,8 @@ export default function OnboardingPage() {
         skills: maskProfanity(profile.skills),
         resources: maskProfanity(profile.resources),
         interested_in: profile.interested_in,
+        seeking: profile.seeking ?? [],
+        has_resources: profile.has_resources ?? [],
       });
       return;
     }
@@ -556,6 +587,23 @@ export default function OnboardingPage() {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">
+                Текущий статус
+              </label>
+              <DropdownSelect
+                variant="profile"
+                value={profile.current_status}
+                placeholder="Выберите статус"
+                options={CURRENT_STATUS_OPTIONS.map((s) => ({
+                  value: s,
+                  label: s,
+                }))}
+                onChange={(v) =>
+                  setProfile({ ...profile, current_status: v || null })
+                }
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
                 Профессия *
               </label>
               <ProfessionDropdown
@@ -636,28 +684,60 @@ export default function OnboardingPage() {
                 />
               </div>
             ) : null}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Текущий статус
-              </label>
-              <DropdownSelect
-                variant="profile"
-                value={profile.current_status}
-                placeholder="Выберите статус"
-                options={CURRENT_STATUS_OPTIONS.map((s) => ({
-                  value: s,
-                  label: s,
-                }))}
-                onChange={(v) =>
-                  setProfile({ ...profile, current_status: v || null })
-                }
-              />
-            </div>
           </div>
         ) : null}
 
         {step === 2 ? (
           <div className="space-y-4">
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-800">Ищу</p>
+              <p className="text-xs text-slate-500">Можно выбрать несколько</p>
+              {SEEKING_OPTIONS.map(({ value, label }) => (
+                <label
+                  key={value}
+                  className="flex cursor-pointer items-center gap-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(profile.seeking ?? []).includes(value)}
+                    onChange={() =>
+                      setProfile({
+                        ...profile,
+                        seeking: toggleArrayItem(profile.seeking ?? [], value),
+                      })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-slate-700">{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-800">Есть у меня</p>
+              <p className="text-xs text-slate-500">Можно выбрать несколько</p>
+              {HAS_OPTIONS.map(({ value, label }) => (
+                <label
+                  key={value}
+                  className="flex cursor-pointer items-center gap-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(profile.has_resources ?? []).includes(value)}
+                    onChange={() =>
+                      setProfile({
+                        ...profile,
+                        has_resources: toggleArrayItem(
+                          profile.has_resources ?? [],
+                          value,
+                        ),
+                      })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm text-slate-700">{label}</span>
+                </label>
+              ))}
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">
                 О себе
