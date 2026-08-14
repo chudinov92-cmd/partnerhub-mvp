@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -77,6 +84,126 @@ function toggleArrayItem(arr: string[], value: string): string[] {
 const MAX_INTERESTED = 5;
 const DEFAULT_COUNTRY = "Россия";
 const TOTAL_STEPS = 4;
+
+const STEP_TITLES = [
+  "Расскажите о себе",
+  "Профессия и отрасль",
+  "Интересы и о себе",
+  "Ваша точка на карте",
+] as const;
+
+const FIELD_CLASS =
+  "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#009966] focus:ring-2 focus:ring-[#009966]/20";
+
+const TEXTAREA_CLASS =
+  "w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#009966] focus:ring-2 focus:ring-[#009966]/20";
+
+function StepProgress({ step }: { step: number }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex gap-1.5" aria-hidden>
+        {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+          <div
+            key={i}
+            className={
+              "h-1 flex-1 rounded-full transition-colors " +
+              (i <= step ? "bg-[#009966]" : "bg-slate-200")
+            }
+          />
+        ))}
+      </div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#009966]">
+        Шаг {step + 1} из {TOTAL_STEPS}
+      </p>
+    </div>
+  );
+}
+
+function FieldLabel({
+  children,
+  required,
+}: {
+  children: ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <label className="mb-1.5 block text-sm font-medium text-slate-800">
+      {children}
+      {required ? <span className="ml-0.5 text-[#009966]">*</span> : null}
+    </label>
+  );
+}
+
+function ChoiceChip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={
+        "flex min-h-12 items-center justify-center rounded-2xl border px-2 py-2 text-center text-[13px] font-medium leading-tight transition " +
+        (selected
+          ? "border-[#009966] bg-[#009966] text-white"
+          : "border-slate-200 bg-white text-slate-700 active:bg-slate-50")
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function MultiChoiceRow({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={
+        "flex min-h-12 w-full items-center gap-3 rounded-2xl border px-3.5 text-left text-sm font-medium transition " +
+        (selected
+          ? "border-[#009966] bg-[#009966]/10 text-slate-900"
+          : "border-slate-200 bg-white text-slate-700 active:bg-slate-50")
+      }
+    >
+      <span
+        className={
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] " +
+          (selected
+            ? "border-[#009966] bg-[#009966] text-white"
+            : "border-slate-300 bg-white text-transparent")
+        }
+        aria-hidden
+      >
+        ✓
+      </span>
+      {children}
+    </button>
+  );
+}
+
+function OnboardingShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-dvh bg-[#f6f8f7] bg-[radial-gradient(ellipse_80%_40%_at_50%_-10%,rgba(0,153,102,0.14),transparent)] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+      {children}
+    </div>
+  );
+}
 
 const LocationPicker = dynamic(
   () =>
@@ -484,382 +611,375 @@ export default function OnboardingPage() {
 
   if (loading || !profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Загрузка…</p>
-      </div>
+      <OnboardingShell>
+        <p className="flex min-h-[70dvh] items-center justify-center text-sm text-slate-500">
+          Загрузка…
+        </p>
+      </OnboardingShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
-      <div className="w-full max-w-lg space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
-            Шаг {step + 1} из {TOTAL_STEPS}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">
-            {step === 0 && "Расскажите о себе"}
-            {step === 1 && "Профессия и отрасль"}
-            {step === 2 && "Интересы и о себе"}
-            {step === 3 && "Ваша точка на карте"}
-          </h1>
-        </div>
+    <>
+    <OnboardingShell>
+      <div className="mx-auto flex w-full max-w-lg flex-col rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:p-6">
+        <StepProgress step={step} />
+        <h1 className="mt-3 text-[1.65rem] font-bold leading-tight tracking-tight text-slate-900">
+          {STEP_TITLES[step]}
+        </h1>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div
+            role="alert"
+            className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+          >
             {error}
           </div>
         ) : null}
 
-        {step === 0 ? (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Имя *
-              </label>
-              <input
-                type="text"
-                value={profile.full_name ?? ""}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    full_name: e.target.value.slice(0, 25),
-                  })
-                }
-                className="h-12 w-full rounded-xl border border-gray-300 px-3 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Фамилия
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value.slice(0, 25))}
-                className="h-12 w-full rounded-xl border border-gray-300 px-3 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                Видна только вам
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Город *
-              </label>
-              <CityDropdown
-                value={profile.city}
-                onChange={handleCityChange}
-                includeRussia={false}
-                placeholder="Выберите город"
-              />
-              {pioneerRemaining != null && pioneerRemaining > 0 ? (
-                <p className="mt-2 text-xs text-emerald-700">
-                  Осталось {pioneerRemaining} бесплатных подписок на 90 дней в
-                  вашем городе
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Возраст *
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={80}
-                value={profile.age ?? ""}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const n = raw === "" ? null : Number(raw);
-                  setProfile({
-                    ...profile,
-                    age: raw === "" ? null : Number.isFinite(n) ? n : null,
-                  });
-                }}
-                className="h-12 w-full rounded-xl border border-gray-300 px-3 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {step === 1 ? (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Текущий статус
-              </label>
-              <DropdownSelect
-                variant="profile"
-                value={profile.current_status}
-                placeholder="Выберите статус"
-                options={CURRENT_STATUS_OPTIONS.map((s) => ({
-                  value: s,
-                  label: s,
-                }))}
-                onChange={(v) =>
-                  setProfile({ ...profile, current_status: v || null })
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Профессия *
-              </label>
-              <ProfessionDropdown
-                value={
-                  professionIsOther
-                    ? OTHER_PROFESSION_LABEL
-                    : profile.role_title
-                }
-                catalog={professionCatalog}
-                onChange={(v) => {
-                  const isOther = v === OTHER_PROFESSION_LABEL;
-                  setProfessionIsOther(isOther);
-                  setProfile({
-                    ...profile,
-                    role_title: isOther ? "" : v,
-                  });
-                }}
-              />
-              {professionIsOther ? (
+        <div className="mt-5 space-y-5">
+          {step === 0 ? (
+            <>
+              <div>
+                <FieldLabel required>Имя</FieldLabel>
                 <input
                   type="text"
-                  value={profile.role_title ?? ""}
+                  autoComplete="given-name"
+                  enterKeyHint="next"
+                  value={profile.full_name ?? ""}
                   onChange={(e) =>
                     setProfile({
                       ...profile,
-                      role_title: e.target.value.slice(0, 40),
+                      full_name: e.target.value.slice(0, 25),
                     })
                   }
-                  placeholder="Введите профессию"
-                  className="mt-2 h-12 w-full rounded-xl border border-gray-300 px-3 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  className={FIELD_CLASS}
                 />
-              ) : null}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Отрасль *
-              </label>
-              <DropdownSelect
-                variant="profile"
-                value={profile.industry}
-                placeholder="Выберите отрасль"
-                options={(industryCatalog.length > 0
-                  ? getIndustryLabelsForSelect(industryCatalog)
-                  : [...INDUSTRY_OPTIONS]
-                ).map((ind) => ({ value: ind, label: ind }))}
-                onChange={(v) =>
-                  setProfile({
-                    ...profile,
-                    industry: v || null,
-                    subindustry: null,
-                  })
-                }
-              />
-            </div>
-            {subindustryOptions.length > 0 ? (
+              </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-800">
-                  Подотрасль
-                </label>
-                <DropdownSelect
-                  variant="profile"
-                  value={
-                    subindustryIsOther ? "Другое" : profile.subindustry
-                  }
-                  placeholder="Выберите подотрасль"
-                  options={subindustryOptions.map((s) => ({
-                    value: s,
-                    label: s,
-                  }))}
-                  onChange={(v) => {
-                    const isOther = v === "Другое";
-                    setSubindustryIsOther(isOther);
+                <FieldLabel>Фамилия</FieldLabel>
+                <input
+                  type="text"
+                  autoComplete="family-name"
+                  enterKeyHint="next"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value.slice(0, 25))}
+                  className={FIELD_CLASS}
+                />
+                <p className="mt-1.5 text-xs text-slate-500">Видна только вам</p>
+              </div>
+              <div>
+                <FieldLabel required>Город</FieldLabel>
+                <CityDropdown
+                  value={profile.city}
+                  onChange={handleCityChange}
+                  includeRussia={false}
+                  placeholder="Выберите город"
+                />
+                {pioneerRemaining != null && pioneerRemaining > 0 ? (
+                  <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs leading-snug text-[#009966]">
+                    Осталось {pioneerRemaining} бесплатных подписок на 90 дней в
+                    вашем городе
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <FieldLabel required>Возраст</FieldLabel>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={80}
+                  value={profile.age ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const n = raw === "" ? null : Number(raw);
                     setProfile({
                       ...profile,
-                      subindustry: isOther ? "" : v || null,
+                      age: raw === "" ? null : Number.isFinite(n) ? n : null,
                     });
                   }}
+                  className={FIELD_CLASS}
                 />
               </div>
-            ) : null}
-          </div>
-        ) : null}
+            </>
+          ) : null}
 
-        {step === 2 ? (
-          <div className="space-y-4">
-            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-800">Ищу</p>
-              <p className="text-xs text-slate-500">Можно выбрать несколько</p>
-              {SEEKING_OPTIONS.map(({ value, label }) => (
-                <label
-                  key={value}
-                  className="flex cursor-pointer items-center gap-3"
-                >
-                  <input
-                    type="checkbox"
-                    checked={(profile.seeking ?? []).includes(value)}
-                    onChange={() =>
-                      setProfile({
-                        ...profile,
-                        seeking: toggleArrayItem(profile.seeking ?? [], value),
-                      })
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-sm text-slate-700">{label}</span>
-                </label>
-              ))}
-            </div>
-            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-800">Есть у меня</p>
-              <p className="text-xs text-slate-500">Можно выбрать несколько</p>
-              {HAS_OPTIONS.map(({ value, label }) => (
-                <label
-                  key={value}
-                  className="flex cursor-pointer items-center gap-3"
-                >
-                  <input
-                    type="checkbox"
-                    checked={(profile.has_resources ?? []).includes(value)}
-                    onChange={() =>
-                      setProfile({
-                        ...profile,
-                        has_resources: toggleArrayItem(
-                          profile.has_resources ?? [],
-                          value,
-                        ),
-                      })
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-sm text-slate-700">{label}</span>
-                </label>
-              ))}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                О себе
-              </label>
-              <textarea
-                value={profile.skills ?? ""}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    skills: e.target.value.slice(0, 600),
-                  })
-                }
-                rows={3}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Ресурсы
-              </label>
-              <textarea
-                value={profile.resources ?? ""}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    resources: e.target.value.slice(0, 600),
-                  })
-                }
-                rows={2}
-                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
-                Интересующие профессии
-              </label>
-              <div className="flex gap-2">
-                <DropdownSelect
-                  variant="profile"
-                  value={interestedDraft}
-                  placeholder="Выберите профессию"
-                  searchable
-                  options={professionCatalog.map((p) => ({
-                    value: p.label,
-                    label: p.label,
-                  }))}
-                  onChange={(v) => setInterestedDraft(v || null)}
-                  disabled={interestedValues.length >= MAX_INTERESTED}
-                />
-                <button
-                  type="button"
-                  disabled={!interestedDraft}
-                  onClick={() => {
-                    if (!interestedDraft) return;
-                    setProfile({
-                      ...profile,
-                      interested_in: serializeInterestedProfessions([
-                        ...interestedValues,
-                        interestedDraft,
-                      ]),
-                    });
-                    setInterestedDraft(null);
-                  }}
-                  className="shrink-0 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  +
-                </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {interestedValues.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
-                  >
-                    {item}
-                    <button
-                      type="button"
+          {step === 1 ? (
+            <>
+              <div>
+                <FieldLabel>Текущий статус</FieldLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  {CURRENT_STATUS_OPTIONS.map((status) => (
+                    <ChoiceChip
+                      key={status}
+                      selected={profile.current_status === status}
                       onClick={() =>
                         setProfile({
                           ...profile,
-                          interested_in: serializeInterestedProfessions(
-                            interestedValues.filter((x) => x !== item),
+                          current_status:
+                            profile.current_status === status ? null : status,
+                        })
+                      }
+                    >
+                      {status}
+                    </ChoiceChip>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <FieldLabel required>Профессия</FieldLabel>
+                <ProfessionDropdown
+                  value={
+                    professionIsOther
+                      ? OTHER_PROFESSION_LABEL
+                      : profile.role_title
+                  }
+                  catalog={professionCatalog}
+                  onChange={(v) => {
+                    const isOther = v === OTHER_PROFESSION_LABEL;
+                    setProfessionIsOther(isOther);
+                    setProfile({
+                      ...profile,
+                      role_title: isOther ? "" : v,
+                    });
+                  }}
+                />
+                {professionIsOther ? (
+                  <input
+                    type="text"
+                    value={profile.role_title ?? ""}
+                    onChange={(e) =>
+                      setProfile({
+                        ...profile,
+                        role_title: e.target.value.slice(0, 40),
+                      })
+                    }
+                    placeholder="Введите профессию"
+                    className={"mt-2 " + FIELD_CLASS}
+                  />
+                ) : null}
+              </div>
+              <div>
+                <FieldLabel required>Отрасль</FieldLabel>
+                <DropdownSelect
+                  variant="profile"
+                  value={profile.industry}
+                  placeholder="Выберите отрасль"
+                  options={(industryCatalog.length > 0
+                    ? getIndustryLabelsForSelect(industryCatalog)
+                    : [...INDUSTRY_OPTIONS]
+                  ).map((ind) => ({ value: ind, label: ind }))}
+                  onChange={(v) =>
+                    setProfile({
+                      ...profile,
+                      industry: v || null,
+                      subindustry: null,
+                    })
+                  }
+                />
+              </div>
+              {subindustryOptions.length > 0 ? (
+                <div>
+                  <FieldLabel>Подотрасль</FieldLabel>
+                  <DropdownSelect
+                    variant="profile"
+                    value={
+                      subindustryIsOther ? "Другое" : profile.subindustry
+                    }
+                    placeholder="Выберите подотрасль"
+                    options={subindustryOptions.map((s) => ({
+                      value: s,
+                      label: s,
+                    }))}
+                    onChange={(v) => {
+                      const isOther = v === "Другое";
+                      setSubindustryIsOther(isOther);
+                      setProfile({
+                        ...profile,
+                        subindustry: isOther ? "" : v || null,
+                      });
+                    }}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-slate-800">Ищу</p>
+                <p className="text-xs text-slate-500">Можно выбрать несколько</p>
+                <div className="space-y-2">
+                  {SEEKING_OPTIONS.map(({ value, label }) => (
+                    <MultiChoiceRow
+                      key={value}
+                      selected={(profile.seeking ?? []).includes(value)}
+                      onClick={() =>
+                        setProfile({
+                          ...profile,
+                          seeking: toggleArrayItem(
+                            profile.seeking ?? [],
+                            value,
                           ),
                         })
                       }
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
+                      {label}
+                    </MultiChoiceRow>
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
-        ) : null}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-slate-800">
+                  Есть у меня
+                </p>
+                <p className="text-xs text-slate-500">Можно выбрать несколько</p>
+                <div className="space-y-2">
+                  {HAS_OPTIONS.map(({ value, label }) => (
+                    <MultiChoiceRow
+                      key={value}
+                      selected={(profile.has_resources ?? []).includes(value)}
+                      onClick={() =>
+                        setProfile({
+                          ...profile,
+                          has_resources: toggleArrayItem(
+                            profile.has_resources ?? [],
+                            value,
+                          ),
+                        })
+                      }
+                    >
+                      {label}
+                    </MultiChoiceRow>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <FieldLabel>О себе</FieldLabel>
+                <textarea
+                  value={profile.skills ?? ""}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      skills: e.target.value.slice(0, 600),
+                    })
+                  }
+                  rows={3}
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
+              <div>
+                <FieldLabel>Ресурсы</FieldLabel>
+                <textarea
+                  value={profile.resources ?? ""}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      resources: e.target.value.slice(0, 600),
+                    })
+                  }
+                  rows={2}
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
+              <div>
+                <FieldLabel>Интересующие профессии</FieldLabel>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <DropdownSelect
+                      variant="profile"
+                      value={interestedDraft}
+                      placeholder="Выберите профессию"
+                      searchable
+                      options={professionCatalog.map((p) => ({
+                        value: p.label,
+                        label: p.label,
+                      }))}
+                      onChange={(v) => setInterestedDraft(v || null)}
+                      disabled={interestedValues.length >= MAX_INTERESTED}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!interestedDraft}
+                    aria-label="Добавить профессию"
+                    onClick={() => {
+                      if (!interestedDraft) return;
+                      setProfile({
+                        ...profile,
+                        interested_in: serializeInterestedProfessions([
+                          ...interestedValues,
+                          interestedDraft,
+                        ]),
+                      });
+                      setInterestedDraft(null);
+                    }}
+                    className="h-12 w-12 shrink-0 rounded-2xl bg-[#009966] text-lg font-semibold text-white disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+                {interestedValues.length > 0 ? (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {interestedValues.map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex max-w-full items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800"
+                      >
+                        <span className="truncate">{item}</span>
+                        <button
+                          type="button"
+                          aria-label={`Убрать ${item}`}
+                          className="grid h-4 w-4 place-items-center rounded-full text-emerald-700"
+                          onClick={() =>
+                            setProfile({
+                              ...profile,
+                              interested_in: serializeInterestedProfessions(
+                                interestedValues.filter((x) => x !== item),
+                              ),
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
 
-        {step === 3 ? (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              Кликните по карте, чтобы указать район. Точная точка скрыта для
-              других пользователей.
-            </p>
-            <LocationPicker
-              value={coords}
-              onChange={(next) => {
-                coordsMovedRef.current = true;
-                setCoords(next);
-              }}
-              markerLabel={
-                profile.full_name?.trim()?.[0]?.toUpperCase() ?? "Я"
-              }
-              className="h-72 w-full overflow-hidden rounded-xl border border-slate-200"
-            />
-          </div>
-        ) : null}
+          {step === 3 ? (
+            <>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Кликните по карте, чтобы указать район. Точная точка скрыта для
+                других пользователей.
+              </p>
+              <LocationPicker
+                value={coords}
+                onChange={(next) => {
+                  coordsMovedRef.current = true;
+                  setCoords(next);
+                }}
+                markerLabel={
+                  profile.full_name?.trim()?.[0]?.toUpperCase() ?? "Я"
+                }
+                className="h-[260px] w-full overflow-hidden rounded-2xl border border-slate-200"
+              />
+            </>
+          ) : null}
+        </div>
 
-        <div className="flex gap-3 pt-2">
+        <div className="mt-6 flex gap-3">
           {step > 0 ? (
             <button
               type="button"
               onClick={handleBack}
               disabled={saving}
-              className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-gray-50 disabled:opacity-50"
+              className="h-12 flex-1 rounded-2xl border border-slate-200 px-4 text-sm font-medium text-slate-700 active:bg-slate-50 disabled:opacity-50"
             >
               Назад
             </button>
@@ -868,7 +988,7 @@ export default function OnboardingPage() {
             type="button"
             onClick={() => void handleNext()}
             disabled={saving}
-            className="flex-1 rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:from-[#009966] hover:to-emerald-700 disabled:opacity-60"
+            className="h-12 flex-1 rounded-2xl bg-[#009966] px-4 text-sm font-semibold text-white shadow-sm active:bg-[#007a52] disabled:opacity-60"
           >
             {saving
               ? "Сохраняем…"
@@ -878,11 +998,11 @@ export default function OnboardingPage() {
           </button>
         </div>
       </div>
-
+    </OnboardingShell>
       <PioneerModal
         open={pioneerModalOpen}
         onClose={() => setPioneerModalOpen(false)}
       />
-    </div>
+    </>
   );
 }
