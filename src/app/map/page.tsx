@@ -36,7 +36,11 @@ import {
   getDmPartnersDailyLimit,
   getSubscriptionStatus,
   isActiveProProfile,
+  canWriteGeneralChat as userCanWriteGeneralChat,
+  canSendDirectMessages,
+  PRO_PLUS_CHAT_LIMIT,
 } from "@/services/subscriptionService";
+import { FREE_PROFILE_VIEWS_LIMIT } from "@/lib/subscriptionPlans";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
   canUnpaidOpenPinPopup,
@@ -72,6 +76,7 @@ import {
   updatePostBody,
   insertPost as insertFeedPost,
   insertPostComment,
+  countTodayChatPosts,
 } from "@/services/feedService";
 import type {
   Post,
@@ -465,33 +470,6 @@ export default function Home() {
     chatMembershipRef,
   } = useAuth([]);
 
-  const openProfileOverlay = useCallback(
-    (profile: Profile) => {
-      if (
-        isPaidGateMode() &&
-        currentUser &&
-        !currentUser.isPro &&
-        currentUser.profileId !== profile.id
-      ) {
-        if (!canUnpaidOpenPinPopup(currentUser.profileId)) {
-          setPinLimitOpen(true);
-          return;
-        }
-        recordUnpaidPinPopupView(currentUser.profileId);
-      }
-      setActiveProfileOverlay(profile);
-    },
-    [currentUser],
-  );
-
-  const isSupportProfile = useCallback(
-    (profileId: string) => {
-      const sid = supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
-      return sid != null && profileId === sid;
-    },
-    [supportProfileId],
-  );
-
   const openPaywallDrawer = useCallback(
     (ctx: PaywallIntentContext) => {
       if (!canShowPaywallDrawer(ctx.intent)) {
@@ -512,6 +490,62 @@ export default function Home() {
     setSoftBannerVisible(shouldShowPaywallSoftBanner());
   }, [paywallContext.intent]);
 
+  const {
+    contactProfileIds,
+    viewedProfileStates,
+    blockedProfileIds,
+    setBlockedProfileIds,
+    todayOpenedProfileIds,
+    toggleContact,
+    markProfileViewed,
+  } = useContacts(currentUser, () => {
+    openPaywallDrawer({ intent: "favorites_limit" });
+  });
+
+  const openProfileOverlay = useCallback(
+    (profile: Profile) => {
+      if (
+        isPaidGateMode() &&
+        currentUser &&
+        !currentUser.isPro &&
+        currentUser.profileId !== profile.id
+      ) {
+        if (!canUnpaidOpenPinPopup(currentUser.profileId)) {
+          setPinLimitOpen(true);
+          return;
+        }
+        recordUnpaidPinPopupView(currentUser.profileId);
+      }
+
+      if (
+        !isPaidGateMode() &&
+        currentUser &&
+        currentUser.subscriptionPlan === "free" &&
+        currentUser.profileId !== profile.id
+      ) {
+        const alreadyOpenedToday = todayOpenedProfileIds.includes(profile.id);
+        if (
+          !alreadyOpenedToday &&
+          todayOpenedProfileIds.length >= FREE_PROFILE_VIEWS_LIMIT
+        ) {
+          openPaywallDrawer({ intent: "view_limit" });
+          return;
+        }
+      }
+
+      setActiveProfileOverlay(profile);
+    },
+    [currentUser, todayOpenedProfileIds, openPaywallDrawer],
+  );
+
+  const isSupportProfile = useCallback(
+    (profileId: string) => {
+      const sid = supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
+      return sid != null && profileId === sid;
+    },
+    [supportProfileId],
+  );
+
   const refreshCurrentUserPro = useCallback(async () => {
     if (!currentUser) return;
     const status = await getSubscriptionStatus(currentUser.profileId);
@@ -520,20 +554,12 @@ export default function Home() {
         ? {
             ...prev,
             isPro: status.isPro,
+            subscriptionPlan: status.plan,
             trialUsed: status.trialUsed,
           }
         : prev,
     );
   }, [currentUser, setCurrentUser]);
-
-  const {
-    contactProfileIds,
-    viewedProfileStates,
-    blockedProfileIds,
-    setBlockedProfileIds,
-    toggleContact,
-    markProfileViewed,
-  } = useContacts(currentUser);
 
   const effectiveViewedProfileIds = useMemo(
     () => getEffectiveViewedProfileIds(viewedProfileStates, profiles),
@@ -1076,7 +1102,11 @@ export default function Home() {
   };
 
   const canWriteGeneralChat =
-    !!currentUser && currentUser.isPro && !currentUser.isBlocked;
+    !!currentUser &&
+    userCanWriteGeneralChat(
+      currentUser.subscriptionPlan,
+      currentUser.isBlocked,
+    );
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1088,13 +1118,25 @@ export default function Home() {
       setCreateError("Ваш аккаунт заблокирован. Публикация недоступна.");
       return;
     }
-    if (!currentUser.isPro) {
+    if (!userCanWriteGeneralChat(currentUser.subscriptionPlan, currentUser.isBlocked)) {
       setCreateError(
         isPaidGateMode()
-          ? "Писать в общий чат доступно только с активной подпиской. Оформите подписку в разделе «Подписка»."
-          : "Писать в общий чат доступно только с подпиской Pro. Оформите Pro в разделе «Подписка».",
+          ? "Писать в общий чат доступно на тарифе Pro+. Оформите подписку в разделе «Подписка»."
+          : currentUser.subscriptionPlan === "pro"
+            ? "На тарифе Pro общий чат доступен только для чтения. Перейдите на Pro+, чтобы писать сообщения."
+            : "На тарифе Free общий чат доступен только для чтения. Оформите Pro+, чтобы писать сообщения.",
       );
       return;
+    }
+
+    if (!editingPostId) {
+      const postsToday = await countTodayChatPosts(currentUser.profileId);
+      if (postsToday >= PRO_PLUS_CHAT_LIMIT) {
+        setCreateError(
+          `Лимит ${PRO_PLUS_CHAT_LIMIT} сообщений в общем чате за сутки исчерпан.`,
+        );
+        return;
+      }
     }
     if (!newPostBody.trim()) {
       setCreateError("Напишите текст сообщения.");
@@ -1270,8 +1312,23 @@ export default function Home() {
         return;
       }
 
+      if (
+        !isPaidGateMode() &&
+        !canSendDirectMessages(currentUser.subscriptionPlan) &&
+        !isSupportPeer
+      ) {
+        openPaywallDrawer({
+          intent: "dm",
+          profileId: profile.id,
+          profileName: profile.full_name,
+          profileRole: profile.role_title ?? profile.city,
+        });
+        setChatLoading(false);
+        return;
+      }
+
       if (!isSupportPeer) {
-        const limit = getDmPartnersDailyLimit(currentUser.isPro);
+        const limit = getDmPartnersDailyLimit(currentUser.subscriptionPlan);
         const partnersToday = await getUniqueChatPartnersToday(
           currentUser.profileId,
         );
@@ -1280,13 +1337,11 @@ export default function Home() {
           partnersToday.size >= limit
         ) {
           setChatError(
-            isPaidGateMode()
-              ? `Лимит ${limit} уникальных собеседников в сутки исчерпан.`
-              : `Лимит ${limit} уникальных собеседников в сутки исчерпан. ${
-                  currentUser.isPro
-                    ? ""
-                    : "Оформите Pro для лимита 50."
-                }`.trim(),
+            `Лимит ${limit} уникальных собеседников в сутки исчерпан.${
+              currentUser.subscriptionPlan === "pro"
+                ? " Перейдите на Pro+ для лимита 30."
+                : ""
+            }`.trim(),
           );
           setChatLoading(false);
           return;
@@ -1350,6 +1405,20 @@ export default function Home() {
     }
 
     if (isPaidGateMode() && !currentUser.isPro && !isSupportProfile(profile.id)) {
+      openPaywallDrawer({
+        intent: "dm",
+        profileId: profile.id,
+        profileName: profile.full_name,
+        profileRole: profile.role_title ?? profile.city,
+      });
+      return;
+    }
+
+    if (
+      !isPaidGateMode() &&
+      !canSendDirectMessages(currentUser.subscriptionPlan) &&
+      !isSupportProfile(profile.id)
+    ) {
       openPaywallDrawer({
         intent: "dm",
         profileId: profile.id,
@@ -1598,7 +1667,11 @@ export default function Home() {
         ? profiles.find((p) => p.id === resumeProfileId)
         : null;
 
-      if (currentUser?.isPro && pending?.intent === "dm" && resumeProfile) {
+      if (
+        currentUser?.isPro &&
+        pending?.intent === "dm" &&
+        resumeProfile
+      ) {
         setPaymentToast({
           message: "Подписка активна",
           actionLabel: `Написать ${resumeProfile.full_name ?? "участнику"}`,
@@ -1607,9 +1680,12 @@ export default function Home() {
             setMobileTab("my-chats");
           },
         });
-      } else if (currentUser?.isPro && pending?.intent === "chat") {
+      } else if (
+        currentUser?.subscriptionPlan === "pro_plus" &&
+        pending?.intent === "chat"
+      ) {
         setPaymentToast({
-          message: "Подписка активна — можно писать в общий чат",
+          message: "Подписка Pro+ активна — можно писать в общий чат",
         });
       } else if (currentUser?.isPro) {
         setPaymentToast({ message: "Подписка активна" });
@@ -1626,14 +1702,17 @@ export default function Home() {
     ) {
       paywallResumeHandledRef.current = true;
       const target = profiles.find((p) => p.id === writeProfileId);
-      if (!currentUser.isPro && target) {
+      if (
+        !canSendDirectMessages(currentUser.subscriptionPlan) &&
+        target
+      ) {
         openPaywallDrawer({
           intent: "dm",
           profileId: target.id,
           profileName: target.full_name,
           profileRole: target.role_title ?? target.city,
         });
-      } else if (currentUser.isPro && target) {
+      } else if (canSendDirectMessages(currentUser.subscriptionPlan) && target) {
         void openChatWithProfile(target);
         setMobileTab("my-chats");
       }
@@ -1913,7 +1992,7 @@ export default function Home() {
           </div>
           </div>
 
-          {currentUser && !currentUser.isPro && !isPaidGateMode() ? (
+          {currentUser && currentUser.subscriptionPlan === "free" && !isPaidGateMode() ? (
             <div className="shrink-0">
               <AdBanner />
             </div>
@@ -1926,10 +2005,10 @@ export default function Home() {
                 {currentUser.isBlocked
                   ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
                   : isPaidGateMode()
-                    ? "Общий чат доступен для чтения. Чтобы писать сообщения, оформите подписку."
-                    : isRussiaChat
-                      ? "Это общероссийский чат. На тарифе Free доступен только просмотр. Оформите Pro, чтобы писать сообщения."
-                      : "На тарифе Free чат города доступен только для чтения. Чтобы писать сообщения, оформите подписку Pro."}
+                    ? "Общий чат доступен для чтения. Чтобы писать, оформите тариф Pro+."
+                    : currentUser.subscriptionPlan === "pro"
+                      ? "На тарифе Pro общий чат доступен только для чтения. Перейдите на Pro+, чтобы писать."
+                      : "На тарифе Free общий чат доступен только для чтения. Оформите Pro+, чтобы писать."}
               </p>
               {!currentUser.isBlocked ? (
                 isPaidGateMode() ? (
@@ -1938,14 +2017,14 @@ export default function Home() {
                     onClick={() => openPaywallDrawer({ intent: "chat" })}
                     className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
                   >
-                    Оформить подписку
+                    Оформить Pro+
                   </button>
                 ) : (
                   <Link
-                    href="/subscription"
+                    href="/subscription?reason=chat"
                     className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
                   >
-                    Оформить Pro
+                    Оформить Pro+
                   </Link>
                 )
               ) : null}

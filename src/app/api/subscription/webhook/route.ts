@@ -2,6 +2,10 @@ import {
   getRobokassaPassword2,
   signResultWebhook,
 } from "@/lib/robokassa";
+import {
+  isUpgradePaymentPlan,
+  parsePaymentPlanId,
+} from "@/lib/subscriptionPlans";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
 
   const { data: payment, error: paymentError } = await admin
     .from("subscription_payments")
-    .select("id, profile_id, status")
+    .select("id, profile_id, status, plan")
     .eq("inv_id", invId)
     .maybeSingle();
 
@@ -65,13 +69,47 @@ export async function POST(req: Request) {
     .update({ status: "paid", paid_at: new Date().toISOString() })
     .eq("id", payment.id);
 
+  if (isUpgradePaymentPlan(payment.plan ?? "")) {
+    const { error: profileError } = await admin
+      .from("profiles")
+      .update({
+        subscription_plan: "pro_plus",
+        is_pro: true,
+      })
+      .eq("id", payment.profile_id);
+
+    if (profileError) {
+      console.error("[webhook] upgrade profile update error", profileError);
+      return new Response("DB error", { status: 500 });
+    }
+
+    console.log(
+      `[webhook] Pro -> Pro+ upgrade for profile ${payment.profile_id}, inv_id=${invId}`,
+    );
+
+    return new Response(`OK${invId}`, {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  const parsedPlan = parsePaymentPlanId(payment.plan ?? "pro_monthly");
+  if (!parsedPlan) {
+    console.error("[webhook] unknown plan", payment.plan);
+    return new Response("Unknown plan", { status: 500 });
+  }
+
   const proExpiresAt = new Date(
-    Date.now() + 30 * 24 * 60 * 60 * 1000,
+    Date.now() + parsedPlan.days * 24 * 60 * 60 * 1000,
   ).toISOString();
 
   const { error: profileError } = await admin
     .from("profiles")
-    .update({ is_pro: true, pro_expires_at: proExpiresAt })
+    .update({
+      subscription_plan: parsedPlan.subscriptionPlan,
+      is_pro: true,
+      pro_expires_at: proExpiresAt,
+    })
     .eq("id", payment.profile_id);
 
   if (profileError) {
@@ -80,7 +118,7 @@ export async function POST(req: Request) {
   }
 
   console.log(
-    `[webhook] Pro activated for profile ${payment.profile_id}, inv_id=${invId}`,
+    `[webhook] ${parsedPlan.subscriptionPlan} activated for profile ${payment.profile_id}, inv_id=${invId}`,
   );
 
   return new Response(`OK${invId}`, {

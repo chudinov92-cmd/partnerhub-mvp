@@ -1,3 +1,5 @@
+import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
+
 /** Общие доменные типы (вынесены из page.tsx для переиспользования). */
 
 export type Post = {
@@ -42,6 +44,7 @@ export type Profile = {
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
   trial_used?: boolean | null;
+  subscription_plan?: SubscriptionPlan | null;
   work_blocks?: ProfileWorkBlock[];
 };
 
@@ -74,6 +77,7 @@ export type CurrentUser = {
   roleTitle: string | null;
   isBlocked: boolean;
   isPro: boolean;
+  subscriptionPlan: SubscriptionPlan;
   trialUsed: boolean;
   onboardingCompleted: boolean;
   onboardingStep: number;

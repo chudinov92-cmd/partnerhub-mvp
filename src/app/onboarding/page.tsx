@@ -16,6 +16,7 @@ import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { PioneerModal } from "@/components/PioneerModal";
+import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
 import { maskProfanity } from "@/lib/profanity";
@@ -406,7 +407,7 @@ export default function OnboardingPage() {
   }, [router, searchParams]);
 
   useEffect(() => {
-    if (!profile?.city) {
+    if (!isPioneerPromoEnabled() || !profile?.city) {
       setPioneerRemaining(null);
       return;
     }
@@ -553,7 +554,7 @@ export default function OnboardingPage() {
 
       const city = profile.city?.trim();
       let isPioneer = false;
-      if (city) {
+      if (isPioneerPromoEnabled() && city) {
         const { data: claimed, error: rpcErr } = await supabase.rpc(
           "claim_pioneer_slot",
           { p_city: city },

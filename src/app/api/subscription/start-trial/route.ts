@@ -68,6 +68,7 @@ export async function POST() {
   const { error: updateError } = await admin
     .from("profiles")
     .update({
+      subscription_plan: "pro",
       is_pro: true,
       pro_expires_at: proExpiresAt,
       trial_used: true,

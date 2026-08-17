@@ -49,6 +49,8 @@ run_sql_migration "${ROOT}/supabase/sql/2026-07-21-account-settings.sql" "accoun
 run_sql_migration "${ROOT}/supabase/sql/2026-08-11-subscription-trial.sql" "subscription-trial"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-11-push-dispatch-internal-url.sql" "push-dispatch-internal-url"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-13-seeking-has.sql" "seeking-has"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-17-disable-pioneer-promo.sql" "disable-pioneer-promo"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-17-subscription-tiers.sql" "subscription-tiers"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

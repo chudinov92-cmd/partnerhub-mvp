@@ -45,11 +45,16 @@ security definer
 set search_path = public
 as $$
 declare
+  v_promo_enabled constant boolean := false;
   v_profile_id uuid;
   v_created_at timestamptz;
   v_claimed boolean := false;
   v_launch_cutoff constant timestamptz := timestamptz '2026-08-13 00:00:00+00';
 begin
+  if not v_promo_enabled then
+    return false;
+  end if;
+
   select id, created_at
   into v_profile_id, v_created_at
   from public.profiles

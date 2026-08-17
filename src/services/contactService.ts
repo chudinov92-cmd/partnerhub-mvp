@@ -2,6 +2,11 @@
 
 import { supabase } from "@/lib/supabaseClient";
 import { MAX_RELATION_ROWS } from "@/services/constants";
+import {
+  FREE_FAVORITES_LIMIT,
+  FREE_PROFILE_VIEWS_LIMIT,
+} from "@/lib/subscriptionPlans";
+import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
 import type { Profile } from "@/types";
 
 export async function fetchContactProfileIds(ownerId: string): Promise<string[]> {
@@ -15,6 +20,35 @@ export async function fetchContactProfileIds(ownerId: string): Promise<string[]>
     (r) => r.contact_profile_id,
   ) ?? [];
 }
+
+export async function fetchTodayOpenedProfileIds(
+  viewerId: string,
+): Promise<string[]> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("profile_views")
+    .select("viewed_profile_id, last_opened_at")
+    .eq("viewer_id", viewerId)
+    .gte("last_opened_at", startOfDay.toISOString())
+    .limit(MAX_RELATION_ROWS);
+
+  if (error) throw error;
+
+  return (
+    (data as { viewed_profile_id: string }[] | null)?.map(
+      (r) => r.viewed_profile_id,
+    ) ?? []
+  );
+}
+
+export async function countTodayProfileViews(viewerId: string): Promise<number> {
+  const ids = await fetchTodayOpenedProfileIds(viewerId);
+  return ids.length;
+}
+
+export { FREE_FAVORITES_LIMIT, FREE_PROFILE_VIEWS_LIMIT };
 
 export async function fetchViewedProfileStates(
   viewerId: string,
@@ -73,7 +107,25 @@ export async function deleteContact(ownerId: string, contactProfileId: string) {
   if (error) throw error;
 }
 
-export async function insertContact(ownerId: string, contactProfileId: string) {
+export async function insertContact(
+  ownerId: string,
+  contactProfileId: string,
+  options?: { subscriptionPlan?: SubscriptionPlan; currentCount?: number },
+) {
+  const plan = options?.subscriptionPlan ?? "free";
+  const currentCount = options?.currentCount;
+
+  if (plan === "free") {
+    const count =
+      currentCount ??
+      (await fetchContactProfileIds(ownerId)).length;
+    if (count >= FREE_FAVORITES_LIMIT) {
+      throw new Error(
+        `На тарифе Free можно сохранить до ${FREE_FAVORITES_LIMIT} контактов. Оформите Pro для безлимитного избранного.`,
+      );
+    }
+  }
+
   const { error } = await supabase.from("profile_contacts").insert({
     owner_id: ownerId,
     contact_profile_id: contactProfileId,
@@ -103,11 +155,13 @@ export async function upsertProfileView(
   viewedProfileId: string,
   viewedContentUpdatedAt: string,
 ) {
+  const now = new Date().toISOString();
   const { error } = await supabase.from("profile_views").upsert(
     {
       viewer_id: viewerId,
       viewed_profile_id: viewedProfileId,
       viewed_content_updated_at: viewedContentUpdatedAt,
+      last_opened_at: now,
     },
     { onConflict: "viewer_id,viewed_profile_id" },
   );

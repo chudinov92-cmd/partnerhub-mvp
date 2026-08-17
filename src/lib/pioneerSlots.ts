@@ -1,3 +1,4 @@
+import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { supabase } from "@/lib/supabaseClient";
 
 const DEFAULT_MAX = 50;
@@ -5,6 +6,7 @@ const DEFAULT_MAX = 50;
 export async function fetchPioneerSlotsRemaining(
   city: string | null | undefined,
 ): Promise<number | null> {
+  if (!isPioneerPromoEnabled()) return 0;
   const trimmed = (city ?? "").trim();
   if (!trimmed) return null;
 

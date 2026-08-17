@@ -1,4 +1,10 @@
-export type PaywallIntent = "dm" | "chat" | "pin" | "banner";
+export type PaywallIntent =
+  | "dm"
+  | "chat"
+  | "pin"
+  | "banner"
+  | "view_limit"
+  | "favorites_limit";
 
 export type PaywallIntentContext = {
   intent: PaywallIntent;
@@ -17,7 +23,9 @@ export function isPaywallIntent(value: string | null | undefined): value is Payw
     value === "dm" ||
     value === "chat" ||
     value === "pin" ||
-    value === "banner"
+    value === "banner" ||
+    value === "view_limit" ||
+    value === "favorites_limit"
   );
 }
 
@@ -100,6 +108,12 @@ export function paywallIntentTitle(ctx: PaywallIntentContext): string {
   if (ctx.intent === "banner") {
     return "Доступ ко всем функциям Zeip";
   }
+  if (ctx.intent === "view_limit") {
+    return "Лимит просмотров профилей";
+  }
+  if (ctx.intent === "favorites_limit") {
+    return "Лимит избранных контактов";
+  }
   return "Оформите подписку Zeip";
 }
 
@@ -114,7 +128,13 @@ export function paywallIntentSubtitle(ctx: PaywallIntentContext): string {
     return "Другие участники смогут найти вас на карте";
   }
   if (ctx.intent === "banner") {
-    return "Подписка открывает переписку и просмотр профилей без лимита";
+    return "Подписка Pro открывает профили и личные сообщения без лимита";
+  }
+  if (ctx.intent === "view_limit") {
+    return "На Free — до 5 профилей в день. Pro снимает ограничение";
+  }
+  if (ctx.intent === "favorites_limit") {
+    return "На Free — до 5 контактов. Pro снимает ограничение";
   }
   return "Карту можно смотреть бесплатно. Подписка открывает действия.";
 }

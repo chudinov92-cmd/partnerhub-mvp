@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import FocusTrap from "focus-trap-react";
 import {
   paywallIntentSubtitle,
@@ -8,20 +9,15 @@ import {
   savePendingPaywallContext,
   type PaywallIntentContext,
 } from "@/lib/paywallIntent";
-import {
-  initRobokassaPayment,
-  startTrialSubscription,
-} from "@/services/subscriptionService";
+import { startTrialSubscription } from "@/services/subscriptionService";
+import { formatRub, SUBSCRIPTION_PRICING } from "@/lib/subscriptionPlans";
 import {
   trackCheckoutStarted,
   trackPaywallCtaBuy,
   trackTrialStart,
 } from "@/lib/paywallAnalytics";
 import { recordPaywallDismiss } from "@/lib/paywallFrequency";
-import { savePendingPaymentInvId } from "@/lib/paymentReturn";
 import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
-
-const SUBSCRIPTION_PRICE = "249 ₽";
 
 type PaywallDrawerProps = {
   open: boolean;
@@ -40,27 +36,23 @@ export function PaywallDrawer({
   trialUsed,
   onTrialStarted,
 }: PaywallDrawerProps) {
-  const [buyLoading, setBuyLoading] = useState(false);
   const [trialLoading, setTrialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
 
-  const handleBuy = async () => {
-    if (!profileId) return;
-    setBuyLoading(true);
-    setError(null);
+  const subscriptionHref = `/subscription?reason=${encodeURIComponent(context.intent)}`;
+  const needsProPlus = context.intent === "chat";
+  const ctaPrice = needsProPlus
+    ? formatRub(SUBSCRIPTION_PRICING.pro_plus.monthly)
+    : formatRub(SUBSCRIPTION_PRICING.pro.monthly);
+  const ctaPlan = needsProPlus ? "Pro+" : "Pro";
+
+  const handleChoosePlan = () => {
     trackPaywallCtaBuy(context.intent);
+    trackCheckoutStarted();
     savePendingPaywallContext(context);
-    try {
-      trackCheckoutStarted();
-      const { paymentUrl, invId } = await initRobokassaPayment(profileId);
-      savePendingPaymentInvId(String(invId));
-      window.location.href = paymentUrl;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка инициации оплаты");
-      setBuyLoading(false);
-    }
+    window.location.href = subscriptionHref;
   };
 
   const handleTrial = async () => {
@@ -73,7 +65,9 @@ export function PaywallDrawer({
       onTrialStarted?.();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось активировать пробный период");
+      setError(
+        e instanceof Error ? e.message : "Не удалось активировать пробный период",
+      );
     } finally {
       setTrialLoading(false);
     }
@@ -119,27 +113,43 @@ export function PaywallDrawer({
             {paywallIntentSubtitle(context)}
           </p>
           <p className="mt-4 text-2xl font-bold text-slate-900">
-            {SUBSCRIPTION_PRICE}
-            <span className="text-sm font-normal text-slate-500"> / 30 дней</span>
+            {needsProPlus ? (
+              <>
+                {ctaPrice}
+                <span className="text-sm font-normal text-slate-500"> / мес</span>
+              </>
+            ) : (
+              <>
+                от {formatRub(SUBSCRIPTION_PRICING.pro.monthly)}
+                <span className="text-sm font-normal text-slate-500"> / мес</span>
+              </>
+            )}
           </p>
           <ul className="mt-4 space-y-2 text-sm text-slate-700">
-            <li>· Личные сообщения участникам</li>
-            <li>· Публикация в общем чате</li>
-            <li>· Ваш пин на карте</li>
+            {needsProPlus ? (
+              <>
+                <li>· Общий чат — до 10 сообщений в сутки</li>
+                <li>· Личные сообщения — до 30 человек в сутки</li>
+              </>
+            ) : (
+              <>
+                <li>· Профили и избранное без лимита</li>
+                <li>· Личные сообщения — до 10 человек в сутки</li>
+              </>
+            )}
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-slate-400">
             {!trialUsed
-              ? "3 дня бесплатно · затем подписка за 249 ₽ / 30 дней"
-              : "Подписка на 30 дней"}
-            {" · без автопродления · "}
-            <a
-              href="/terms"
+              ? "3 дня Pro бесплатно · затем от 249 ₽ / мес"
+              : `Тариф ${ctaPlan} · без автопродления · `}
+            {!trialUsed ? null : null}
+            <Link
+              href="/terms/oferta"
               target="_blank"
-              rel="noopener noreferrer"
               className="underline hover:text-slate-600"
             >
               Условия
-            </a>
+            </Link>
           </p>
           <div role="alert" aria-live="assertive" aria-atomic="true">
             {error ? (
@@ -151,11 +161,10 @@ export function PaywallDrawer({
           <div className="mt-6 flex flex-col gap-2">
             <button
               type="button"
-              onClick={() => void handleBuy()}
-              disabled={buyLoading || !profileId}
-              className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
+              onClick={handleChoosePlan}
+              className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
             >
-              {buyLoading ? "Переход к оплате…" : "Оформить подписку"}
+              Выбрать тариф
             </button>
             {!trialUsed ? (
               <button
@@ -164,7 +173,7 @@ export function PaywallDrawer({
                 disabled={trialLoading || !profileId}
                 className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
               >
-                {trialLoading ? "Активируем…" : "Попробовать 3 дня бесплатно"}
+                {trialLoading ? "Активируем…" : "Попробовать Pro 3 дня бесплатно"}
               </button>
             ) : null}
             <button

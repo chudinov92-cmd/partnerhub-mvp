@@ -77,6 +77,20 @@ export async function insertPost(payload: {
     .single();
 }
 
+export async function countTodayChatPosts(authorId: string): Promise<number> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from("posts")
+    .select("*", { count: "exact", head: true })
+    .eq("author_id", authorId)
+    .gte("created_at", startOfDay.toISOString());
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function insertPostComment(payload: {
   postId: string;
   authorId: string;

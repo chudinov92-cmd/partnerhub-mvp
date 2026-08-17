@@ -5,10 +5,8 @@ import mmrgl from "mmr-gl";
 import "mmr-gl/dist/mmr-gl.css";
 import type { LngLat } from "@/data/cityMapViews";
 import { fetchActiveLocations, getProfessionMatchIndex } from "@/services/profileService";
-import {
-  isActiveProProfile,
-  PRO_PIN_COLOR,
-} from "@/services/subscriptionService";
+import { getPinColorForPlan } from "@/lib/subscriptionPlans";
+import { getEffectiveSubscriptionPlan, isActiveProProfile } from "@/services/subscriptionService";
 
 type LocationPoint = {
   id: string;
@@ -182,6 +180,7 @@ export type PartnerMapProps = {
     resources?: string | null;
     is_pro?: boolean | null;
     pro_expires_at?: string | null;
+    subscription_plan?: "free" | "pro" | "pro_plus" | null;
     work_blocks?: {
       role_title: string | null;
       industry: string | null;
@@ -209,6 +208,7 @@ type MarkerRow = {
   rating: number;
   isFocused: boolean;
   isPro: boolean;
+  subscriptionPlan: "free" | "pro" | "pro_plus";
   professionMatchIndex: number | null;
   zIndex: number;
 };
@@ -306,6 +306,7 @@ export function PartnerMap({
         const rating = profile.rating_count ?? 0;
         const isFocused = focusedProfileId != null && focusedProfileId === profile.id;
         const isPro = isActiveProProfile(profile);
+        const subscriptionPlan = getEffectiveSubscriptionPlan(profile);
         const professionMatchIndex = professionFilter
           ? getProfessionMatchIndex(profile, professionFilter)
           : null;
@@ -318,6 +319,7 @@ export function PartnerMap({
           rating,
           isFocused,
           isPro,
+          subscriptionPlan,
           professionMatchIndex,
         };
       })
@@ -457,7 +459,7 @@ export function PartnerMap({
       };
       const online = isOnline(row.profile.last_seen_at ?? null);
       const initial = pinInitial(row.profile.full_name);
-      const pinFill = !row.isOwn && row.isPro ? PRO_PIN_COLOR : PIN_FILL_COLOR;
+      const pinFill = getPinColorForPlan(row.subscriptionPlan);
       const borderColor = row.isFocused
         ? PIN_FOCUSED_BORDER_COLOR
         : row.isViewed && !row.isOwn

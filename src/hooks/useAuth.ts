@@ -7,7 +7,7 @@ import {
   fetchProfilesForMap,
 } from "@/services/profileService";
 import { loadPrivateChatSidebar } from "@/services/chatService";
-import { isActiveProProfile } from "@/services/subscriptionService";
+import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 import type { ChatListItem, CurrentUser, Profile } from "@/types";
 
 /**
@@ -48,6 +48,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
           roleTitle: profileRow.role_title ?? null,
           isBlocked: !!profileRow.is_blocked,
           isPro: isActiveProProfile(profileRow),
+          subscriptionPlan: getEffectiveSubscriptionPlan(profileRow),
           trialUsed: Boolean(profileRow.trial_used),
           onboardingCompleted: Boolean(profileRow.onboarding_completed),
           onboardingStep: profileRow.onboarding_step ?? 0,

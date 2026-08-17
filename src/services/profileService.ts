@@ -82,7 +82,7 @@ export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
 }
 
 const PROFILE_MAP_SELECT =
-  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at";
+  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at, subscription_plan";
 
 export type CurrentProfileRow = {
   id: string;
@@ -93,6 +93,7 @@ export type CurrentProfileRow = {
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
   trial_used?: boolean | null;
+  subscription_plan?: "free" | "pro" | "pro_plus" | null;
   map_visible?: boolean | null;
   deleted_at?: string | null;
   onboarding_completed?: boolean | null;
@@ -139,7 +140,7 @@ export async function fetchCurrentUserProfileRow(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, trial_used, map_visible, deleted_at, onboarding_completed, onboarding_step",
+      "id, full_name, city, role_title, is_blocked, is_pro, pro_expires_at, trial_used, subscription_plan, map_visible, deleted_at, onboarding_completed, onboarding_step",
     )
     .eq("auth_user_id", authUserId)
     .maybeSingle();

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { CurrentUser } from "@/types";
+import { FREE_FAVORITES_LIMIT } from "@/lib/subscriptionPlans";
 import {
   deleteContact,
   fetchBlockedProfileIds,
   fetchContactProfileIds,
+  fetchTodayOpenedProfileIds,
   fetchViewedProfileStates,
   insertContact,
   upsertProfileView,
@@ -13,12 +15,18 @@ import {
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
 
 /** Контакты, просмотры, список блокировок (мутации блока остаются в page — там side-effects чата). */
-export function useContacts(currentUser: CurrentUser | null) {
+export function useContacts(
+  currentUser: CurrentUser | null,
+  onFavoritesLimit?: () => void,
+) {
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
   const [viewedProfileStates, setViewedProfileStates] = useState<
     Record<string, string>
   >({});
   const [blockedProfileIds, setBlockedProfileIds] = useState<string[]>([]);
+  const [todayOpenedProfileIds, setTodayOpenedProfileIds] = useState<string[]>(
+    [],
+  );
 
   const profileId = currentUser?.profileId;
 
@@ -65,6 +73,27 @@ export function useContacts(currentUser: CurrentUser | null) {
   }, [profileId]);
 
   useEffect(() => {
+    if (!profileId || currentUser?.subscriptionPlan !== "free") {
+      setTodayOpenedProfileIds([]);
+      return;
+    }
+    let alive = true;
+    fetchTodayOpenedProfileIds(profileId)
+      .then((ids) => {
+        if (!alive) return;
+        setTodayOpenedProfileIds(ids);
+      })
+      .catch((error) => {
+        if (!alive) return;
+        console.error("Failed to load today profile views", error);
+        setTodayOpenedProfileIds([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [profileId, currentUser?.subscriptionPlan]);
+
+  useEffect(() => {
     if (!profileId) {
       setBlockedProfileIds([]);
       return;
@@ -86,10 +115,20 @@ export function useContacts(currentUser: CurrentUser | null) {
   }, [profileId]);
 
   const toggleContact = async (pid: string) => {
-    if (!profileId) return;
+    if (!profileId || !currentUser) return;
     if (pid === profileId) return;
 
     const isIn = contactProfileIds.includes(pid);
+
+    if (
+      !isIn &&
+      currentUser.subscriptionPlan === "free" &&
+      contactProfileIds.length >= FREE_FAVORITES_LIMIT
+    ) {
+      onFavoritesLimit?.();
+      return;
+    }
+
     setContactProfileIds((prev) =>
       isIn ? prev.filter((x) => x !== pid) : [...prev, pid],
     );
@@ -98,7 +137,10 @@ export function useContacts(currentUser: CurrentUser | null) {
       if (isIn) {
         await deleteContact(profileId, pid);
       } else {
-        await insertContact(profileId, pid);
+        await insertContact(profileId, pid, {
+          subscriptionPlan: currentUser.subscriptionPlan,
+          currentCount: contactProfileIds.length,
+        });
       }
       notifyProfileContactsChanged();
     } catch (e) {
@@ -120,6 +162,13 @@ export function useContacts(currentUser: CurrentUser | null) {
       [pid]: contentUpdatedAt,
     }));
 
+    if (
+      currentUser?.subscriptionPlan === "free" &&
+      !todayOpenedProfileIds.includes(pid)
+    ) {
+      setTodayOpenedProfileIds((prev) => [...prev, pid]);
+    }
+
     try {
       await upsertProfileView(profileId, pid, contentUpdatedAt);
     } catch (e) {
@@ -133,6 +182,12 @@ export function useContacts(currentUser: CurrentUser | null) {
         }
         return next;
       });
+      if (
+        currentUser?.subscriptionPlan === "free" &&
+        !todayOpenedProfileIds.includes(pid)
+      ) {
+        setTodayOpenedProfileIds((prev) => prev.filter((id) => id !== pid));
+      }
     }
   };
 
@@ -142,6 +197,7 @@ export function useContacts(currentUser: CurrentUser | null) {
     viewedProfileStates,
     blockedProfileIds,
     setBlockedProfileIds,
+    todayOpenedProfileIds,
     toggleContact,
     markProfileViewed,
   };
