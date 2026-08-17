@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ButtonLink } from "@/app/landing/components/Button";
 import { isPaidGateMode } from "@/lib/accessMode";
+import { resolveAuthedAppEntryPath } from "@/lib/authEntryPath";
+import { supabase } from "@/lib/supabaseClient";
 
 type HeroProps = {
   assets: {
@@ -11,7 +14,42 @@ type HeroProps = {
   };
 };
 
+const GUEST_CTA = { href: "/auth?mode=signup", label: "Войти", ariaLabel: "Войти" };
+
 export function Hero({ assets }: HeroProps) {
+  const [cta, setCta] = useState(GUEST_CTA);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveCta = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (!session?.user) {
+        setCta(GUEST_CTA);
+        return;
+      }
+
+      const path = await resolveAuthedAppEntryPath(session.user.id);
+      if (cancelled) return;
+
+      if (path === "/map") {
+        setCta({ href: "/map", label: "На карту", ariaLabel: "На карту" });
+        return;
+      }
+
+      setCta({ href: "/onboarding", label: "Войти", ariaLabel: "Войти" });
+    };
+
+    void resolveCta();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <header className="hero">
       <div className="container hero__grid">
@@ -31,15 +69,13 @@ export function Hero({ assets }: HeroProps) {
           ) : null}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <ButtonLink href="/map" aria-label="На карту" noiseImageUrl={assets.btnNoise}>
-              На карту
-            </ButtonLink>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center text-sm font-medium text-slate-600 underline underline-offset-4 hover:text-slate-900"
+            <ButtonLink
+              href={cta.href}
+              aria-label={cta.ariaLabel}
+              noiseImageUrl={assets.btnNoise}
             >
-              Как это работает
-            </a>
+              {cta.label}
+            </ButtonLink>
           </div>
         </div>
 
@@ -53,4 +89,3 @@ export function Hero({ assets }: HeroProps) {
     </header>
   );
 }
-

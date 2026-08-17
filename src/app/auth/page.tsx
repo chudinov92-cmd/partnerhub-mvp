@@ -16,8 +16,10 @@ import {
   isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
+import { resolveAuthedAppEntryPath } from "@/lib/authEntryPath";
 import { supabase, supabaseAuthForms } from "@/lib/supabaseClient";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
+import { PasswordInput } from "@/components/PasswordInput";
 import {
   AUTH_FORM_TIMEOUT_MS,
   AUTH_OPERATION_TIMEOUT_MS,
@@ -317,11 +319,24 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
 }
 
 /** Безопасный путь после входа (?redirect=/admin/support). */
-function getPostAuthRedirectPath(): string {
-  if (typeof window === "undefined") return "/onboarding";
-  const raw = new URLSearchParams(window.location.search).get("redirect");
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/onboarding";
-  return raw;
+function getAuthRedirectParam(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("redirect");
+}
+
+async function redirectAuthedUser(
+  authUserId: string,
+  router: ReturnType<typeof useRouter>,
+): Promise<void> {
+  const target = await resolveAuthedAppEntryPath(
+    authUserId,
+    getAuthRedirectParam(),
+  );
+  if (target.startsWith("/admin")) {
+    window.location.replace(target);
+    return;
+  }
+  router.replace(target);
 }
 
 export default function AuthPage() {
@@ -329,6 +344,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -414,12 +430,7 @@ export default function AuthPage() {
         router.replace("/auth/reset-password");
         return;
       }
-      const target = getPostAuthRedirectPath();
-      if (target.startsWith("/admin")) {
-        window.location.replace(target);
-        return;
-      }
-      router.replace(target);
+      await redirectAuthedUser(session.user.id, router);
     };
     void check();
   }, [router]);
@@ -461,6 +472,12 @@ export default function AuthPage() {
     setError(null);
     setInfo(null);
     setShowResendConfirmation(false);
+
+    if (mode === "signup" && password !== passwordConfirm) {
+      setError("Пароли не совпадают");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -500,16 +517,24 @@ export default function AuthPage() {
           "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
         );
       } else {
-        const target = getPostAuthRedirectPath();
         let redirected = false;
+
+        const finishSignIn = async (userId: string) => {
+          if (redirected) return;
+          redirected = true;
+          linkAnonymousCookieConsent();
+          const target = await resolveAuthedAppEntryPath(
+            userId,
+            getAuthRedirectParam(),
+          );
+          window.location.replace(target);
+        };
 
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange((event) => {
-          if (event === "SIGNED_IN" && !redirected) {
-            redirected = true;
-            linkAnonymousCookieConsent();
-            window.location.replace(target);
+        } = supabase.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_IN" && session?.user) {
+            void finishSignIn(session.user.id);
           }
         });
 
@@ -523,10 +548,15 @@ export default function AuthPage() {
             AUTH_FORM_TIMEOUT_MS,
           );
           if (error) throw error;
-          if (!redirected) {
-            redirected = true;
-            linkAnonymousCookieConsent();
-            window.location.replace(target);
+          const {
+            data: { session },
+          } = await withAuthTimeout(
+            supabase.auth.getSession(),
+            "getSession(post-login)",
+            AUTH_OPERATION_TIMEOUT_MS,
+          );
+          if (session?.user) {
+            await finishSignIn(session.user.id);
           }
         } catch (err: unknown) {
           if (
@@ -542,9 +572,7 @@ export default function AuthPage() {
                 AUTH_OPERATION_TIMEOUT_MS,
               );
               if (session?.user) {
-                redirected = true;
-                linkAnonymousCookieConsent();
-                window.location.replace(target);
+                await finishSignIn(session.user.id);
                 return;
               }
             } catch {
@@ -613,6 +641,7 @@ export default function AuthPage() {
                 setConsentChecked(false);
                 setAgreementChecked(false);
                 setSubmitAttempted(false);
+                setPasswordConfirm("");
                 setError(null);
                 setInfo(null);
                 setShowResendConfirmation(false);
@@ -632,6 +661,7 @@ export default function AuthPage() {
                 setConsentChecked(false);
                 setAgreementChecked(false);
                 setSubmitAttempted(false);
+                setPasswordConfirm("");
                 setError(null);
                 setInfo(null);
               }}
@@ -682,11 +712,14 @@ export default function AuthPage() {
 
           {mode !== "forgot" && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-800">
+              <label
+                htmlFor="auth-password"
+                className="mb-1 block text-sm font-medium text-slate-800"
+              >
                 Пароль
               </label>
-              <input
-                type="password"
+              <PasswordInput
+                id="auth-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -694,6 +727,26 @@ export default function AuthPage() {
                 autoComplete={
                   mode === "signup" ? "new-password" : "current-password"
                 }
+                className={inputClassName}
+              />
+            </div>
+          )}
+
+          {mode === "signup" && (
+            <div>
+              <label
+                htmlFor="auth-password-confirm"
+                className="mb-1 block text-sm font-medium text-slate-800"
+              >
+                Введите пароль повторно
+              </label>
+              <PasswordInput
+                id="auth-password-confirm"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                required
+                minLength={6}
+                autoComplete="new-password"
                 className={inputClassName}
               />
             </div>
@@ -824,6 +877,7 @@ export default function AuthPage() {
                   setConsentChecked(false);
                   setAgreementChecked(false);
                   setSubmitAttempted(false);
+                  setPasswordConfirm("");
                   setError(null);
                   setInfo(null);
                   setShowResendConfirmation(false);
@@ -844,6 +898,7 @@ export default function AuthPage() {
                   setConsentChecked(false);
                   setAgreementChecked(false);
                   setSubmitAttempted(false);
+                  setPasswordConfirm("");
                   setError(null);
                   setInfo(null);
                 }}

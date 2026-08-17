@@ -7,6 +7,7 @@ import {
   markPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
+import { PasswordInput } from "@/components/PasswordInput";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
 
@@ -244,11 +245,14 @@ export default function ResetPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
+            <label
+              htmlFor="reset-password"
+              className="mb-1 block text-sm font-medium text-slate-800"
+            >
               Новый пароль
             </label>
-            <input
-              type="password"
+            <PasswordInput
+              id="reset-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -258,11 +262,14 @@ export default function ResetPasswordPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
+            <label
+              htmlFor="reset-password-confirm"
+              className="mb-1 block text-sm font-medium text-slate-800"
+            >
               Повтор пароля
             </label>
-            <input
-              type="password"
+            <PasswordInput
+              id="reset-password-confirm"
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               required

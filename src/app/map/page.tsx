@@ -47,7 +47,6 @@ import {
   recordUnpaidPinPopupView,
 } from "@/lib/unpaidPinViews";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
-import { PaywallSoftBanner } from "@/components/PaywallSoftBanner";
 import { PinLimitModal } from "@/components/PinLimitModal";
 import { OnboardingPaywallBanner } from "@/components/OnboardingPaywallBanner";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
@@ -62,16 +61,13 @@ import {
 } from "@/lib/paywallIntent";
 import {
   canShowPaywallDrawer,
-  dismissPaywallSoftBanner,
   recordPaywallDismiss,
-  shouldShowPaywallSoftBanner,
 } from "@/lib/paywallFrequency";
 import {
   trackPaywallDismissed,
   trackPaywallShown,
   trackPaymentSuccessAha,
 } from "@/lib/paywallAnalytics";
-import { AdBanner } from "@/components/AdBanner";
 import {
   updatePostBody,
   insertPost as insertFeedPost,
@@ -429,7 +425,6 @@ export default function Home() {
   const [paywallContext, setPaywallContext] = useState<PaywallIntentContext>({
     intent: "dm",
   });
-  const [softBannerVisible, setSoftBannerVisible] = useState(false);
   const [welcomeBannerVisible, setWelcomeBannerVisible] = useState(false);
   const [paymentToast, setPaymentToast] = useState<{
     message: string;
@@ -473,7 +468,6 @@ export default function Home() {
   const openPaywallDrawer = useCallback(
     (ctx: PaywallIntentContext) => {
       if (!canShowPaywallDrawer(ctx.intent)) {
-        setSoftBannerVisible(shouldShowPaywallSoftBanner());
         return;
       }
       setPaywallContext(ctx);
@@ -487,7 +481,6 @@ export default function Home() {
     trackPaywallDismissed(paywallContext.intent);
     recordPaywallDismiss(paywallContext.intent);
     setPaywallOpen(false);
-    setSoftBannerVisible(shouldShowPaywallSoftBanner());
   }, [paywallContext.intent]);
 
   const {
@@ -1728,14 +1721,6 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    if (!isPaidGateMode() || !currentUser || currentUser.isPro) {
-      setSoftBannerVisible(false);
-      return;
-    }
-    setSoftBannerVisible(shouldShowPaywallSoftBanner());
-  }, [currentUser]);
-
-  useEffect(() => {
     setWelcomeBannerVisible(
       shouldShowWelcomeOnboarding({
         isAuthed: Boolean(currentUser),
@@ -1756,26 +1741,6 @@ export default function Home() {
             markWelcomeOnboardingShown();
             setWelcomeBannerVisible(false);
           }}
-        />
-      ) : null}
-      {softBannerVisible &&
-      isPaidGateMode() &&
-      currentUser &&
-      !currentUser.isPro ? (
-        <PaywallSoftBanner
-          onOpenPaywall={() => openPaywallDrawer({ intent: "dm" })}
-          onDismiss={() => {
-            dismissPaywallSoftBanner();
-            setSoftBannerVisible(false);
-          }}
-        />
-      ) : null}
-      {isPaidGateMode() &&
-      currentUser &&
-      currentUser.onboardingCompleted &&
-      !currentUser.isPro ? (
-        <OnboardingPaywallBanner
-          onBuy={() => openPaywallDrawer({ intent: "banner" })}
         />
       ) : null}
       <main
@@ -1991,12 +1956,6 @@ export default function Home() {
             </ul>
           </div>
           </div>
-
-          {currentUser && currentUser.subscriptionPlan === "free" && !isPaidGateMode() ? (
-            <div className="shrink-0">
-              <AdBanner />
-            </div>
-          ) : null}
 
           {/* Форма нового сообщения / заглушка без подписки */}
           {currentUser && !canWriteGeneralChat ? (
@@ -2648,6 +2607,9 @@ export default function Home() {
                 </div>
               </div>
             )}
+            {currentUser && !currentUser.isPro && mapViewMode === "map" ? (
+              <OnboardingPaywallBanner />
+            ) : null}
           </div>
         </section>
 

@@ -15,11 +15,31 @@ test.describe("Фаза 1: Аутентификация", () => {
     const form = page.locator("form");
     await form.locator('input[type="text"]').fill("E2E Test");
     await form.locator('input[type="email"]').fill(unique);
-    await form.locator('input[type="password"]').fill("TestPass123!");
+    await form.locator("#auth-password").fill("TestPass123!");
+    await form.locator("#auth-password-confirm").fill("TestPass123!");
+    await page.getByRole("checkbox").nth(0).check();
+    await page.getByRole("checkbox").nth(1).check();
     await page.getByRole("button", { name: "Зарегистрироваться" }).click();
     await expect(
       page.getByText(/письмо|подтвержден/i).first(),
     ).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("TC-1.1b Регистрация: пароли не совпадают", async ({ page }) => {
+    await page.goto("/auth");
+    await page
+      .locator("div.rounded-full")
+      .getByRole("button", { name: "Регистрация", exact: true })
+      .click();
+    const form = page.locator("form");
+    await form.locator('input[type="text"]').fill("E2E Test");
+    await form.locator('input[type="email"]').fill(`e2e-${Date.now()}@example.com`);
+    await form.locator("#auth-password").fill("TestPass123!");
+    await form.locator("#auth-password-confirm").fill("DifferentPass!");
+    await page.getByRole("checkbox").nth(0).check();
+    await page.getByRole("checkbox").nth(1).check();
+    await page.getByRole("button", { name: "Зарегистрироваться" }).click();
+    await expect(page.getByText("Пароли не совпадают")).toBeVisible();
   });
 
   test("TC-1.5 Страница сброса пароля доступна", async ({ page }) => {
@@ -64,7 +84,7 @@ test.describe("Фаза 1: Аутентификация", () => {
       await page.goto("/auth");
       const form = page.locator("form");
       await form.locator('input[type="email"]').fill(e2eUser.email);
-      await form.locator('input[type="password"]').fill("wrong-password-xyz");
+      await form.locator("#auth-password").fill("wrong-password-xyz");
       await page.getByRole("button", { name: "Войти" }).click();
       await expect(page.getByText(/Неверный логин или пароль/i)).toBeVisible();
       await expect(page).toHaveURL(/\/auth/);

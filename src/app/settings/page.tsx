@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { PasswordInput } from "@/components/PasswordInput";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { supabase } from "@/lib/supabaseClient";
@@ -340,24 +341,24 @@ export default function SettingsPage() {
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-slate-900">Изменить пароль</h2>
           <form onSubmit={onChangePassword} className="mt-4 space-y-3">
-            <input
-              type="password"
+            <PasswordInput
+              id="settings-current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Текущий пароль"
               autoComplete="current-password"
               className="h-12 w-full rounded-xl border border-gray-300 px-3 text-base text-slate-900 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
             />
-            <input
-              type="password"
+            <PasswordInput
+              id="settings-new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Новый пароль"
               autoComplete="new-password"
               className="h-12 w-full rounded-xl border border-gray-300 px-3 text-base text-slate-900 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
             />
-            <input
-              type="password"
+            <PasswordInput
+              id="settings-new-password-confirm"
               value={newPasswordConfirm}
               onChange={(e) => setNewPasswordConfirm(e.target.value)}
               placeholder="Повторите новый пароль"

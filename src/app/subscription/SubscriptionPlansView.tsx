@@ -34,7 +34,6 @@ import {
   PRO_PLUS_PLAN_PIN_FEATURE,
   SUBSCRIPTION_PRICING,
   upgradeRemainingDays,
-  YEARLY_DISCOUNT_PERCENT,
   type PaidSubscriptionPlan,
   type SubscriptionPeriod,
   type SubscriptionPlan,
@@ -44,9 +43,6 @@ import {
   isPaywallIntent,
   PAYWALL_REASON_PARAM,
 } from "@/lib/paywallIntent";
-
-const PRO_ACCENT = "#FDE047";
-const PRO_PLUS_ACCENT = "#34D399";
 
 function formatExpiresAt(iso: string | null): string {
   if (!iso) return "—";
@@ -469,7 +465,7 @@ export default function SubscriptionPlansView({
                   : "text-slate-600 hover:bg-gray-50"
               }`}
             >
-              Помесячно
+              Месяц
             </button>
             <button
               type="button"
@@ -480,10 +476,7 @@ export default function SubscriptionPlansView({
                   : "text-slate-600 hover:bg-gray-50"
               }`}
             >
-              Ежегодно
-              <span className="ml-1 text-xs opacity-90">
-                −{YEARLY_DISCOUNT_PERCENT}%
-              </span>
+              Год
             </button>
           </div>
         </div>
@@ -506,7 +499,10 @@ export default function SubscriptionPlansView({
             ) : null}
 
             <div className="grid gap-6 md:grid-cols-3">
-              <article className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-lg">
+              <article
+                className="flex flex-col rounded-2xl border-2 bg-white p-6 shadow-lg ring-2 ring-[#10B981]/30"
+                style={{ borderColor: PIN_COLOR_FREE }}
+              >
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-slate-900">Free</h2>
                   <p className="mt-1 text-xs text-slate-500">
@@ -543,11 +539,11 @@ export default function SubscriptionPlansView({
 
               <article
                 className="relative flex flex-col rounded-2xl border-2 bg-white p-6 shadow-lg ring-2 ring-[#FDE047]/30"
-                style={{ borderColor: PRO_ACCENT }}
+                style={{ borderColor: PIN_COLOR_PRO }}
               >
                 <span
                   className="absolute -top-3 left-4 rounded px-2 py-0.5 text-[10px] font-bold text-slate-900"
-                  style={{ backgroundColor: PRO_ACCENT }}
+                  style={{ backgroundColor: PIN_COLOR_PRO }}
                 >
                   PRO
                 </span>
@@ -577,12 +573,12 @@ export default function SubscriptionPlansView({
               </article>
 
               <article
-                className="relative flex flex-col rounded-2xl border-2 bg-white p-6 shadow-lg ring-2 ring-emerald-500/20"
-                style={{ borderColor: PRO_PLUS_ACCENT }}
+                className="relative flex flex-col rounded-2xl border-2 bg-white p-6 shadow-lg ring-2 ring-[#6466FA]/30"
+                style={{ borderColor: PIN_COLOR_PRO_PLUS }}
               >
                 <span
-                  className="absolute -top-3 left-4 rounded px-2 py-0.5 text-[10px] font-bold text-slate-900"
-                  style={{ backgroundColor: PRO_PLUS_ACCENT }}
+                  className="absolute -top-3 left-4 rounded px-2 py-0.5 text-[10px] font-bold text-white"
+                  style={{ backgroundColor: PIN_COLOR_PRO_PLUS }}
                 >
                   PRO+
                 </span>

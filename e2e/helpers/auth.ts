@@ -9,7 +9,7 @@ async function fillSignInForm(
   const form = page.locator("form");
   await expect(form).toBeVisible({ timeout: 20_000 });
   await form.locator('input[type="email"]').fill(email);
-  await form.locator('input[type="password"]').fill(password);
+  await form.locator("#auth-password").fill(password);
 }
 
 

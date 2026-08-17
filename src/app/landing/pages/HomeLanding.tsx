@@ -133,8 +133,8 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
       <footer className="footer">
         <div className="container footer__links">
           <Link href="/terms">Условия</Link>
-          <Link href="/terms/privacy">Политика конфиденциальности</Link>
-          <Link href="/terms/consent">Согласие на ПД</Link>
+          <Link href="/terms/privacy">Политика обработки персональных данных</Link>
+          <Link href="/terms/consent">Согласие на обработку персональных данных</Link>
           <span>ООО «ЗЕИП» · ИНН 5906189643</span>
         </div>
       </footer>

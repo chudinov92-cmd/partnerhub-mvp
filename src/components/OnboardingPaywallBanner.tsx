@@ -1,27 +1,29 @@
 "use client";
 
-type OnboardingPaywallBannerProps = {
-  onBuy: () => void;
-};
+import { useRouter } from "next/navigation";
+import { PIN_COLOR_FREE, PIN_COLOR_PRO_PLUS } from "@/lib/subscriptionPlans";
 
-export function OnboardingPaywallBanner({ onBuy }: OnboardingPaywallBannerProps) {
+export function OnboardingPaywallBanner() {
+  const router = useRouter();
+
   return (
     <div
-      className="pointer-events-auto fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-[1800] border-t border-emerald-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur md:bottom-4 md:mx-auto md:max-w-lg md:rounded-2xl md:border"
+      className="pointer-events-auto fixed inset-x-0 bottom-[calc(var(--zeip-mobile-nav-height,3.5rem)+env(safe-area-inset-bottom,0px))] z-[1250] px-4 py-5 lg:absolute lg:inset-x-0 lg:bottom-0 lg:px-6 lg:py-4"
+      style={{ backgroundColor: PIN_COLOR_PRO_PLUS }}
       role="region"
       aria-label="Подписка Zeip"
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-900">
-          Доступ ко всем функциям —{" "}
-          <span className="text-emerald-700">249 ₽/мес</span>
+      <div className="flex flex-col items-center gap-3 md:flex-row md:justify-between md:gap-4">
+        <p className="text-center text-lg font-semibold italic text-white md:text-left">
+          Открыть полный доступ
         </p>
         <button
           type="button"
-          onClick={onBuy}
-          className="shrink-0 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+          onClick={() => router.push("/subscription")}
+          className="shrink-0 rounded-xl px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+          style={{ backgroundColor: PIN_COLOR_FREE }}
         >
-          Купить
+          Тарифы
         </button>
       </div>
     </div>
