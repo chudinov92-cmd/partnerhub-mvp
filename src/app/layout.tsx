@@ -74,7 +74,9 @@ export const metadata: Metadata = {
     site: "@zeip_ru",
   },
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    google:
+      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ||
+      "EntKrnYAZF1oNe-u47VwT6SDbTozliWaq8Go6QDRSpY",
     yandex: process.env.NEXT_PUBLIC_YANDEX_VERIFICATION,
   },
   alternates: {
