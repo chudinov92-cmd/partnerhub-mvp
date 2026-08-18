@@ -5,6 +5,7 @@ Disallow: /auth/
 Disallow: /settings/
 Disallow: /profile
 Disallow: /personal-data
+Disallow: /onboarding/
 
 Allow: /
 Allow: /map/

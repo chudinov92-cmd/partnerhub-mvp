@@ -85,12 +85,12 @@ function PinFeatureRow({
     <li className="flex gap-2">
       <IconCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
       <span className="inline-flex items-center gap-2">
+        {label}
         <span
           className="inline-block h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10"
           style={{ backgroundColor: color }}
           aria-hidden
         />
-        {label}
       </span>
     </li>
   );

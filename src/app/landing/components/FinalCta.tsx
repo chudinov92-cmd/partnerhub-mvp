@@ -37,21 +37,20 @@ export function FinalCta(props: FinalCtaProps) {
     <section className="section section--darkCta" aria-label="Призыв к действию">
       <div className="container cta">
         <div className="cta__copy">
-          <p className="cta__kicker">Воплоти свою идею.</p>
-          <p className="cta__title">Создать свой профиль на карте возможностей.</p>
+          <p className="cta__title">Воплощай свои идеи. Сделай первый шаг и заходи дальше</p>
           {flat ? (
             <ButtonLink
               href="/auth"
-              aria-label="Создать"
+              aria-label="Начать"
               size="lg"
               noiseImageUrl={assets.btnNoise}
               className="cta__btn cta__btn--desktop"
             >
-              Создать
+              Начать
             </ButtonLink>
           ) : (
-            <ButtonLink href="/auth" aria-label="Создать" size="lg" noiseImageUrl={assets.btnNoise}>
-              Создать
+            <ButtonLink href="/auth" aria-label="Начать" size="lg" noiseImageUrl={assets.btnNoise}>
+              Начать
             </ButtonLink>
           )}
         </div>
@@ -61,8 +60,8 @@ export function FinalCta(props: FinalCtaProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={assets.image} alt="" className="cta__image" />
               <div className="cta__visualActions" aria-hidden="false">
-                <ButtonLink href="/auth" aria-label="Создать" size="lg" noiseImageUrl={assets.btnNoise}>
-                  Создать
+                <ButtonLink href="/auth" aria-label="Начать" size="lg" noiseImageUrl={assets.btnNoise}>
+                  Начать
                 </ButtonLink>
               </div>
             </div>

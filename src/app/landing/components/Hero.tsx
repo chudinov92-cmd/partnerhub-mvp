@@ -14,7 +14,7 @@ type HeroProps = {
   };
 };
 
-const GUEST_CTA = { href: "/auth?mode=signup", label: "Войти", ariaLabel: "Войти" };
+const GUEST_CTA = { href: "/auth?mode=signup", label: "Присоединиться", ariaLabel: "Присоединиться" };
 
 export function Hero({ assets }: HeroProps) {
   const [cta, setCta] = useState(GUEST_CTA);
@@ -55,11 +55,10 @@ export function Hero({ assets }: HeroProps) {
       <div className="container hero__grid">
         <div className="hero__copy">
           <h1 className="hero__title">
-            <span className="hero__brand">ЗЕИП</span> — карта людей в твоём городе, которые хотят делать проекты.
+            <span className="hero__brand">ЗЕИП</span> — карта людей в твоём городе, готовых вместе делать проекты
           </h1>
           <p className="hero__subtitle">
-            Хватит планировать в одиночку. Найди тех, кто готов включиться с тобой в работу над проектом и разделить
-            твои амбиции — прямо в твоём городе.
+            Один легко сдаётся. Найди тех, кто готов двигаться — и дело пойдёт.
           </p>
 
           {isPaidGateMode() ? (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { FeatureSplit } from "@/app/landing/components/FeatureSplit";
 import { FinalCta } from "@/app/landing/components/FinalCta";
 import { Hero } from "@/app/landing/components/Hero";
+import { LandingPricing } from "@/app/landing/components/LandingPricing";
 import { Mechanics } from "@/app/landing/components/Mechanics";
 import { ShotGallery } from "@/app/landing/components/ShotGallery";
 import { StatsBar } from "@/app/landing/components/StatsBar";
@@ -55,17 +56,16 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           }
         />
 
-        <section className="section section--indigo" aria-label="Превью приложения">
-          <div className="container">
-            <ShotGallery
-              shots={[
-                { src: assets.profileShots[0], alt: "Профиль в Zeip" },
-                { src: assets.profileShots[1], alt: "Профиль в Zeip" },
-                { src: assets.profileShots[2], alt: "Профиль в Zeip" },
-              ]}
-            />
-          </div>
-        </section>
+        <div id="how-it-works">
+          <Mechanics
+            title="Механика"
+            items={[
+              { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Заполни профиль и появись на карте" },
+              { iconSrc: assets.mechanics.map, title: "Открой карту", text: "Найди нужных экспертов" },
+              { iconSrc: assets.mechanics.send, title: "Начни строить", text: "Напиши и реши свою задачу уже сегодня" },
+            ]}
+          />
+        </div>
 
         <FeatureSplit
           reverse
@@ -82,6 +82,18 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
             />
           }
         />
+
+        <section className="section section--indigo" aria-label="Превью приложения">
+          <div className="container">
+            <ShotGallery
+              shots={[
+                { src: assets.profileShots[0], alt: "Профиль в Zeip" },
+                { src: assets.profileShots[1], alt: "Профиль в Zeip" },
+                { src: assets.profileShots[2], alt: "Профиль в Zeip" },
+              ]}
+            />
+          </div>
+        </section>
 
         <FeatureSplit
           title="От первого сообщения до общего проекта."
@@ -100,17 +112,6 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           }
         />
 
-        <div id="how-it-works">
-          <Mechanics
-            title="Механика"
-            items={[
-              { iconSrc: assets.mechanics.pin, title: "Заяви о себе", text: "Заполни профиль и появись на карте" },
-              { iconSrc: assets.mechanics.map, title: "Открой карту", text: "Найди нужных экспертов" },
-              { iconSrc: assets.mechanics.send, title: "Начни строить", text: "Напиши и реши свою задачу уже сегодня" },
-            ]}
-          />
-        </div>
-
         <FeatureSplit
           reverse
           title="Начни со своего двора, охвати всю страну."
@@ -127,6 +128,8 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           }
         />
 
+        <LandingPricing />
+
         <FinalCta flatImage assets={{ btnNoise: assets.btnNoise, image: asset("image-container-3.png") }} />
       </main>
 
@@ -141,4 +144,3 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
     </div>
   );
 }
-
