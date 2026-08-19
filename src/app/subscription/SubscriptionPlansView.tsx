@@ -9,7 +9,6 @@ import {
   getSubscriptionStatus,
   initRobokassaPayment,
   initUpgradePayment,
-  startTrialSubscription,
 } from "@/services/subscriptionService";
 import {
   buildPaymentSuccessPath,
@@ -109,12 +108,10 @@ export default function SubscriptionPlansView({
   const [profileId, setProfileId] = useState<string | null>(null);
   const [currentPlan, setCurrentPlan] = useState<SubscriptionPlan>("free");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
-  const [trialUsed, setTrialUsed] = useState(true);
   const [period, setPeriod] = useState<SubscriptionPeriod>("monthly");
   const [payLoadingPlan, setPayLoadingPlan] =
     useState<PaidSubscriptionPlan | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
-  const [trialLoading, setTrialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
 
@@ -150,7 +147,6 @@ export default function SubscriptionPlansView({
         setProfileId(null);
         setCurrentPlan("free");
         setExpiresAt(null);
-        setTrialUsed(true);
         return;
       }
 
@@ -165,7 +161,6 @@ export default function SubscriptionPlansView({
       const status = await getSubscriptionStatus(row.id);
       setCurrentPlan(status.plan);
       setExpiresAt(status.expiresAt);
-      setTrialUsed(status.trialUsed);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Не удалось загрузить статус подписки",
@@ -245,22 +240,6 @@ export default function SubscriptionPlansView({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка инициации оплаты");
       setPayLoadingPlan(null);
-    }
-  };
-
-  const handleTrial = async () => {
-    if (!profileId || trialUsed || currentPlan !== "free") return;
-    setTrialLoading(true);
-    setError(null);
-    try {
-      await startTrialSubscription();
-      await loadStatus();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Не удалось активировать пробный период",
-      );
-    } finally {
-      setTrialLoading(false);
     }
   };
 
@@ -604,25 +583,6 @@ export default function SubscriptionPlansView({
                 {renderProPlusButton()}
               </article>
             </div>
-
-            {variant === "paid_gate" &&
-            isAuthenticated &&
-            currentPlan === "free" &&
-            !trialUsed ? (
-              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
-                <p className="text-sm text-emerald-900">
-                  Попробуйте Pro бесплатно — 3 дня без оплаты
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void handleTrial()}
-                  disabled={trialLoading}
-                  className="mt-3 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-                >
-                  {trialLoading ? "Активируем…" : "Попробовать 3 дня"}
-                </button>
-              </div>
-            ) : null}
 
             <p className="mt-8 text-center text-xs text-slate-500">
               Оплата через Robokassa. После оплаты доступ активируется

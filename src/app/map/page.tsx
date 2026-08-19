@@ -3273,20 +3273,6 @@ export default function Home() {
         open={paywallOpen}
         onClose={closePaywallDrawer}
         context={paywallContext}
-        profileId={currentUser?.profileId ?? null}
-        trialUsed={currentUser?.trialUsed ?? false}
-        onTrialStarted={() => {
-          void refreshCurrentUserPro().then(() => {
-            const ctx = paywallContext;
-            if (ctx.intent === "dm" && ctx.profileId) {
-              const target = profiles.find((p) => p.id === ctx.profileId);
-              if (target) {
-                void openChatWithProfile(target);
-                setMobileTab("my-chats");
-              }
-            }
-          });
-        }}
       />
       {paymentToast ? (
         <PaymentSuccessToast

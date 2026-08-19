@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import FocusTrap from "focus-trap-react";
 import {
@@ -9,12 +8,10 @@ import {
   savePendingPaywallContext,
   type PaywallIntentContext,
 } from "@/lib/paywallIntent";
-import { startTrialSubscription } from "@/services/subscriptionService";
 import { formatRub, SUBSCRIPTION_PRICING } from "@/lib/subscriptionPlans";
 import {
   trackCheckoutStarted,
   trackPaywallCtaBuy,
-  trackTrialStart,
 } from "@/lib/paywallAnalytics";
 import { recordPaywallDismiss } from "@/lib/paywallFrequency";
 import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
@@ -23,22 +20,13 @@ type PaywallDrawerProps = {
   open: boolean;
   onClose: () => void;
   context: PaywallIntentContext;
-  profileId: string | null;
-  trialUsed: boolean;
-  onTrialStarted?: () => void;
 };
 
 export function PaywallDrawer({
   open,
   onClose,
   context,
-  profileId,
-  trialUsed,
-  onTrialStarted,
 }: PaywallDrawerProps) {
-  const [trialLoading, setTrialLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   if (!open) return null;
 
   const subscriptionHref = `/subscription?reason=${encodeURIComponent(context.intent)}`;
@@ -53,24 +41,6 @@ export function PaywallDrawer({
     trackCheckoutStarted();
     savePendingPaywallContext(context);
     window.location.href = subscriptionHref;
-  };
-
-  const handleTrial = async () => {
-    if (!profileId || trialUsed) return;
-    setTrialLoading(true);
-    setError(null);
-    trackTrialStart();
-    try {
-      await startTrialSubscription();
-      onTrialStarted?.();
-      onClose();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Не удалось активировать пробный период",
-      );
-    } finally {
-      setTrialLoading(false);
-    }
   };
 
   const handleDismiss = () => {
@@ -139,10 +109,7 @@ export function PaywallDrawer({
             )}
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-slate-400">
-            {!trialUsed
-              ? "3 дня Pro бесплатно · затем от 249 ₽ / мес"
-              : `Тариф ${ctaPlan} · без автопродления · `}
-            {!trialUsed ? null : null}
+            {`Тариф ${ctaPlan} · без автопродления · `}
             <Link
               href="/terms/oferta"
               target="_blank"
@@ -151,13 +118,6 @@ export function PaywallDrawer({
               Условия
             </Link>
           </p>
-          <div role="alert" aria-live="assertive" aria-atomic="true">
-            {error ? (
-              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </p>
-            ) : null}
-          </div>
           <div className="mt-6 flex flex-col gap-2">
             <button
               type="button"
@@ -166,16 +126,6 @@ export function PaywallDrawer({
             >
               Выбрать тариф
             </button>
-            {!trialUsed ? (
-              <button
-                type="button"
-                onClick={() => void handleTrial()}
-                disabled={trialLoading || !profileId}
-                className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-              >
-                {trialLoading ? "Активируем…" : "Попробовать Pro 3 дня бесплатно"}
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={handleDismiss}

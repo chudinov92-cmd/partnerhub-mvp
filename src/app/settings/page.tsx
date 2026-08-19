@@ -52,7 +52,6 @@ export default function SettingsPage() {
   const [mapBusy, setMapBusy] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [proExpiresAt, setProExpiresAt] = useState<string | null>(null);
-  const [trialUsed, setTrialUsed] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [newEmail, setNewEmail] = useState("");
@@ -104,7 +103,6 @@ export default function SettingsPage() {
       const status = await getSubscriptionStatus(profile.id);
       setIsPro(status.isPro);
       setProExpiresAt(status.expiresAt);
-      setTrialUsed(status.trialUsed);
     } catch (err) {
       console.error("[settings] load", err);
       router.replace("/auth?redirect=/settings");
@@ -460,12 +458,6 @@ export default function SettingsPage() {
         open={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         context={{ intent: "pin" }}
-        profileId={profileId}
-        trialUsed={trialUsed}
-        onTrialStarted={() => {
-          void load();
-          setPaywallOpen(false);
-        }}
       />
     </div>
   );

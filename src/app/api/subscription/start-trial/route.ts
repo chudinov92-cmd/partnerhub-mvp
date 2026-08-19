@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { TRIAL_ENABLED } from "@/lib/subscriptionTrial";
 
 const TRIAL_DAYS = 3;
 
@@ -28,6 +29,13 @@ export async function POST() {
 
   if (authError || !user) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+  }
+
+  if (!TRIAL_ENABLED) {
+    return NextResponse.json(
+      { error: "Пробный период больше недоступен" },
+      { status: 410 },
+    );
   }
 
   const admin = createSupabaseAdmin();

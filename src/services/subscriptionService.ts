@@ -185,27 +185,6 @@ export async function initUpgradePayment(): Promise<UpgradePaymentResult> {
   return data;
 }
 
-/** Пробный период 3 дня (paid_gate, один раз на аккаунт). */
-export async function startTrialSubscription(): Promise<{ proExpiresAt: string }> {
-  const res = await fetch("/api/subscription/start-trial", {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    let message = "Не удалось активировать пробный период";
-    try {
-      const data = (await res.json()) as { error?: string };
-      if (data.error) message = data.error;
-    } catch {
-      //
-    }
-    throw new Error(message);
-  }
-
-  return (await res.json()) as { proExpiresAt: string };
-}
-
 /** Заглушка отмены: сброс Pro у текущего профиля (до webhook Robokassa — только dev/тест). */
 export async function cancelProSubscription(profileId: string): Promise<void> {
   const { error } = await supabase
