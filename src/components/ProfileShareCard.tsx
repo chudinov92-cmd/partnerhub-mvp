@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { parseProfileShareMessage } from "@/lib/profileShare";
+import {
+  buildProfileMapSharePath,
+  parseProfileShareMessage,
+} from "@/lib/profileShare";
 
 export function ProfileShareCard({
   content,
@@ -51,7 +54,7 @@ export function ProfileShareCard({
             {subtitle}
           </p>
           <Link
-            href={`/profiles/${parsed.id}`}
+            href={buildProfileMapSharePath(parsed.id)}
             className={`mt-2 inline-flex rounded-lg px-2.5 py-1 text-xs font-medium transition ${
               isOwn
                 ? "bg-white/15 text-white hover:bg-white/25"

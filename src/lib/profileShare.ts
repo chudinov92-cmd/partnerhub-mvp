@@ -1,4 +1,21 @@
 export const PROFILE_SHARE_PREFIX = "__PROFILE_SHARE__";
+export const PROFILE_MAP_QUERY_PARAM = "profile";
+
+export function getSiteOrigin(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  if (typeof window !== "undefined") return window.location.origin;
+  return "https://zeip.ru";
+}
+
+export function buildProfileMapSharePath(profileId: string): string {
+  const id = profileId.trim();
+  return `/map?${PROFILE_MAP_QUERY_PARAM}=${encodeURIComponent(id)}`;
+}
+
+export function buildProfileMapShareUrl(profileId: string): string {
+  return `${getSiteOrigin()}${buildProfileMapSharePath(profileId)}`;
+}
 
 export type SharedProfilePayload = {
   id: string;

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { PROFILE_MAP_QUERY_PARAM } from "@/lib/profileShare";
 import { createSupabaseMiddlewareClient } from "@/lib/supabaseServer";
 
 /**
@@ -20,6 +21,15 @@ export async function middleware(request: NextRequest) {
 
   if (pathname === "/map" || pathname.startsWith("/map/")) {
     if (!user) {
+      const profileId = request.nextUrl.searchParams.get("profile")?.trim();
+      if (profileId) {
+        const redirectTarget = `${request.nextUrl.pathname}?${PROFILE_MAP_QUERY_PARAM}=${encodeURIComponent(profileId)}`;
+        const url = request.nextUrl.clone();
+        url.pathname = "/auth";
+        url.search = "";
+        url.searchParams.set("redirect", redirectTarget);
+        return NextResponse.redirect(url);
+      }
       const url = request.nextUrl.clone();
       url.pathname = "/";
       url.search = "";

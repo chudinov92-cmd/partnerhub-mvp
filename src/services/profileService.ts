@@ -81,6 +81,40 @@ export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
   return ((data ?? []) as ProfileMapRow[]).map(normalizeMapProfile);
 }
 
+export async function fetchProfileForMapById(id: string): Promise<Profile | null> {
+  const profileId = id.trim();
+  if (!profileId) return null;
+
+  const select = `${PROFILE_MAP_SELECT}, profile_work(id, role_title, industry, subindustry, experience_years, sort_order)`;
+  const withFilters = await supabasePublic
+    .from("profiles")
+    .select(select)
+    .eq("id", profileId)
+    .is("deleted_at", null)
+    .eq("map_visible", true)
+    .maybeSingle();
+
+  if (!withFilters.error && withFilters.data) {
+    return normalizeMapProfile(withFilters.data as ProfileMapRow);
+  }
+
+  const msg = String(withFilters.error?.message ?? "");
+  if (!/deleted_at|map_visible|column/i.test(msg)) {
+    if (withFilters.error) throw withFilters.error;
+    return null;
+  }
+
+  const { data, error } = await supabasePublic
+    .from("profiles")
+    .select(select)
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return normalizeMapProfile(data as ProfileMapRow);
+}
+
 const PROFILE_MAP_SELECT =
   "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at, subscription_plan";
 
