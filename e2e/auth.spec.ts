@@ -66,6 +66,18 @@ test.describe("Фаза 1: Аутентификация", () => {
     await expect(page).toHaveURL(/\/auth\/reset-password\?type=recovery/);
   });
 
+  test("TC-1.5d невалидный token_hash показывает форму кода", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/auth/reset-password?token_hash=not-a-real-hash&type=recovery",
+    );
+    await expect(
+      page.getByRole("heading", { name: /недействительна/i }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByPlaceholder("Код из 6 цифр")).toBeVisible();
+  });
+
   test("TC-1.6 Редирект из /admin без авторизации", async ({ page }) => {
     await page.goto("/admin/users");
     await expect(page).toHaveURL(/\/auth\?redirect=%2Fadmin%2Fusers/);

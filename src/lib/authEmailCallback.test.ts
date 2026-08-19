@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  authEmailCallbackErrorMessage,
   authEmailCallbackPendingInUrl,
   classifyAuthEmailCallback,
+  consumedOtpUserMessage,
   hasAuthEmailCallbackParams,
+  isConsumedOtpErrorText,
+  isRecoveryEmailCallback,
   parseAuthEmailCallbackParams,
 } from "./authEmailCallback.ts";
 
@@ -31,6 +35,16 @@ describe("parseAuthEmailCallbackParams", () => {
       "",
     );
     assert.equal(classifyAuthEmailCallback(params), "token_hash");
+  });
+
+  it("token_hash + type=recovery", () => {
+    const params = parseAuthEmailCallbackParams(
+      "?token_hash=hash123&type=recovery",
+      "",
+    );
+    assert.equal(classifyAuthEmailCallback(params), "token_hash");
+    assert.equal(params.type, "recovery");
+    assert.equal(params.token_hash, "hash123");
   });
 
   it("error in query", () => {
@@ -63,5 +77,29 @@ describe("authEmailCallbackPendingInUrl", () => {
   it("пустой URL — false", () => {
     assert.equal(authEmailCallbackPendingInUrl("", ""), false);
     assert.equal(hasAuthEmailCallbackParams({}), false);
+  });
+
+  it("token_hash recovery — не signup callback (обрабатывает reset-password)", () => {
+    assert.equal(
+      authEmailCallbackPendingInUrl("?token_hash=abc&type=recovery", ""),
+      false,
+    );
+    assert.equal(
+      isRecoveryEmailCallback({ token_hash: "abc", type: "recovery" }),
+      true,
+    );
+  });
+});
+
+describe("consumed OTP messages", () => {
+  it("распознаёт истекший recovery token", () => {
+    assert.equal(isConsumedOtpErrorText("Email link is invalid or has expired"), true);
+    assert.equal(isConsumedOtpErrorText("Token has expired or is invalid"), true);
+    const msg = authEmailCallbackErrorMessage({
+      error_description: "otp_expired",
+      type: "recovery",
+    });
+    assert.equal(msg, consumedOtpUserMessage("recovery"));
+    assert.match(msg, /код из письма/i);
   });
 });

@@ -7,7 +7,7 @@ import {
   clearAuthCallbackFromUrl,
   completeAuthEmailCallback,
   getEmailAuthCallbackUrl,
-  getEmailAuthRedirectOrigin,
+  getEmailAuthResetPasswordUrl,
   isEmailNotConfirmedError,
   parseAuthEmailCallbackParams,
 } from "@/lib/authEmailCallback";
@@ -482,8 +482,7 @@ export default function AuthPage() {
 
     try {
       if (mode === "forgot") {
-        const origin = getEmailAuthRedirectOrigin();
-        const redirectTo = `${origin}/auth/reset-password`;
+        const redirectTo = getEmailAuthResetPasswordUrl();
         const { error } = await withAuthTimeout(
           supabaseAuthForms.auth.resetPasswordForEmail(email, {
             redirectTo,
@@ -493,7 +492,7 @@ export default function AuthPage() {
         );
         if (error) throw error;
         setInfo(
-          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в том же браузере (Safari), где запрашивали сброс — не через превью в Telegram. Проверьте почту (и папку «Спам»).",
+          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте почту (и папку «Спам»).",
         );
       } else if (mode === "signup") {
         const { error } = await withAuthTimeout(

@@ -36,6 +36,30 @@ export function getEmailAuthCallbackUrl(): string {
   return `${getEmailAuthRedirectOrigin()}/auth/callback`;
 }
 
+export function getEmailAuthResetPasswordUrl(): string {
+  return `${getEmailAuthRedirectOrigin()}/auth/reset-password`;
+}
+
+export function isConsumedOtpErrorText(raw: string): boolean {
+  return /otp|expired|invalid|not found|already|one.?time|token has expired|email link is invalid/i.test(
+    raw,
+  );
+}
+
+export function consumedOtpUserMessage(kind: "signup" | "recovery"): string {
+  if (kind === "recovery") {
+    return (
+      "Ссылка недействительна или уже использована. Запросите новое письмо на странице входа " +
+      "и откройте ссылку в браузере (не через превью Mail.ru или Telegram). " +
+      "Либо введите 6-значный код из письма."
+    );
+  }
+  return (
+    "Ссылка недействительна или уже использована. Запросите новое письмо на странице входа " +
+    "и откройте ссылку в браузере (не через превью Mail.ru)."
+  );
+}
+
 /** Разбор query + hash после редиректа GoTrue (implicit hash только на клиенте). */
 export function parseAuthEmailCallbackParams(
   search: string,
@@ -88,22 +112,25 @@ export function classifyAuthEmailCallback(
   return "none";
 }
 
+export function isRecoveryEmailCallback(
+  params: AuthEmailCallbackParams,
+): boolean {
+  return params.type === "recovery";
+}
+
 export function authEmailCallbackErrorMessage(
   params: AuthEmailCallbackParams,
 ): string {
   const desc = (params.error_description || params.error || "").trim();
-  if (/otp|expired|invalid|not found|already|one.?time/i.test(desc)) {
-    return (
-      "Ссылка недействительна или уже использована. Запросите новое письмо на странице входа " +
-      "и откройте ссылку в Safari (не через превью Mail.ru)."
+  if (isConsumedOtpErrorText(desc)) {
+    return consumedOtpUserMessage(
+      isRecoveryEmailCallback(params) ? "recovery" : "signup",
     );
   }
   if (desc) return desc;
-  return "Не удалось подтвердить email.";
-}
-
-function isRecoveryCallback(params: AuthEmailCallbackParams): boolean {
-  return params.type === "recovery";
+  return isRecoveryEmailCallback(params)
+    ? "Не удалось подтвердить ссылку сброса пароля."
+    : "Не удалось подтвердить email.";
 }
 
 /** Создать сессию из параметров URL (PKCE-клиент не принимает implicit hash сам). */
@@ -112,7 +139,7 @@ export async function completeAuthEmailCallback(
   params: AuthEmailCallbackParams,
 ): Promise<{ error: string | null; redirectPath: string }> {
   const kind = classifyAuthEmailCallback(params);
-  const redirectPath = isRecoveryCallback(params)
+  const redirectPath = isRecoveryEmailCallback(params)
     ? "/auth/reset-password"
     : "/onboarding";
 
@@ -148,8 +175,8 @@ export async function completeAuthEmailCallback(
       if (/code verifier|bad_code_verifier/i.test(msg)) {
         return {
           error:
-            "Ссылка открыта не в том браузере, где вы регистрировались. " +
-            "Запросите новое письмо и откройте ссылку в том же браузере (Safari).",
+            "Ссылка открыта не в том браузере, где запрашивали письмо. " +
+            "Запросите новое письмо и откройте ссылку в том же браузере.",
           redirectPath: "/auth",
         };
       }
@@ -164,7 +191,15 @@ export async function completeAuthEmailCallback(
     type: otpType,
   });
   if (error) {
-    return { error: error.message, redirectPath: "/auth" };
+    const raw = error.message || "";
+    return {
+      error: isConsumedOtpErrorText(raw)
+        ? consumedOtpUserMessage(
+            isRecoveryEmailCallback(params) ? "recovery" : "signup",
+          )
+        : raw || "Не удалось подтвердить ссылку.",
+      redirectPath: "/auth",
+    };
   }
   return { error: null, redirectPath };
 }

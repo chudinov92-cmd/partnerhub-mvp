@@ -3,21 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  classifyAuthEmailCallback,
+  clearAuthCallbackFromUrl,
+  completeAuthEmailCallback,
+  consumedOtpUserMessage,
+  isConsumedOtpErrorText,
+  isRecoveryEmailCallback,
+  parseAuthEmailCallbackParams,
+} from "@/lib/authEmailCallback";
+import {
   isPasswordRecoverySession,
   markPasswordResetComplete,
-  recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { PasswordInput } from "@/components/PasswordInput";
 import { supabase } from "@/lib/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
-
-function authPageUrl(): string {
-  const origin =
-    typeof process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN === "string"
-      ? process.env.NEXT_PUBLIC_EMAIL_AUTH_REDIRECT_ORIGIN.trim()
-      : "";
-  return origin ? `${origin.replace(/\/$/, "")}/auth` : "https://zeip.ru/auth";
-}
 
 function getAuthErrorMessage(err: unknown) {
   if (!err) return "Ошибка";
@@ -30,9 +30,8 @@ function getAuthErrorMessage(err: unknown) {
       "";
     if (/code verifier|bad_code_verifier/i.test(raw)) {
       return (
-        "Ссылка открыта не в том браузере, где вы нажимали «Забыли пароль?». " +
-        `Запросите новое письмо на ${authPageUrl()} в Safari и откройте ссылку там же ` +
-        "(не в превью Telegram)."
+        "Ссылка открыта не в том браузере, где запрашивали письмо. " +
+        "Запросите новое письмо и откройте ссылку в том же браузере."
       );
     }
     if (/new password should be different from the old password/i.test(raw)) {
@@ -41,21 +40,12 @@ function getAuthErrorMessage(err: unknown) {
     if (/password should be at least/i.test(raw)) {
       return "Пароль должен быть не короче 6 символов.";
     }
+    if (isConsumedOtpErrorText(raw)) {
+      return consumedOtpUserMessage("recovery");
+    }
     if (raw) return raw;
   }
   return "Не удалось обновить пароль";
-}
-
-function recoveryLinkHelpMessage(): string | null {
-  if (typeof window === "undefined") return null;
-  const search = window.location.search;
-  if (search.includes("type=recovery")) {
-    return (
-      "Не удалось подтвердить ссылку. Запросите новое письмо на странице входа и откройте ссылку " +
-      "в Safari (тот же браузер, без превью Telegram)."
-    );
-  }
-  return null;
 }
 
 export default function ResetPasswordPage() {
@@ -67,68 +57,127 @@ export default function ResetPasswordPage() {
   const [canReset, setCanReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const applySession = (session: Session | null) => {
+    const allowReset = () => {
       if (cancelled) return;
-      if (session?.user && !isPasswordRecoverySession(session)) {
+      setCanReset(true);
+      setChecking(false);
+      setError(null);
+    };
+
+    const rejectReset = (message: string | null) => {
+      if (cancelled) return;
+      if (message) setError(message);
+      setCanReset(false);
+      setChecking(false);
+    };
+
+    const applyExistingSession = (session: Session | null) => {
+      if (cancelled) return;
+      if (isPasswordRecoverySession(session)) {
+        allowReset();
+        return;
+      }
+      if (session?.user) {
         router.replace("/map");
         return;
       }
-      const ok = isPasswordRecoverySession(session);
-      if (ok) {
-        setCanReset(true);
-        setChecking(false);
-      }
+      rejectReset(null);
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
       if (event === "PASSWORD_RECOVERY") {
-        setCanReset(true);
-        setChecking(false);
-        return;
-      }
-      if (event === "INITIAL_SESSION") {
-        applySession(session);
-        if (
-          !recoveryCallbackPendingInUrl() ||
-          isPasswordRecoverySession(session)
-        ) {
-          setChecking(false);
-        }
-        return;
-      }
-      if (event === "SIGNED_IN") {
-        applySession(session);
+        allowReset();
+      } else if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        isPasswordRecoverySession(session)
+      ) {
+        allowReset();
       }
     });
 
-    const t = window.setTimeout(() => {
-      if (cancelled) return;
-      void supabase.auth.getSession().then(({ data: { session } }) => {
+    const run = async () => {
+      const params = parseAuthEmailCallbackParams(
+        window.location.search,
+        window.location.hash,
+      );
+      const kind = classifyAuthEmailCallback(params);
+
+      if (kind !== "none") {
+        const { error: callbackErr } = await completeAuthEmailCallback(
+          supabase,
+          params,
+        );
         if (cancelled) return;
-        if (isPasswordRecoverySession(session)) {
-          setCanReset(true);
-        } else if (session?.user) {
-          router.replace("/map");
+        clearAuthCallbackFromUrl();
+        if (callbackErr) {
+          rejectReset(callbackErr);
           return;
-        } else {
-          const hint = recoveryLinkHelpMessage();
-          if (hint) setError(hint);
         }
-        setChecking(false);
-      });
-    }, 2800);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (
+          isPasswordRecoverySession(session) ||
+          isRecoveryEmailCallback(params)
+        ) {
+          allowReset();
+          return;
+        }
+        applyExistingSession(session);
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      applyExistingSession(session);
+    };
+
+    void run();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
       sub.subscription.unsubscribe();
     };
   }, [router]);
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    if (!otpEmail.trim()) {
+      setError("Укажите email аккаунта.");
+      return;
+    }
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setError("Код из письма — 6 цифр.");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const { error: otpErr } = await supabase.auth.verifyOtp({
+        email: otpEmail.trim(),
+        token: otpCode.trim(),
+        type: "recovery",
+      });
+      if (otpErr) throw otpErr;
+      setCanReset(true);
+      setError(null);
+    } catch (err: unknown) {
+      setError(getAuthErrorMessage(err));
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,17 +247,51 @@ export default function ResetPasswordPage() {
           <h1 className="text-xl font-semibold text-slate-900">
             Ссылка недействительна или устарела
           </h1>
-          {error ? (
-            <p className="mt-3 text-sm text-red-600">{error}</p>
-          ) : (
-            <p className="mt-3 text-sm text-slate-600">
-              Запросите новую ссылку на странице входа («Забыли пароль?»).
+          <p className="mt-3 text-sm text-slate-600">
+            {error ??
+              "Запросите новую ссылку на странице входа («Забыли пароль?»)."}
+          </p>
+
+          <form onSubmit={handleOtpSubmit} className="mt-6 space-y-3">
+            <p className="text-sm font-medium text-slate-800">
+              Код из письма
             </p>
-          )}
+            <p className="text-xs text-slate-500">
+              Если ссылка не открылась, введите email и 6-значный код из того же
+              письма.
+            </p>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="Email"
+              value={otpEmail}
+              onChange={(e) => setOtpEmail(e.target.value)}
+              className={inputClassName}
+            />
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="Код из 6 цифр"
+              value={otpCode}
+              onChange={(e) =>
+                setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              className={inputClassName}
+            />
+            <button
+              type="submit"
+              disabled={otpLoading}
+              className="flex h-12 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 py-2 text-sm font-semibold text-[#009966] shadow-sm transition hover:bg-emerald-50 disabled:opacity-60"
+            >
+              {otpLoading ? "Проверка…" : "Подтвердить код"}
+            </button>
+          </form>
+
           <button
             type="button"
             onClick={() => router.push("/auth")}
-            className="mt-6 flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855]"
+            className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855]"
           >
             На страницу входа
           </button>
