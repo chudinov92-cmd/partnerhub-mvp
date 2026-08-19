@@ -123,6 +123,16 @@ function IconExternalLink({ className }: { className?: string }) {
   );
 }
 
+function IconShare({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="16 6 12 2 8 6" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="12" x2="12" y1="2" y2="15" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconUserPlus({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -195,6 +205,8 @@ type ProfilePreviewCardProps = {
   rootDataAttr?: boolean;
   /** paid_gate: предупреждение о последнем бесплатном просмотре гостем */
   guestLastViewHint?: boolean;
+  /** Поделиться профилем в чате */
+  onShare?: () => void;
 };
 
 export function ProfilePreviewCard({
@@ -218,6 +230,7 @@ export function ProfilePreviewCard({
   variant = "floating",
   rootDataAttr,
   guestLastViewHint = false,
+  onShare,
 }: ProfilePreviewCardProps) {
   const name = profile.full_name || "Пользователь";
   const initial = (name[0] || "?").toLocaleUpperCase("ru-RU");
@@ -345,16 +358,29 @@ export function ProfilePreviewCard({
         <div
           className={`relative w-full min-w-0 shrink-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 text-white ${headerPad}`}
         >
-          {onClose ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-3 top-3 z-10 rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-              aria-label="Закрыть"
-            >
-              <IconX className="h-5 w-5" />
-            </button>
-          ) : null}
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
+            {onShare && !isOwnProfile ? (
+              <button
+                type="button"
+                onClick={onShare}
+                className="rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                aria-label="Поделиться профилем"
+                title="Поделиться профилем"
+              >
+                <IconShare className="h-5 w-5" />
+              </button>
+            ) : null}
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full p-1 transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                aria-label="Закрыть"
+              >
+                <IconX className="h-5 w-5" />
+              </button>
+            ) : null}
+          </div>
 
           <div className="flex items-start gap-3 sm:gap-4">
             <div

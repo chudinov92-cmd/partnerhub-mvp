@@ -32,6 +32,11 @@ import {
 } from "@/lib/support";
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
+import { ProfileShareCard } from "@/components/ProfileShareCard";
+import {
+  formatProfileShareMessage,
+  isProfileShareMessage,
+} from "@/lib/profileShare";
 import {
   getDmPartnersDailyLimit,
   getSubscriptionStatus,
@@ -420,6 +425,10 @@ export default function Home() {
   const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeProfileOverlay, setActiveProfileOverlay] =
     useState<Profile | null>(null);
+  const [sharePickerProfile, setSharePickerProfile] = useState<Profile | null>(
+    null,
+  );
+  const [shareSending, setShareSending] = useState(false);
   const [pinLimitOpen, setPinLimitOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallContext, setPaywallContext] = useState<PaywallIntentContext>({
@@ -1013,6 +1022,15 @@ export default function Home() {
     return chatList.filter((item) => contactProfileIds.includes(item.profile.id));
   }, [chatList, contactsOnlyMode, contactProfileIds]);
 
+  const shareableChatList = useMemo(() => {
+    return chatList.filter((item) => {
+      if (supportProfileId && item.profile.id === supportProfileId) {
+        return false;
+      }
+      return true;
+    });
+  }, [chatList, supportProfileId]);
+
   const unreadChatsTotal = useMemo(
     () => Object.values(unreadByUser).reduce((sum, n) => sum + n, 0),
     [unreadByUser],
@@ -1582,6 +1600,61 @@ export default function Home() {
       setChatError(err.message ?? "Не удалось отправить сообщение.");
     } finally {
       setChatSending(false);
+    }
+  };
+
+  const sendProfileShare = async (chatId: string, profile: Profile) => {
+    if (!currentUser) return;
+    if (currentUser.isBlocked) {
+      setPaymentToast({
+        message: "Ваш аккаунт заблокирован. Отправка сообщений недоступна.",
+      });
+      return;
+    }
+    if (!profileReadyForMessaging) {
+      setPaymentToast({
+        message:
+          "Заполните город и профессию в профиле, чтобы отправлять сообщения.",
+      });
+      return;
+    }
+
+    setShareSending(true);
+    try {
+      const content = formatProfileShareMessage(profile);
+      const { data, error } = await insertMessage({
+        chatId,
+        senderId: currentUser.profileId,
+        content,
+      });
+      if (error) throw error;
+
+      notifyUsefulContactsChanged();
+      setSharePickerProfile(null);
+      setPaymentToast({ message: "Профиль отправлен" });
+
+      setChatList((prev) => {
+        const idx = prev.findIndex((x) => x.chatId === chatId);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        const item = {
+          ...next[idx],
+          lastMessageAt: (data as ChatMessage).created_at,
+          lastMessagePreview: content,
+        };
+        next.splice(idx, 1);
+        return [item, ...next];
+      });
+
+      if (activeChatId === chatId) {
+        setChatMessages((prev) => [...prev, data as ChatMessage]);
+      }
+    } catch (err: unknown) {
+      setPaymentToast({
+        message: getErrorMessage(err, "Не удалось отправить профиль"),
+      });
+    } finally {
+      setShareSending(false);
     }
   };
 
@@ -2859,6 +2932,7 @@ export default function Home() {
                           m.sender_id === currentUser?.profileId;
                         const isAppeal =
                           isSupportChat && isAppealMessage(m.content);
+                        const isProfileShare = isProfileShareMessage(m.content);
                         if (isAppeal) appealCounter += 1;
                         return (
                           <div
@@ -2869,7 +2943,12 @@ export default function Home() {
                                 : "mr-auto bg-slate-50/70 text-slate-900"
                             }`}
                           >
-                            {isAppeal ? (
+                            {isProfileShare ? (
+                              <ProfileShareCard
+                                content={m.content}
+                                isOwn={isOwn}
+                              />
+                            ) : isAppeal ? (
                               <SupportAppealCard
                                 content={m.content}
                                 appealIndex={appealCounter}
@@ -2891,7 +2970,7 @@ export default function Home() {
                                   : ""}
                                 {m.edited_at ? " · изменено" : ""}
                               </span>
-                              {isOwn && !isAppeal ? (
+                              {isOwn && !isAppeal && !isProfileShare ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3110,8 +3189,100 @@ export default function Home() {
             isBlocked={blockedProfileIds.includes(activeProfileOverlay.id)}
             blockButtonDisabled={!!blockBusyByProfileId[activeProfileOverlay.id]}
             onToggleBlock={() => toggleBlock(activeProfileOverlay.id)}
+            onShare={
+              currentUser?.profileId &&
+              currentUser.profileId !== activeProfileOverlay.id
+                ? () => setSharePickerProfile(activeProfileOverlay)
+                : undefined
+            }
           />
         )}
+
+        {sharePickerProfile ? (
+          <div
+            className="fixed inset-0 z-[1800] flex items-end justify-center bg-black/40 p-4 sm:items-center"
+            onClick={() => {
+              if (!shareSending) setSharePickerProfile(null);
+            }}
+          >
+            <div
+              className="flex max-h-[min(70vh,28rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div className="min-w-0 pr-3">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Поделиться профилем
+                  </h3>
+                  <p className="truncate text-xs text-slate-500">
+                    {sharePickerProfile.full_name || "Пользователь"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSharePickerProfile(null)}
+                  disabled={shareSending}
+                  className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 disabled:opacity-60"
+                  aria-label="Закрыть"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                {shareableChatList.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-slate-500">
+                    Нет активных переписок
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {shareableChatList.map((item) => {
+                      const name = item.profile.full_name || "Без имени";
+                      const preview =
+                        formatChatListPreview(item.lastMessagePreview) ??
+                        "Нет сообщений";
+                      return (
+                        <li key={item.chatId}>
+                          <button
+                            type="button"
+                            disabled={shareSending}
+                            onClick={() =>
+                              void sendProfileShare(
+                                item.chatId,
+                                sharePickerProfile,
+                              )
+                            }
+                            className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left transition hover:border-gray-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-medium text-white">
+                              {(name[0] || "?").toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-slate-900">
+                                {name}
+                              </p>
+                              <p className="truncate text-xs text-slate-500">
+                                {preview}
+                              </p>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
       {!hideMobileMainStack ? (
         <MainMobileNav

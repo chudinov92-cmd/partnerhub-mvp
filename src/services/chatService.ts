@@ -4,6 +4,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import type { ChatListItem, ChatMessage, Profile } from "@/types";
 import { MAX_RELATION_ROWS } from "@/services/constants";
+import { profileSharePreviewText } from "@/lib/profileShare";
 import {
   SUPPORT_AUTH_USER_ID,
   appealPreviewText,
@@ -98,10 +99,18 @@ export async function reopenChat(chatId: string): Promise<void> {
   if (error) throw error;
 }
 
+function chatPreviewText(content: string | null | undefined): string {
+  const raw = content ?? "";
+  if (raw.startsWith("__PROFILE_SHARE__")) {
+    return profileSharePreviewText(raw);
+  }
+  return appealPreviewText(raw);
+}
+
 export function formatChatListPreview(
   content: string | null | undefined,
 ): string | null {
-  const s = appealPreviewText(content ?? "").replace(/\s+/g, " ").trim();
+  const s = chatPreviewText(content).replace(/\s+/g, " ").trim();
   if (!s) return null;
   return s.length > 30 ? `${s.slice(0, 30)}...` : s;
 }
