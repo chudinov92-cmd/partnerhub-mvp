@@ -107,7 +107,7 @@ import {
 import { getBrowserTimeZone, getTimeZoneByCity } from "@/lib/cityTimezone";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
-import { logMapSearchEvent } from "@/services/analyticsService";
+import { logDailyActivity, logMapSearchEvent } from "@/services/analyticsService";
 import { RUSSIA_LABEL } from "@/data/cities";
 import type { PostCommentRow } from "@/components/PostComments";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
@@ -647,6 +647,11 @@ export default function Home() {
     const tzFromProfileCity = getTimeZoneByCity(currentUser?.city);
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
+
+  useEffect(() => {
+    if (!currentUser?.profileId) return;
+    void logDailyActivity();
+  }, [currentUser?.profileId]);
 
   useEffect(() => {
     if (!currentUser || loading) return;

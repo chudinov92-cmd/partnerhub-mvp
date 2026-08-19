@@ -51,6 +51,11 @@ run_sql_migration "${ROOT}/supabase/sql/2026-08-11-push-dispatch-internal-url.sq
 run_sql_migration "${ROOT}/supabase/sql/2026-08-13-seeking-has.sql" "seeking-has"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-17-disable-pioneer-promo.sql" "disable-pioneer-promo"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-17-subscription-tiers.sql" "subscription-tiers"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-email-notifications.sql" "email-notifications"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-user-daily-activity.sql" "user-daily-activity"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-paywall-events.sql" "paywall-events"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-subscription-payments-period.sql" "subscription-payments-period"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-mrr-snapshots.sql" "mrr-snapshots"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

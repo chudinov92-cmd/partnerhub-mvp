@@ -126,6 +126,7 @@ export async function POST(req: Request) {
     profile_id: profile.id,
     out_sum: parseFloat(pricing.outSum),
     plan: paymentPlanId,
+    period: parsedBody.period,
     status: "pending",
   });
 

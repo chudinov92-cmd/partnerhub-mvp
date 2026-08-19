@@ -6,6 +6,10 @@
 
 - по шагам: [`scripts/migration/timeweb_disk_maintenance.sh`](../../scripts/migration/timeweb_disk_maintenance.sh)
 - **полный план одной командой:** [`scripts/vps/zeip-disk-cleanup-plan.sh`](../../scripts/vps/zeip-disk-cleanup-plan.sh) (с Mac: [`scripts/vps/run-zeip-disk-cleanup-remote.sh`](../../scripts/vps/run-zeip-disk-cleanup-remote.sh))
+- **диагностика с Mac:** [`scripts/vps/run-diagnose-remote.sh`](../../scripts/vps/run-diagnose-remote.sh)
+- **консоль Timeweb / SSH с паролем:** [`scripts/vps/zeip-disk-cleanup-console.sh`](../../scripts/vps/zeip-disk-cleanup-console.sh) (защита `freemium-rollback` встроена)
+
+Отчёт прогона: [`ai_docs/devel/reports/2026-08-18-vps-disk-cleanup.md`](../../../ai_docs/devel/reports/2026-08-18-vps-disk-cleanup.md)
 
 ## С Mac (SSH одной строкой)
 

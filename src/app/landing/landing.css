@@ -865,6 +865,7 @@ img {
   background: var(--zeip-white);
   color: var(--zeip-dark);
   padding: 0;
+  padding-bottom: var(--cookie-banner-height, 0px);
 }
 
 .cta {

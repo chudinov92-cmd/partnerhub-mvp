@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AdminShell } from "@/app/admin/AdminShell";
 import { ProfessionDemandAnalytics } from "@/components/admin/ProfessionDemandAnalytics";
+import { PaywallFunnelAnalytics } from "@/components/admin/PaywallFunnelAnalytics";
+import { RevenueAnalytics } from "@/components/admin/RevenueAnalytics";
 
 type MetricCardProps = {
   title: string;
@@ -41,6 +43,7 @@ export default function AdminAnalyticsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [metrics, setMetrics] = useState<{
     profilesTotal: number;
     profilesActive2m: number;
@@ -48,6 +51,9 @@ export default function AdminAnalyticsPage() {
     messagesInRange: number;
     reportsNew: number;
     reportsResolved: number;
+    dauYesterday: number;
+    wau7d: number;
+    mau30d: number;
   } | null>(null);
 
   const load = async () => {
@@ -65,6 +71,7 @@ export default function AdminAnalyticsPage() {
         messagesRes,
         reportsNewRes,
         reportsResolvedRes,
+        activityKpisRes,
       ] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase
@@ -89,6 +96,7 @@ export default function AdminAnalyticsPage() {
           .from("abuse_reports")
           .select("id", { count: "exact", head: true })
           .eq("status", "resolved"),
+        fetch("/api/admin/analytics/activity-kpis"),
       ]);
 
       const anyErr =
@@ -100,6 +108,20 @@ export default function AdminAnalyticsPage() {
         reportsResolvedRes.error;
       if (anyErr) throw anyErr;
 
+      let dauYesterday = 0;
+      let wau7d = 0;
+      let mau30d = 0;
+      if (activityKpisRes.ok) {
+        const kpis = (await activityKpisRes.json()) as {
+          dauYesterday?: number;
+          wau7d?: number;
+          mau30d?: number;
+        };
+        dauYesterday = kpis.dauYesterday ?? 0;
+        wau7d = kpis.wau7d ?? 0;
+        mau30d = kpis.mau30d ?? 0;
+      }
+
       setMetrics({
         profilesTotal: profilesTotalRes.count ?? 0,
         profilesActive2m: profilesActiveRes.count ?? 0,
@@ -107,12 +129,16 @@ export default function AdminAnalyticsPage() {
         messagesInRange: messagesRes.count ?? 0,
         reportsNew: reportsNewRes.count ?? 0,
         reportsResolved: reportsResolvedRes.count ?? 0,
+        dauYesterday,
+        wau7d,
+        mau30d,
       });
     } catch (e: any) {
       setError(e?.message ?? "Не удалось загрузить аналитику.");
       setMetrics(null);
     } finally {
       setLoading(false);
+      setRefreshKey((k) => k + 1);
     }
   };
 
@@ -206,12 +232,31 @@ export default function AdminAnalyticsPage() {
               title="Репорты: решённые"
               value={String(metrics.reportsResolved)}
             />
+            <MetricCard
+              title="DAU вчера"
+              value={String(metrics.dauYesterday)}
+              hint="user_daily_activity, UTC"
+            />
+            <MetricCard
+              title="WAU 7д"
+              value={String(metrics.wau7d)}
+              hint="Уникальные за 7 UTC-дней"
+            />
+            <MetricCard
+              title="MAU 30д"
+              value={String(metrics.mau30d)}
+              hint="Уникальные за 30 UTC-дней"
+            />
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
             Нет данных.
           </div>
         )}
+
+        <PaywallFunnelAnalytics from={from} to={to} refreshKey={refreshKey} />
+
+        <RevenueAnalytics refreshKey={refreshKey} />
 
         <ProfessionDemandAnalytics />
       </div>

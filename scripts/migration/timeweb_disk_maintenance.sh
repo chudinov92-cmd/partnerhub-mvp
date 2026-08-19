@@ -97,12 +97,35 @@ cmd_diagnose() {
   echo "=== готово: diagnose ==="
 }
 
-cmd_docker_prune() {
-  echo "Running docker system prune -f ..."
-  docker system prune -f
+protect_rollback_images() {
+  # image prune -a удаляет неиспользуемые образы; якорь paid_gate отката держим через stopped container.
+  local tag image keeper="zeip-rollback-keeper"
+  local -a tags=(
+    "timeweb-app-web:freemium-rollback"
+    "timeweb-app-web:latest"
+  )
+  docker rm -f "$keeper" 2>/dev/null || true
+  for tag in "${tags[@]}"; do
+    if docker image inspect "$tag" >/dev/null 2>&1; then
+      image="$(docker image inspect "$tag" --format '{{.Id}}')"
+      echo "protect-rollback: удерживаем $tag ($image) через контейнер ${keeper}"
+      docker create --name "$keeper" "$tag" >/dev/null
+      return 0
+    fi
+  done
+  echo "protect-rollback: образы отката не найдены — пропуск"
+}
 
-  echo "Running docker image prune -a -f ..."
-  docker image prune -a -f
+release_rollback_keeper() {
+  local keeper="zeip-rollback-keeper"
+  if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$keeper"; then
+    docker rm -f "$keeper" >/dev/null 2>&1 || true
+    echo "protect-rollback: контейнер ${keeper} удалён, теги образов сохранены"
+  fi
+}
+
+cmd_docker_prune() {
+  protect_rollback_images
 
   echo "Running docker builder prune -a -f (лог в /root/zeip/backups/daily/builder-prune.log) ..."
   mkdir -p /root/zeip/backups/daily
@@ -112,6 +135,14 @@ cmd_docker_prune() {
     docker builder prune -a -f >>/root/zeip/backups/daily/builder-prune.log 2>&1 || true
   fi
   tail -5 /root/zeip/backups/daily/builder-prune.log 2>/dev/null || true
+
+  echo "Running docker image prune -a -f ..."
+  docker image prune -a -f
+
+  echo "Running docker system prune -f ..."
+  docker system prune -f
+
+  release_rollback_keeper
 
   echo "=== после prune ==="
   docker system df 2>/dev/null || true

@@ -8,6 +8,18 @@ export type MapSearchEventPayload = {
   filters_json?: Partial<FeedFilters> | null;
 };
 
+/** Best-effort: фиксирует активность пользователя за текущий день (UTC). */
+export async function logDailyActivity(): Promise<void> {
+  try {
+    await fetch("/api/analytics/daily-ping", {
+      method: "POST",
+      keepalive: true,
+    });
+  } catch {
+    // analytics must not break UX
+  }
+}
+
 /** Логирует нажатие «Поиск» на карте (только если выбрана profession). Best-effort. */
 export async function logMapSearchEvent(
   payload: MapSearchEventPayload,
@@ -121,4 +133,93 @@ export async function fetchMapSearchMatrix(
   }
   const data = (await res.json()) as { rows?: DemandMatrixRow[] };
   return data.rows ?? [];
+}
+
+export type PaywallFunnelStep = {
+  event_type: string;
+  cnt: number;
+  unique_users: number;
+};
+
+export type PaywallFunnelIntent = {
+  intent: string;
+  shown_cnt: number;
+};
+
+export type PaywallFunnelData = {
+  steps: PaywallFunnelStep[];
+  shownToCtaPct: number | null;
+  shownToPaidPct: number | null;
+  intents: PaywallFunnelIntent[];
+};
+
+export async function fetchPaywallFunnel(query: {
+  from: string;
+  to: string;
+}): Promise<PaywallFunnelData> {
+  const qs = buildQuery({
+    from: query.from,
+    to: query.to,
+  });
+  const res = await fetch(`/api/admin/analytics/paywall-funnel${qs}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Не удалось загрузить воронку пейвола");
+  }
+  const data = (await res.json()) as PaywallFunnelData;
+  return {
+    steps: data.steps ?? [],
+    shownToCtaPct: data.shownToCtaPct ?? null,
+    shownToPaidPct: data.shownToPaidPct ?? null,
+    intents: data.intents ?? [],
+  };
+}
+
+export type RevenueSnapshotPoint = {
+  snapshotDate: string;
+  mrrRub: number;
+  activePro: number;
+  activeProPlus: number;
+  newCustomers: number;
+  renewals: number;
+  churned: number;
+};
+
+export type RevenueMetricsData = {
+  yesterday: {
+    snapshotDate: string | null;
+    mrrRub: number;
+    activePro: number;
+    activeProPlus: number;
+    newCustomers: number;
+    renewals: number;
+    churned: number;
+  };
+  ltv: {
+    avgLtvRub: number;
+    avgPaymentsPerUser: number;
+  };
+  series: RevenueSnapshotPoint[];
+};
+
+export async function fetchRevenueMetrics(): Promise<RevenueMetricsData> {
+  const res = await fetch("/api/admin/analytics/revenue");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Не удалось загрузить revenue-метрики");
+  }
+  const data = (await res.json()) as RevenueMetricsData;
+  return {
+    yesterday: data.yesterday ?? {
+      snapshotDate: null,
+      mrrRub: 0,
+      activePro: 0,
+      activeProPlus: 0,
+      newCustomers: 0,
+      renewals: 0,
+      churned: 0,
+    },
+    ltv: data.ltv ?? { avgLtvRub: 0, avgPaymentsPerUser: 0 },
+    series: data.series ?? [],
+  };
 }

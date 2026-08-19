@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   COOKIE_CONSENT_KEY,
   COOKIE_CONSENT_ACCEPTED_EVENT,
@@ -11,7 +11,34 @@ import {
 import { initYandexMetrika } from "@/lib/yandexMetrika";
 import { initVkPixel } from "@/lib/vkPixel";
 
+const COOKIE_BANNER_HEIGHT_VAR = "--cookie-banner-height";
+const LANDING_FOOTER_SELECTOR = "footer.footer";
+
+function syncBannerHeight(el: HTMLElement) {
+  document.documentElement.style.setProperty(
+    COOKIE_BANNER_HEIGHT_VAR,
+    `${el.offsetHeight}px`,
+  );
+}
+
+function clearBannerHeight() {
+  document.documentElement.style.removeProperty(COOKIE_BANNER_HEIGHT_VAR);
+}
+
+function syncBannerBottom(bannerEl: HTMLElement) {
+  const footer = document.querySelector(LANDING_FOOTER_SELECTOR);
+  if (!footer) {
+    bannerEl.style.bottom = "0px";
+    return;
+  }
+
+  const footerTop = footer.getBoundingClientRect().top;
+  const lift = Math.max(0, window.innerHeight - footerTop);
+  bannerEl.style.bottom = `${lift}px`;
+}
+
 export function CookieBanner() {
+  const bannerRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -20,6 +47,46 @@ export function CookieBanner() {
     getOrCreateAnonymousUid();
     setVisible(!hasCookieConsentAccepted());
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const el = bannerRef.current;
+    if (!el) return;
+
+    document.documentElement.setAttribute("data-cookie-banner", "open");
+
+    syncBannerHeight(el);
+    syncBannerBottom(el);
+
+    const ro = new ResizeObserver(() => {
+      syncBannerHeight(el);
+      syncBannerBottom(el);
+    });
+    ro.observe(el);
+
+    let rafId = 0;
+    const scheduleSync = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        syncBannerBottom(el);
+      });
+    };
+
+    window.addEventListener("scroll", scheduleSync, { passive: true });
+    window.addEventListener("resize", scheduleSync, { passive: true });
+
+    return () => {
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", scheduleSync);
+      window.removeEventListener("resize", scheduleSync);
+      el.style.bottom = "";
+      document.documentElement.removeAttribute("data-cookie-banner");
+      clearBannerHeight();
+    };
+  }, [visible]);
 
   const handleAccept = async () => {
     if (typeof window === "undefined" || submitting) return;
@@ -57,6 +124,7 @@ export function CookieBanner() {
 
   return (
     <div
+      ref={bannerRef}
       role="dialog"
       aria-labelledby="cookie-banner-title"
       aria-describedby="cookie-banner-description"

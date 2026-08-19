@@ -12,7 +12,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${VPS_HOST:-root@186.246.2.104}"
-PLAN="${ROOT}/scripts/vps/zeip-disk-cleanup-plan.sh"
+PLAN="${ROOT}/scripts/vps/zeip-disk-cleanup-console.sh"
+LEGACY_PLAN="${ROOT}/scripts/vps/zeip-disk-cleanup-plan.sh"
+
+# Предпочитаем console-скрипт (защита freemium-rollback встроена).
+if [[ ! -f "$PLAN" ]]; then
+  PLAN="$LEGACY_PLAN"
+fi
 
 cd "$ROOT"
 

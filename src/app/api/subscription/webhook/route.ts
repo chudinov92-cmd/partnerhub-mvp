@@ -64,9 +64,23 @@ export async function POST(req: Request) {
     return new Response(`OK${invId}`, { status: 200 });
   }
 
+  const { count: priorPaidCount } = await admin
+    .from("subscription_payments")
+    .select("id", { count: "exact", head: true })
+    .eq("profile_id", payment.profile_id)
+    .eq("status", "paid")
+    .neq("id", payment.id);
+
+  const parsedPlan = parsePaymentPlanId(payment.plan ?? "pro_monthly");
+
   await admin
     .from("subscription_payments")
-    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .update({
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      period: parsedPlan?.period ?? "monthly",
+      is_renewal: (priorPaidCount ?? 0) > 0,
+    })
     .eq("id", payment.id);
 
   if (isUpgradePaymentPlan(payment.plan ?? "")) {
@@ -93,7 +107,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const parsedPlan = parsePaymentPlanId(payment.plan ?? "pro_monthly");
   if (!parsedPlan) {
     console.error("[webhook] unknown plan", payment.plan);
     return new Response("Unknown plan", { status: 500 });
