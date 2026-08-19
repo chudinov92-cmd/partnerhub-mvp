@@ -33,8 +33,10 @@ import {
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import { ProfileShareCard } from "@/components/ProfileShareCard";
+import { MessageLinks } from "@/components/MessageLinks";
 import {
   buildProfileMapShareUrl,
+  buildProfileShortUrl,
   isProfileShareMessage,
   PROFILE_MAP_QUERY_PARAM,
 } from "@/lib/profileShare";
@@ -538,7 +540,24 @@ export default function Home() {
   );
 
   const shareProfileLink = useCallback(async (profile: Profile) => {
-    const url = buildProfileMapShareUrl(profile.id);
+    let url = buildProfileMapShareUrl(profile.id);
+    try {
+      const res = await fetch("/api/profile/share-link", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: profile.id }),
+      });
+      const json = (await res.json()) as { url?: string; code?: string };
+      if (res.ok && json.url) {
+        url = json.url;
+      } else if (res.ok && json.code) {
+        url = buildProfileShortUrl(json.code);
+      }
+    } catch {
+      /* fallback на длинную ссылку */
+    }
+
     const title = profile.full_name || "Профиль на Zeip";
     const text =
       [profile.full_name, profile.role_title].filter(Boolean).join(" — ") ||
@@ -556,6 +575,32 @@ export default function Home() {
       setPaymentToast({ message: url });
     }
   }, []);
+
+  const openProfileFromChatLink = useCallback(
+    async (profileId: string) => {
+      if (!profileId || profileId === currentUser?.profileId) return;
+
+      let profile = profiles.find((p) => p.id === profileId) ?? null;
+      if (!profile) {
+        try {
+          profile = await fetchProfileForMapById(profileId);
+        } catch (e) {
+          console.error("Failed to load profile from chat link", e);
+        }
+      }
+
+      if (profile) {
+        openProfileOverlay(profile);
+        void markProfileViewed(
+          profile.id,
+          profile.content_updated_at ?? new Date().toISOString(),
+        );
+      } else {
+        setPaymentToast({ message: "Профиль не найден или недоступен" });
+      }
+    },
+    [currentUser?.profileId, profiles, openProfileOverlay, markProfileViewed],
+  );
 
   const isSupportProfile = useCallback(
     (profileId: string) => {
@@ -2966,7 +3011,11 @@ export default function Home() {
                                 isOwn={isOwn}
                               />
                             ) : (
-                              <p>{m.content}</p>
+                              <MessageLinks
+                                content={m.content ?? ""}
+                                isOwn={isOwn}
+                                onOpenProfile={openProfileFromChatLink}
+                              />
                             )}
                             <div
                               className={`mt-1 flex items-center justify-between gap-2 text-xs ${

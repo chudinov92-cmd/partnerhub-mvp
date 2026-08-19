@@ -56,6 +56,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-08-19-user-daily-activity.sql" "use
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-paywall-events.sql" "paywall-events"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-subscription-payments-period.sql" "subscription-payments-period"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-mrr-snapshots.sql" "mrr-snapshots"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-profile-share-codes.sql" "profile-share-codes"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

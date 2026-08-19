@@ -1,5 +1,10 @@
 export const PROFILE_SHARE_PREFIX = "__PROFILE_SHARE__";
 export const PROFILE_MAP_QUERY_PARAM = "profile";
+export const PROFILE_SHORT_PATH_PREFIX = "/p/";
+
+/** Алфавит коротких кодов (без 0OIl1). */
+export const PROFILE_SHARE_CODE_REGEX =
+  /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$/;
 
 export function getSiteOrigin(): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -16,6 +21,18 @@ export function buildProfileMapSharePath(profileId: string): string {
 export function buildProfileMapShareUrl(profileId: string): string {
   return `${getSiteOrigin()}${buildProfileMapSharePath(profileId)}`;
 }
+
+export function buildProfileShortPath(code: string): string {
+  return `${PROFILE_SHORT_PATH_PREFIX}${encodeURIComponent(code.trim())}`;
+}
+
+export function buildProfileShortUrl(code: string): string {
+  return `${getSiteOrigin()}${buildProfileShortPath(code)}`;
+}
+
+export type ZeipProfileLinkRef =
+  | { kind: "profile_id"; profileId: string }
+  | { kind: "share_code"; code: string };
 
 export type SharedProfilePayload = {
   id: string;
@@ -66,4 +83,66 @@ export function profileSharePreviewText(content: string): string {
   const parsed = parseProfileShareMessage(content);
   if (parsed) return `Профиль: ${parsed.name}`;
   return content.replace(/\s+/g, " ").trim();
+}
+
+function parseProfileIdFromMapPath(pathname: string, search: string): string | null {
+  if (!pathname.startsWith("/map")) return null;
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const id = params.get(PROFILE_MAP_QUERY_PARAM)?.trim();
+  if (!id) return null;
+  return id;
+}
+
+function parseShareCodeFromPath(pathname: string): string | null {
+  if (!pathname.startsWith(PROFILE_SHORT_PATH_PREFIX)) return null;
+  const raw = pathname.slice(PROFILE_SHORT_PATH_PREFIX.length).split("/")[0]?.trim();
+  if (!raw || !PROFILE_SHARE_CODE_REGEX.test(raw)) return null;
+  return raw;
+}
+
+/** Распознаёт zeip-ссылку на профиль в URL или path. */
+export function parseZeipProfileLink(input: string): ZeipProfileLinkRef | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const asUrl = trimmed.includes("://") ? new URL(trimmed) : null;
+    if (asUrl) {
+      const host = asUrl.hostname.toLowerCase();
+      const isZeip =
+        host === "zeip.ru" ||
+        host === "www.zeip.ru" ||
+        host.endsWith(".zeip.ru") ||
+        (typeof window !== "undefined" && host === window.location.hostname);
+
+      if (!isZeip && host !== "localhost" && !host.endsWith(".localhost")) {
+        return null;
+      }
+
+      const fromShort = parseShareCodeFromPath(asUrl.pathname);
+      if (fromShort) return { kind: "share_code", code: fromShort };
+
+      const fromMap = parseProfileIdFromMapPath(asUrl.pathname, asUrl.search);
+      if (fromMap) return { kind: "profile_id", profileId: fromMap };
+
+      return null;
+    }
+  } catch {
+    /* fall through to path parsing */
+  }
+
+  const pathOnly = trimmed.split(/[?#]/)[0] ?? trimmed;
+  const query = trimmed.includes("?") ? trimmed.slice(trimmed.indexOf("?")) : "";
+
+  const fromShort = parseShareCodeFromPath(pathOnly);
+  if (fromShort) return { kind: "share_code", code: fromShort };
+
+  const fromMap = parseProfileIdFromMapPath(pathOnly, query);
+  if (fromMap) return { kind: "profile_id", profileId: fromMap };
+
+  return null;
+}
+
+export function isZeipProfileUrl(href: string): boolean {
+  return parseZeipProfileLink(href) !== null;
 }

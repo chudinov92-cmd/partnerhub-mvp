@@ -5,6 +5,7 @@ import { AdminShell } from "@/app/admin/AdminShell";
 import type { AdminSupportChatRow } from "@/app/api/admin/support/route";
 import type { ChatMessage } from "@/types";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
+import { MessageLinks } from "@/components/MessageLinks";
 import { isAppealMessage } from "@/lib/support";
 
 type MessagesResponse = {
@@ -242,7 +243,10 @@ export default function AdminSupportPage() {
                             isOwn={!isSupport}
                           />
                         ) : (
-                          <p className="whitespace-pre-wrap">{m.content}</p>
+                          <MessageLinks
+                            content={m.content ?? ""}
+                            isOwn={!isSupport}
+                          />
                         )}
                         <p
                           className={`mt-1 text-[10px] ${
