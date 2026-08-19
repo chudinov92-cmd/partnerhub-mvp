@@ -8,7 +8,9 @@ services:
     #   templates-server:
     #     condition: service_started
     environment:
-      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Восстановление пароля"
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Подтвердите email — Zeip"
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: "http://templates-server/confirm.html"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Сброс пароля — Zeip"
       GOTRUE_MAILER_TEMPLATES_RECOVERY: "http://templates-server/recovery.html"
 
   templates-server:
@@ -18,9 +20,14 @@ services:
       - ./volumes/templates:/templates
 
 # На диске рядом с compose должно быть:
+#   volumes/templates/confirm.html
 #   volumes/templates/recovery.html
 #
 # После изменений:
 #   cd ~/zeip/supabase-stack
 #   docker compose up -d --force-recreate --no-deps templates-server auth
 #   docker compose restart kong
+#
+# Или с Mac:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+#   bash scripts/vps/deploy-email-templates.sh
