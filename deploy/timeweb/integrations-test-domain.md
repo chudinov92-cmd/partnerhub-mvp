@@ -34,7 +34,7 @@ Backend Supabase общий: **https://supabase.zeip.ru**
 Цели return-flow + paywall (см. [`ai_docs/tasks/cjm-paywall-implementation.md`](../../../Desktop/my-startup/ai_docs/tasks/cjm-paywall-implementation.md)):
 
 - `payment_success_open`, `payment_success_activated`, `payment_success_need_login`, `payment_success_timeout`
-- paywall: `auth_gate_shown_*`, `paywall_shown_*`, `checkout_started`, `trial_start`, `payment_success_aha`
+- paywall: `paywall_shown_*`, `checkout_started`, `trial_start`, `payment_success_aha`
 
 ## Smoke
 

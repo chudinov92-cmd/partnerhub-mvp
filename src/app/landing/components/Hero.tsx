@@ -80,7 +80,7 @@ export function Hero({ assets }: HeroProps) {
 
         <div className="hero__art" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="hero__logo" src={assets.logo} alt="" />
+          <img className="hero__logo" src={assets.logo} alt="Зеип" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="hero__glow" src={assets.glow} alt="" />
         </div>

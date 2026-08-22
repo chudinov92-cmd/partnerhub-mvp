@@ -10,6 +10,7 @@ import { fetchPaymentStatusByInvId } from "@/services/paymentStatusService";
 import {
   buildPaymentSuccessLoginRedirect,
   clearPendingPaymentInvId,
+  parseRobokassaReturnParams,
   resolvePaymentInvId,
 } from "@/lib/paymentReturn";
 import {
@@ -69,6 +70,7 @@ export function PaymentSuccessView({
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const invId = resolvePaymentInvId(search ? `?${search}` : "");
+  const { outSum } = parseRobokassaReturnParams(search ? `?${search}` : "");
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollAttemptRef = useRef(0);
   const openedTrackedRef = useRef(false);
@@ -82,9 +84,12 @@ export function PaymentSuccessView({
       clearPendingPaymentInvId();
       setExpiresAt(expires);
       setViewState("success");
-      trackPaymentSuccessActivated();
+      const price = outSum ? Number(outSum) : undefined;
+      trackPaymentSuccessActivated(
+        price ? { order_price: price, currency: "RUB" } : undefined,
+      );
     },
-    [],
+    [outSum],
   );
 
   const pollActivation = useCallback(

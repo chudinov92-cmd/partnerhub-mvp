@@ -17,6 +17,7 @@ import {
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
 import { resolveAuthedAppEntryPath } from "@/lib/authEntryPath";
+import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import { supabase, supabaseAuthForms } from "@/lib/supabaseClient";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -510,6 +511,7 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
+        reachYandexMetrikaGoal("signup", { method: "email" });
         recordAgreementConsent();
         linkAnonymousCookieConsent();
         setInfo(

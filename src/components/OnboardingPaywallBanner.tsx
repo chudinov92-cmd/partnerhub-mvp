@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { PIN_COLOR_FREE, PIN_COLOR_PRO_PLUS } from "@/lib/subscriptionPlans";
+import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 
 export function OnboardingPaywallBanner() {
   const router = useRouter();
@@ -19,7 +20,10 @@ export function OnboardingPaywallBanner() {
         </p>
         <button
           type="button"
-          onClick={() => router.push("/subscription")}
+          onClick={() => {
+            reachYandexMetrikaGoal("banner_map_cta");
+            router.push("/subscription");
+          }}
           className="shrink-0 rounded-xl px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
           style={{ backgroundColor: PIN_COLOR_FREE }}
         >

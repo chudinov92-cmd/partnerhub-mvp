@@ -27,10 +27,6 @@ async function logPaywallEvent(payload: PaywallEventPayload): Promise<void> {
   }
 }
 
-export function trackAuthGateShown(reason: "view_limit" | "write"): void {
-  reachYandexMetrikaGoal(`auth_gate_shown_${reason}`);
-}
-
 export function trackPaywallShown(intent: PaywallIntent): void {
   reachYandexMetrikaGoal(`paywall_shown_${intent}`);
   void logPaywallEvent({ event_type: "shown", intent });

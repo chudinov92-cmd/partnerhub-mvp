@@ -11,6 +11,7 @@ import {
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import { authGetUser } from "@/services/authService";
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
@@ -476,6 +477,7 @@ export default function OnboardingPage() {
         city: profile.city,
         country: DEFAULT_COUNTRY,
       });
+      reachYandexMetrikaGoal("onboarding_step_1");
       return;
     }
 
@@ -499,6 +501,7 @@ export default function OnboardingPage() {
           ? maskProfanity(profile.current_status)
           : null,
       });
+      reachYandexMetrikaGoal("onboarding_step_2");
       return;
     }
 
@@ -510,6 +513,7 @@ export default function OnboardingPage() {
         seeking: profile.seeking ?? [],
         has_resources: profile.has_resources ?? [],
       });
+      reachYandexMetrikaGoal("onboarding_step_3");
       return;
     }
 
@@ -551,6 +555,10 @@ export default function OnboardingPage() {
         })
         .eq("id", profile.id);
       if (completeErr) throw completeErr;
+      reachYandexMetrikaGoal("onboarding_step_4");
+      reachYandexMetrikaGoal("onboarding_complete", {
+        city: profile.city ?? undefined,
+      });
 
       const city = profile.city?.trim();
       let isPioneer = false;
