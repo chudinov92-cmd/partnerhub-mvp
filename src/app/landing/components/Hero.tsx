@@ -6,6 +6,7 @@ import { isPaidGateMode } from "@/lib/accessMode";
 import {
   LANDING_GUEST_CTA,
   resolveLandingHeroCta,
+  type LandingHeroCta,
 } from "@/lib/authEntryPath";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -22,7 +23,7 @@ type HeroProps = {
 };
 
 export function Hero({ assets }: HeroProps) {
-  const [cta, setCta] = useState(LANDING_GUEST_CTA);
+  const [cta, setCta] = useState<LandingHeroCta>(LANDING_GUEST_CTA);
 
   useEffect(() => {
     let cancelled = false;

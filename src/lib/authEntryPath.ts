@@ -1,17 +1,17 @@
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 
-export const LANDING_GUEST_CTA = {
-  href: "/auth?mode=signup",
-  label: "Присоединиться",
-  ariaLabel: "Присоединиться",
-} as const;
-
 export type LandingHeroCta = {
   href: string;
   label: string;
   ariaLabel: string;
   /** Cookie JWT без профиля (hard-delete) — сбросить local session. */
   signOutLocal?: boolean;
+};
+
+export const LANDING_GUEST_CTA: LandingHeroCta = {
+  href: "/auth?mode=signup",
+  label: "Присоединиться",
+  ariaLabel: "Присоединиться",
 };
 
 /** Безопасный относительный путь из ?redirect= (без open redirect). */
