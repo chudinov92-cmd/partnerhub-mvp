@@ -1,5 +1,19 @@
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 
+export const LANDING_GUEST_CTA = {
+  href: "/auth?mode=signup",
+  label: "Присоединиться",
+  ariaLabel: "Присоединиться",
+} as const;
+
+export type LandingHeroCta = {
+  href: string;
+  label: string;
+  ariaLabel: string;
+  /** Cookie JWT без профиля (hard-delete) — сбросить local session. */
+  signOutLocal?: boolean;
+};
+
 /** Безопасный относительный путь из ?redirect= (без open redirect). */
 export function sanitizeAuthRedirect(
   raw: string | null | undefined,
@@ -27,4 +41,31 @@ export async function resolveAuthedAppEntryPath(
   }
 
   return "/onboarding";
+}
+
+/**
+ * CTA героя лендинга. «Войти» больше не ведёт на /onboarding:
+ * гость и сессия без профиля → регистрация; незакрытый квиз → «Продолжить».
+ */
+export async function resolveLandingHeroCta(
+  authUserId: string | null,
+): Promise<LandingHeroCta> {
+  if (!authUserId) {
+    return { ...LANDING_GUEST_CTA };
+  }
+
+  const profile = await fetchCurrentUserProfileRow(authUserId);
+  if (!profile) {
+    return { ...LANDING_GUEST_CTA, signOutLocal: true };
+  }
+
+  if (profile.onboarding_completed) {
+    return { href: "/map", label: "На карту", ariaLabel: "На карту" };
+  }
+
+  return {
+    href: "/onboarding",
+    label: "Продолжить",
+    ariaLabel: "Продолжить анкету",
+  };
 }

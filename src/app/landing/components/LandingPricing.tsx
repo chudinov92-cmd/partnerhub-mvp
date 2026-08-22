@@ -109,11 +109,15 @@ export function LandingPricing() {
     let cancelled = false;
 
     const resolveAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!cancelled) {
-        setIsAuthenticated(Boolean(session?.user));
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setIsAuthenticated(Boolean(user) && !error);
+      } catch {
+        if (!cancelled) setIsAuthenticated(false);
       }
     };
 

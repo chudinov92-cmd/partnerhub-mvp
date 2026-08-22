@@ -405,7 +405,8 @@ export default function AuthPage() {
     };
   }, []);
 
-  // если уже есть сессия: recovery → установка пароля, иначе на онбординг / redirect
+  // Живой JWT на сервере (не cookie после hard-delete). Иначе /auth уводит
+  // на /onboarding и страница крутится: getSession читает только local storage.
   useEffect(() => {
     const check = async () => {
       if (recoveryCallbackPendingInUrl()) {
@@ -419,19 +420,38 @@ export default function AuthPage() {
       ) {
         return;
       }
-      const {
-        data: { session },
-      } = await withAuthTimeout(
-        supabase.auth.getSession(),
-        "getSession",
-        AUTH_OPERATION_TIMEOUT_MS,
-      );
-      if (!session?.user) return;
-      if (isPasswordRecoverySession(session) && !isPasswordResetComplete()) {
-        router.replace("/auth/reset-password");
-        return;
+      try {
+        const {
+          data: { user },
+          error,
+        } = await withAuthTimeout(
+          supabase.auth.getUser(),
+          "getUser",
+          AUTH_OPERATION_TIMEOUT_MS,
+        );
+        if (error || !user) {
+          await withAuthTimeout(
+            supabase.auth.signOut({ scope: "local" }),
+            "signOut(local)",
+            AUTH_OPERATION_TIMEOUT_MS,
+          ).catch(() => undefined);
+          return;
+        }
+        const {
+          data: { session },
+        } = await withAuthTimeout(
+          supabase.auth.getSession(),
+          "getSession",
+          AUTH_OPERATION_TIMEOUT_MS,
+        );
+        if (session && isPasswordRecoverySession(session) && !isPasswordResetComplete()) {
+          router.replace("/auth/reset-password");
+          return;
+        }
+        await redirectAuthedUser(user.id, router);
+      } catch {
+        // Таймаут / битый refresh после удаления auth.users — оставляем форму входа.
       }
-      await redirectAuthedUser(session.user.id, router);
     };
     void check();
   }, [router]);

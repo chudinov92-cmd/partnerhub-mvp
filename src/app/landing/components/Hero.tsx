@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import { ButtonLink } from "@/app/landing/components/Button";
 import { isPaidGateMode } from "@/lib/accessMode";
-import { resolveAuthedAppEntryPath } from "@/lib/authEntryPath";
+import {
+  LANDING_GUEST_CTA,
+  resolveLandingHeroCta,
+} from "@/lib/authEntryPath";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  AUTH_OPERATION_TIMEOUT_MS,
+  withAuthTimeout,
+} from "@/services/authService";
 
 type HeroProps = {
   assets: {
@@ -14,34 +21,46 @@ type HeroProps = {
   };
 };
 
-const GUEST_CTA = { href: "/auth?mode=signup", label: "Присоединиться", ariaLabel: "Присоединиться" };
-
 export function Hero({ assets }: HeroProps) {
-  const [cta, setCta] = useState(GUEST_CTA);
+  const [cta, setCta] = useState(LANDING_GUEST_CTA);
 
   useEffect(() => {
     let cancelled = false;
 
     const resolveCta = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (cancelled) return;
+      try {
+        const {
+          data: { user },
+          error,
+        } = await withAuthTimeout(
+          supabase.auth.getUser(),
+          "getUser(hero)",
+          AUTH_OPERATION_TIMEOUT_MS,
+        );
+        if (cancelled) return;
 
-      if (!session?.user) {
-        setCta(GUEST_CTA);
-        return;
+        if (error || !user) {
+          if (error) {
+            await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+          }
+          setCta(LANDING_GUEST_CTA);
+          return;
+        }
+
+        const next = await resolveLandingHeroCta(user.id);
+        if (cancelled) return;
+
+        if (next.signOutLocal) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+        }
+        setCta({
+          href: next.href,
+          label: next.label,
+          ariaLabel: next.ariaLabel,
+        });
+      } catch {
+        if (!cancelled) setCta(LANDING_GUEST_CTA);
       }
-
-      const path = await resolveAuthedAppEntryPath(session.user.id);
-      if (cancelled) return;
-
-      if (path === "/map") {
-        setCta({ href: "/map", label: "На карту", ariaLabel: "На карту" });
-        return;
-      }
-
-      setCta({ href: "/onboarding", label: "Войти", ariaLabel: "Войти" });
     };
 
     void resolveCta();

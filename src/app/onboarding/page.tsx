@@ -12,7 +12,10 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
-import { authGetUser } from "@/services/authService";
+import {
+  AUTH_OPERATION_TIMEOUT_MS,
+  withAuthTimeout,
+} from "@/services/authService";
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
 import { DropdownSelect } from "@/components/DropdownSelect";
@@ -250,6 +253,7 @@ function clampStep(value: number): number {
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const stepQuery = searchParams.get("step");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -300,9 +304,17 @@ export default function OnboardingPage() {
       try {
         const {
           data: { user },
-        } = await authGetUser();
-        if (!user) {
-          router.replace("/auth?redirect=/onboarding");
+          error: userErr,
+        } = await withAuthTimeout(
+          supabase.auth.getUser(),
+          "getUser",
+          AUTH_OPERATION_TIMEOUT_MS,
+        );
+        if (userErr || !user) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+          if (!cancelled) {
+            setError("Нет активной сессии. Зарегистрируйтесь заново.");
+          }
           return;
         }
 
@@ -329,7 +341,12 @@ export default function OnboardingPage() {
               "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, has_resources, onboarding_step, onboarding_completed",
             )
             .single();
-          if (createErr) throw createErr;
+          if (createErr) {
+            await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+            throw new Error(
+              "Не удалось создать профиль. Сессия после удаления аккаунта недействительна — зарегистрируйтесь заново.",
+            );
+          }
           prof = created;
         }
 
@@ -341,7 +358,7 @@ export default function OnboardingPage() {
           return;
         }
 
-        const urlStep = searchParams.get("step");
+        const urlStep = stepQuery;
         const initialStep =
           urlStep != null ? clampStep(Number(urlStep)) : clampStep(row.onboarding_step ?? 0);
 
@@ -405,7 +422,7 @@ export default function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [router, stepQuery]);
 
   useEffect(() => {
     if (!isPioneerPromoEnabled() || !profile?.city) {
@@ -618,12 +635,31 @@ export default function OnboardingPage() {
     }
   };
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <OnboardingShell>
         <p className="flex min-h-[70dvh] items-center justify-center text-sm text-slate-500">
           Загрузка…
         </p>
+      </OnboardingShell>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <OnboardingShell>
+        <div className="mx-auto flex min-h-[70dvh] w-full max-w-lg flex-col items-center justify-center gap-4 text-center">
+          <p className="text-sm text-slate-600">
+            {error ??
+              "Сессия недействительна. Войдите или зарегистрируйтесь заново."}
+          </p>
+          <a
+            href="/auth?mode=signup"
+            className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#009966] px-5 text-sm font-semibold text-white"
+          >
+            К регистрации
+          </a>
+        </div>
       </OnboardingShell>
     );
   }
