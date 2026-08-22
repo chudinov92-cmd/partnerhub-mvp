@@ -42,6 +42,7 @@ import {
   isPaywallIntent,
   PAYWALL_REASON_PARAM,
 } from "@/lib/paywallIntent";
+import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 
 function formatExpiresAt(iso: string | null): string {
   if (!iso) return "—";
@@ -236,7 +237,15 @@ export default function SubscriptionPlansView({
         period,
       );
       savePendingPaymentInvId(String(invId));
-      window.location.href = paymentUrl;
+      reachYandexMetrikaGoal("checkout_started", {
+        plan,
+        period,
+        price: getPlanPrice(plan, period),
+        currency: "RUB",
+      });
+      setTimeout(() => {
+        window.location.href = paymentUrl;
+      }, 300);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка инициации оплаты");
       setPayLoadingPlan(null);
