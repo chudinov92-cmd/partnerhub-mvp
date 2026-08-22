@@ -40,7 +40,10 @@ export function PaywallDrawer({
     trackPaywallCtaBuy(context.intent);
     trackCheckoutStarted();
     savePendingPaywallContext(context);
-    window.location.href = subscriptionHref;
+    // Задержка даёт Метрике время отправить beacon до перехода (hard navigation).
+    setTimeout(() => {
+      window.location.href = subscriptionHref;
+    }, 300);
   };
 
   const handleDismiss = () => {
