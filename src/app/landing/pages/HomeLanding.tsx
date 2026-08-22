@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { FeatureSplit } from "@/app/landing/components/FeatureSplit";
 import { FinalCta } from "@/app/landing/components/FinalCta";
@@ -45,12 +44,12 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           title="Большие проекты не рождаются в вакууме."
           body="Твоя идея останется в голове, если не найти тех, кто поможет воплотить её в жизнь. Мы помогаем найти людей, готовых воплощать идеи в реальность здесь и сейчас."
           visual={
-            <Image
-              src={asset("image-container-1.png")}
-              alt="Иллюстрация Zeip"
-              width={649}
-              height={430}
-              sizes="(max-width: 1024px) 100vw, 46vw"
+            // eslint-disable-next-line @next/next/no-img-element -- decorative landing art; skip next/image cache
+            <img
+              src={asset("lp-vacuum.png")}
+              alt=""
+              width={639}
+              height={707}
               className="h-auto w-full max-w-[649px] object-contain"
             />
           }
@@ -72,12 +71,12 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           title="Команда на расстоянии вытянутой руки."
           body="Тебе не нужно искать специалистов на другом конце страны, регистрироваться на форумах или создавать аккаунт на сервисах подбора сотрудников. Твой будущий партнер может пить кофе в кофейне за углом. Zeip сокращает дистанцию до минимума."
           visual={
-            <Image
-              src={asset("image-container.png")}
-              alt="Иллюстрация — команда рядом"
-              width={649}
-              height={430}
-              sizes="(max-width: 1024px) 100vw, 46vw"
+            // eslint-disable-next-line @next/next/no-img-element -- decorative landing art; skip next/image cache
+            <img
+              src={asset("lp-team.png")}
+              alt=""
+              width={639}
+              height={707}
               className="h-auto w-full max-w-[649px] object-contain"
             />
           }
@@ -101,12 +100,12 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
             "• Без объявлений;\n• Без резюме и откликов;\n• Без цен на услуги.\n\nПросто напиши «Привет, есть вопрос, можешь помочь?». Всё начинается с первого сообщения."
           }
           visual={
-            <Image
-              src={asset("image-container-2.png")}
-              alt="Иллюстрация — первое сообщение"
-              width={649}
-              height={430}
-              sizes="(max-width: 1024px) 100vw, 46vw"
+            // eslint-disable-next-line @next/next/no-img-element -- decorative landing art; skip next/image cache
+            <img
+              src={asset("lp-message.png")}
+              alt=""
+              width={639}
+              height={707}
               className="h-auto w-full max-w-[649px] object-contain"
             />
           }
@@ -117,12 +116,12 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
           title="Начни со своего двора, охвати всю страну."
           body="Если нужного профессионала не оказалось в твоём городе — просто расширь радиус поиска. Мы покажем тебе специалистов по всему городу и стране. Твои люди найдутся в любом масштабе."
           visual={
-            <Image
-              src={asset("image-group.png")}
-              alt="Иллюстрация — поиск по городу и стране"
-              width={649}
-              height={430}
-              sizes="(max-width: 1024px) 100vw, 46vw"
+            // eslint-disable-next-line @next/next/no-img-element -- decorative landing art; skip next/image cache
+            <img
+              src={asset("lp-country.png")}
+              alt=""
+              width={639}
+              height={707}
               className="h-auto w-full max-w-[649px] object-contain"
             />
           }
@@ -130,7 +129,7 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
 
         <LandingPricing />
 
-        <FinalCta flatImage assets={{ btnNoise: assets.btnNoise, image: asset("image-container-3.png") }} />
+        <FinalCta flatImage assets={{ btnNoise: assets.btnNoise, image: asset("lp-cta.png") }} />
       </main>
 
       <footer className="footer">
