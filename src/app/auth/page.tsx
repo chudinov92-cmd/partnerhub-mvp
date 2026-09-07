@@ -136,11 +136,6 @@ function isSilentDuplicateSignUp(data: {
   return Array.isArray(identities) && identities.length === 0;
 }
 
-function isYandexMailbox(email: string): boolean {
-  const domain = email.trim().split("@")[1]?.toLowerCase() ?? "";
-  return domain === "yandex.ru" || domain.endsWith(".yandex.ru");
-}
-
 const GENERIC_AUTH_ERROR =
   "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
 
@@ -214,7 +209,7 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
       err,
       mode,
       mode === "signup"
-        ? "Этот email уже зарегистрирован. Перейдите на вкладку «Вход» или нажмите «Забыли пароль?». На @yandex.ru письма сброса могут не доходить — напишите в поддержку."
+        ? "Этот email уже зарегистрирован. Перейдите на вкладку «Вход» или нажмите «Забыли пароль?». Если письмо не приходит более 5 минут — напишите в поддержку."
         : "Этот email уже зарегистрирован. Перейдите на вкладку «Вход».",
     );
   }
@@ -584,12 +579,8 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
-        const yandexHint = isYandexMailbox(email)
-          ? " На @yandex.ru письма с zeip.ru сейчас могут не доходить — напишите в поддержку, если письма нет более 5 минут."
-          : "";
         setInfo(
-          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте почту (и папку «Спам»)." +
-            yandexHint,
+          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте почту (включая «Спам» и «Промоакции»). Если письма нет более 5 минут — напишите в поддержку.",
         );
       } else if (mode === "signup") {
         const { data, error } = await withAuthTimeout(

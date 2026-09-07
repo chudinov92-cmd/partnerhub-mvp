@@ -116,6 +116,26 @@ docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}
 
 Verify registration email flow in app.
 
+### Auth email troubleshooting (Gmail + Yandex)
+
+If `/recover` returns 200 but no email arrives:
+
+```bash
+# On VPS
+cd /root/zeip/my-app && git pull --ff-only
+bash scripts/vps/fix-auth-email-on-vps.sh
+bash scripts/vps/diagnose-auth-email.sh test@gmail.com
+```
+
+From Mac (one SSH session):
+
+```bash
+cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+bash scripts/vps/run-fix-auth-email-remote.sh
+```
+
+See also [`ai_docs/devel/issues/auth-email-delivery.md`](../../ai_docs/devel/issues/auth-email-delivery.md).
+
 ### JWT lifetime (сессия после неактивности)
 
 По умолчанию GoTrue выдаёт access token на **3600 с (1 ч)**. После истечения при перезагрузке страницы без refresh в cookies UI может кратко показывать пустой контент.
