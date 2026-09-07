@@ -47,6 +47,22 @@ ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Сброс пароля — Zeip"
 ensure_env_kv "MAILER_TEMPLATES_RECOVERY" "http://templates-server/recovery.html"
 ensure_env_kv "GOTRUE_MAILER_EXTERNAL_HOSTS" "supabase.zeip.ru"
 
+# Mirror SMTP_* → GOTRUE_SMTP_* in .env (grep + set -e safe for other scripts)
+for pair in \
+  "SMTP_HOST:GOTRUE_SMTP_HOST" \
+  "SMTP_PORT:GOTRUE_SMTP_PORT" \
+  "SMTP_USER:GOTRUE_SMTP_USER" \
+  "SMTP_PASS:GOTRUE_SMTP_PASS" \
+  "SMTP_ADMIN_EMAIL:GOTRUE_SMTP_ADMIN_EMAIL" \
+  "SMTP_SENDER_NAME:GOTRUE_SMTP_SENDER_NAME"; do
+  src="${pair%%:*}"
+  dst="${pair##*:}"
+  val="$(grep "^${src}=" .env 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  if [[ -n "$val" ]]; then
+    ensure_env_kv "$dst" "$val"
+  fi
+done
+
 if [[ "$USE_587" -eq 1 ]]; then
   echo "=== Switch SMTP to port 587 (STARTTLS) ==="
   ensure_env_kv "SMTP_PORT" "587"

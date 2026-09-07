@@ -15,16 +15,27 @@ if ! command -v swaks >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y swaks
 fi
 
-SMTP_HOST=$(grep '^GOTRUE_SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-[[ -z "$SMTP_HOST" ]] && SMTP_HOST=$(grep '^SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-SMTP_PORT=$(grep '^GOTRUE_SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-[[ -z "$SMTP_PORT" ]] && SMTP_PORT=$(grep '^SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-SMTP_USER=$(grep '^GOTRUE_SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-[[ -z "$SMTP_USER" ]] && SMTP_USER=$(grep '^SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-SMTP_PASS=$(grep '^GOTRUE_SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-[[ -z "$SMTP_PASS" ]] && SMTP_PASS=$(grep '^SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-FROM=$(grep '^GOTRUE_SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
-[[ -z "$FROM" ]] && FROM=$(grep '^SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
+read_env() {
+  local primary="$1"
+  local fallback="${2:-}"
+  local val
+  val="$(grep "^${primary}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  if [[ -z "$val" && -n "$fallback" ]]; then
+    val="$(grep "^${fallback}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  fi
+  printf '%s' "$val"
+}
+
+SMTP_HOST="$(read_env GOTRUE_SMTP_HOST SMTP_HOST)"
+SMTP_PORT="$(read_env GOTRUE_SMTP_PORT SMTP_PORT)"
+SMTP_USER="$(read_env GOTRUE_SMTP_USER SMTP_USER)"
+SMTP_PASS="$(read_env GOTRUE_SMTP_PASS SMTP_PASS)"
+FROM="$(read_env GOTRUE_SMTP_ADMIN_EMAIL SMTP_ADMIN_EMAIL)"
+
+if [[ -z "$SMTP_HOST" || -z "$SMTP_PORT" || -z "$SMTP_USER" || -z "$SMTP_PASS" || -z "$FROM" ]]; then
+  echo "Error: incomplete SMTP config in ${ENV_FILE}"
+  exit 1
+fi
 
 TLS=(--tls-on-connect)
 [[ "$SMTP_PORT" == "587" ]] && TLS=(--tls)

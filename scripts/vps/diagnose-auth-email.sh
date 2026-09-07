@@ -23,6 +23,17 @@ fi
 
 cd "$STACK_DIR"
 
+read_env() {
+  local primary="$1"
+  local fallback="${2:-}"
+  local val
+  val="$(grep "^${primary}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  if [[ -z "$val" && -n "$fallback" ]]; then
+    val="$(grep "^${fallback}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  fi
+  printf '%s' "$val"
+}
+
 echo "=== Note ==="
 echo "POST /auth/v1/recover and UI «Забыли пароль?» отправляют письмо."
 echo "POST /auth/v1/admin/generate_link письмо НЕ шлёт — только JSON со ссылкой."
@@ -136,26 +147,11 @@ else
     apt-get update -qq && apt-get install -y swaks
   fi
 
-  SMTP_HOST=$(grep '^GOTRUE_SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-  if [[ -z "$SMTP_HOST" ]]; then
-    SMTP_HOST=$(grep '^SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-  fi
-  SMTP_PORT=$(grep '^GOTRUE_SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-  if [[ -z "$SMTP_PORT" ]]; then
-    SMTP_PORT=$(grep '^SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-  fi
-  SMTP_USER=$(grep '^GOTRUE_SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-  if [[ -z "$SMTP_USER" ]]; then
-    SMTP_USER=$(grep '^SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-  fi
-  SMTP_PASS=$(grep '^GOTRUE_SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-  if [[ -z "$SMTP_PASS" ]]; then
-    SMTP_PASS=$(grep '^SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-  fi
-  FROM=$(grep '^GOTRUE_SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
-  if [[ -z "$FROM" ]]; then
-    FROM=$(grep '^SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
-  fi
+  SMTP_HOST="$(read_env GOTRUE_SMTP_HOST SMTP_HOST)"
+  SMTP_PORT="$(read_env GOTRUE_SMTP_PORT SMTP_PORT)"
+  SMTP_USER="$(read_env GOTRUE_SMTP_USER SMTP_USER)"
+  SMTP_PASS="$(read_env GOTRUE_SMTP_PASS SMTP_PASS)"
+  FROM="$(read_env GOTRUE_SMTP_ADMIN_EMAIL SMTP_ADMIN_EMAIL)"
 
   SWAKS_TLS_ARGS=(--tls-on-connect)
   if [[ "$SMTP_PORT" == "587" ]]; then
