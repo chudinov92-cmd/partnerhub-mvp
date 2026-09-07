@@ -30,6 +30,7 @@ import {
   authLocalSignOut,
   authOnAuthStateChange,
   authSignInWithPassword,
+  authVerifyOtp,
   completeAuthEmailCallbackFromLocation,
 } from "@/services/authService";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
@@ -125,6 +126,21 @@ function isUserAlreadyRegistered(err: unknown): boolean {
   );
 }
 
+/** GoTrue anti-enumeration: 200 без письма, если email уже занят (часть сборок). */
+function isSilentDuplicateSignUp(data: {
+  user?: { identities?: unknown[] | null } | null;
+  session?: unknown;
+} | null): boolean {
+  if (!data?.user || data.session) return false;
+  const identities = data.user.identities;
+  return Array.isArray(identities) && identities.length === 0;
+}
+
+function isYandexMailbox(email: string): boolean {
+  const domain = email.trim().split("@")[1]?.toLowerCase() ?? "";
+  return domain === "yandex.ru" || domain.endsWith(".yandex.ru");
+}
+
 const GENERIC_AUTH_ERROR =
   "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
 
@@ -198,7 +214,7 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
       err,
       mode,
       mode === "signup"
-        ? "Этот email уже зарегистрирован. Проверьте почту (и «Спам») — письмо с подтверждением могло уже уйти. Или нажмите «Отправить письмо ещё раз» ниже."
+        ? "Этот email уже зарегистрирован. Перейдите на вкладку «Вход» или нажмите «Забыли пароль?». На @yandex.ru письма сброса могут не доходить — напишите в поддержку."
         : "Этот email уже зарегистрирован. Перейдите на вкладку «Вход».",
     );
   }
@@ -367,6 +383,8 @@ export default function AuthPage() {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
+  const [signupOtpCode, setSignupOtpCode] = useState("");
+  const [signupOtpLoading, setSignupOtpLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -469,6 +487,47 @@ export default function AuthPage() {
     void check();
   }, [router]);
 
+  const handleSignupOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      setError("Укажите email аккаунта.");
+      return;
+    }
+    if (!/^\d{6}$/.test(signupOtpCode.trim())) {
+      setError("Код из письма — 6 цифр.");
+      return;
+    }
+    setSignupOtpLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const { data, error: otpErr } = await withAuthTimeout(
+        authVerifyOtp({
+          email: email.trim(),
+          token: signupOtpCode.trim(),
+          type: "signup",
+        }),
+        "verifyOtpSignup",
+        AUTH_FORM_TIMEOUT_MS,
+      );
+      if (otpErr) throw otpErr;
+      const userId = data.user?.id;
+      if (!userId) {
+        throw new Error("Не удалось подтвердить email.");
+      }
+      linkAnonymousCookieConsent();
+      const target = await resolveAuthedAppEntryPath(
+        userId,
+        getAuthRedirectParam(),
+      );
+      window.location.replace(target);
+    } catch (err: unknown) {
+      setError(getAuthErrorMessage(err, "signup"));
+    } finally {
+      setSignupOtpLoading(false);
+    }
+  };
+
   const handleResendConfirmation = async () => {
     if (!email.trim()) {
       setError("Укажите email для повторной отправки письма.");
@@ -491,7 +550,7 @@ export default function AuthPage() {
       );
       if (resendErr) throw resendErr;
       setInfo(
-        "Письмо с подтверждением отправлено повторно. Откройте ссылку в том же браузере (Safari), где регистрировались.",
+        "Письмо с подтверждением отправлено повторно. Откройте ссылку в том же браузере, где регистрировались. Проверьте папки «Спам» и «Промоакции».",
       );
       setShowResendConfirmation(false);
     } catch (err: unknown) {
@@ -525,11 +584,15 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
+        const yandexHint = isYandexMailbox(email)
+          ? " На @yandex.ru письма с zeip.ru сейчас могут не доходить — напишите в поддержку, если письма нет более 5 минут."
+          : "";
         setInfo(
-          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте почту (и папку «Спам»).",
+          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте почту (и папку «Спам»)." +
+            yandexHint,
         );
       } else if (mode === "signup") {
-        const { error } = await withAuthTimeout(
+        const { data, error } = await withAuthTimeout(
           authFormsSignUp({
             email,
             password,
@@ -544,12 +607,20 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
+        if (isSilentDuplicateSignUp(data)) {
+          setError(
+            "Этот email уже зарегистрирован. Войдите с вашим паролем или нажмите «Забыли пароль?». Если почта не подтверждена — отправьте письмо ещё раз кнопкой ниже.",
+          );
+          setShowResendConfirmation(true);
+          return;
+        }
         reachYandexMetrikaGoal("signup", { method: "email" });
         recordAgreementConsent();
         linkAnonymousCookieConsent();
         setInfo(
-          "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь.",
+          "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь. Проверьте папки «Спам» и «Промоакции».",
         );
+        setShowResendConfirmation(true);
       } else {
         let redirected = false;
 
@@ -888,17 +959,51 @@ export default function AuthPage() {
           ) : null}
 
           {(mode === "signin" || mode === "signup") && showResendConfirmation && (
-            <div className="text-center">
-              <button
-                type="button"
-                disabled={resendLoading}
-                onClick={() => void handleResendConfirmation()}
-                className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
-              >
-                {resendLoading
-                  ? "Отправляем…"
-                  : "Отправить письмо подтверждения ещё раз"}
-              </button>
+            <div className="space-y-3">
+              <div className="text-center">
+                <button
+                  type="button"
+                  disabled={resendLoading}
+                  onClick={() => void handleResendConfirmation()}
+                  className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
+                >
+                  {resendLoading
+                    ? "Отправляем…"
+                    : "Отправить письмо подтверждения ещё раз"}
+                </button>
+              </div>
+              {mode === "signup" ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                  <p className="mb-2 text-center text-xs text-slate-600">
+                    Если письмо не приходит — введите 6-значный код из письма
+                    (если оно всё же дошло) или запросите повторно.
+                  </p>
+                  <form
+                    onSubmit={(e) => void handleSignupOtpSubmit(e)}
+                    className="flex flex-col gap-2"
+                  >
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="Код из письма"
+                      value={signupOtpCode}
+                      onChange={(e) =>
+                        setSignupOtpCode(e.target.value.replace(/\D/g, ""))
+                      }
+                      className={inputClassName}
+                    />
+                    <button
+                      type="submit"
+                      disabled={signupOtpLoading}
+                      className="flex h-10 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 text-sm font-semibold text-[#009966] transition hover:bg-emerald-50 disabled:opacity-60"
+                    >
+                      {signupOtpLoading ? "Проверяем…" : "Подтвердить кодом"}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
             </div>
           )}
 
