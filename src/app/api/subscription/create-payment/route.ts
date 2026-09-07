@@ -5,7 +5,7 @@ import {
   isRobokassaTestMode,
   signPaymentRequest,
 } from "@/lib/robokassa";
-import { getSiteUrl } from "@/lib/paymentReturn";
+import { getPaymentReturnSiteUrl } from "@/lib/paymentReturn";
 import {
   buildPaymentPlanId,
   parsePaymentPlanId,
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     url.searchParams.set("IsTest", "1");
   }
 
-  const siteUrl = getSiteUrl();
+  const siteUrl = getPaymentReturnSiteUrl(req);
   url.searchParams.set("SuccessURL", `${siteUrl}/payment/success`);
   url.searchParams.set("FailURL", `${siteUrl}/payment/fail`);
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authGetUser } from "@/services/authService";
+import { supabase } from "@/lib/supabaseClient";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import {
   getSubscriptionStatus,
@@ -12,6 +13,7 @@ import {
 } from "@/services/subscriptionService";
 import {
   buildPaymentSuccessPath,
+  saveAuthSessionBackup,
   savePendingPaymentInvId,
   shouldRedirectRobokassaReturnFromSubscription,
 } from "@/lib/paymentReturn";
@@ -99,6 +101,18 @@ function PinFeatureRow({
 type SubscriptionPlansViewProps = {
   variant?: "freemium" | "paid_gate";
 };
+
+async function persistAuthBeforePaymentRedirect(): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.access_token && session.refresh_token) {
+    saveAuthSessionBackup({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+  }
+}
 
 export default function SubscriptionPlansView({
   variant = "freemium",
@@ -209,6 +223,7 @@ export default function SubscriptionPlansView({
       }
       if ("paymentUrl" in result && result.paymentUrl) {
         savePendingPaymentInvId(String(result.invId));
+        await persistAuthBeforePaymentRedirect();
         window.location.href = result.paymentUrl;
         return;
       }
@@ -243,6 +258,7 @@ export default function SubscriptionPlansView({
         price: getPlanPrice(plan, period),
         currency: "RUB",
       });
+      await persistAuthBeforePaymentRedirect();
       setTimeout(() => {
         window.location.href = paymentUrl;
       }, 300);

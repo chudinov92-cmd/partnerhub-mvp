@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import { authGetUser } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import { getSubscriptionStatus } from "@/services/subscriptionService";
 import { fetchPaymentStatusByInvId } from "@/services/paymentStatusService";
 import {
   buildPaymentSuccessLoginRedirect,
+  clearAuthSessionBackup,
   clearPendingPaymentInvId,
   parseRobokassaReturnParams,
+  readAuthSessionBackup,
   resolvePaymentInvId,
 } from "@/lib/paymentReturn";
 import {
@@ -22,8 +25,8 @@ import {
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_MAX_ATTEMPTS = 15;
-const AUTH_RETRY_MS = 500;
-const AUTH_RETRY_COUNT = 3;
+const AUTH_RETRY_MS = 800;
+const AUTH_RETRY_COUNT = 5;
 
 type ViewState =
   | "loading"
@@ -49,22 +52,62 @@ type PaymentSuccessViewProps = {
   /** После успеха: `/map` (freemium) или `/map?payment=success` (paid_gate) */
   successRedirectPath: string;
   subscriptionLabel?: string;
+  /** User id с сервера (cookie на HTTP-запросе) — не показывать need_login преждевременно */
+  initialUserId?: string | null;
 };
 
-async function authGetUserWithRetry() {
+async function restoreAuthSessionFromBackup() {
+  const backup = readAuthSessionBackup();
+  if (!backup) return null;
+
+  try {
+    const { data, error } = await supabase.auth.setSession(backup);
+    clearAuthSessionBackup();
+    if (!error && data.user) return data.user;
+  } catch {
+    //
+  }
+
+  return null;
+}
+
+async function resolveAuthenticatedUser(initialUserId?: string | null) {
   for (let i = 0; i < AUTH_RETRY_COUNT; i += 1) {
     const result = await authGetUser();
-    if (result.data.user) return result;
+    if (result.data.user) return result.data.user;
     if (i < AUTH_RETRY_COUNT - 1) {
       await new Promise((r) => setTimeout(r, AUTH_RETRY_MS));
     }
   }
-  return authGetUser();
+
+  const restoredUser = await restoreAuthSessionFromBackup();
+  if (restoredUser) return restoredUser;
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (!error && data.user) return data.user;
+  } catch {
+    //
+  }
+
+  const retryAfterBackup = await authGetUser();
+  if (retryAfterBackup.data.user) return retryAfterBackup.data.user;
+
+  if (initialUserId) {
+    for (let i = 0; i < AUTH_RETRY_COUNT; i += 1) {
+      await new Promise((r) => setTimeout(r, AUTH_RETRY_MS));
+      const result = await authGetUser();
+      if (result.data.user) return result.data.user;
+    }
+  }
+
+  return null;
 }
 
 export function PaymentSuccessView({
   successRedirectPath,
   subscriptionLabel = "Pro",
+  initialUserId = null,
 }: PaymentSuccessViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,12 +120,14 @@ export function PaymentSuccessView({
 
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [activePlan, setActivePlan] = useState<string | null>(null);
   const [loginHref, setLoginHref] = useState("/auth");
 
   const finishSuccess = useCallback(
-    (expires: string | null) => {
+    (expires: string | null, plan?: string) => {
       clearPendingPaymentInvId();
       setExpiresAt(expires);
+      setActivePlan(plan ?? null);
       setViewState("success");
       const price = outSum ? Number(outSum) : undefined;
       trackPaymentSuccessActivated(
@@ -111,7 +156,7 @@ export function PaymentSuccessView({
       try {
         const status = await getSubscriptionStatus(profileId);
         if (status.isPro) {
-          finishSuccess(status.expiresAt);
+          finishSuccess(status.expiresAt, status.plan);
           return;
         }
       } catch {
@@ -140,9 +185,7 @@ export function PaymentSuccessView({
     let cancelled = false;
 
     const run = async () => {
-      const {
-        data: { user },
-      } = await authGetUserWithRetry();
+      const user = await resolveAuthenticatedUser(initialUserId);
 
       if (cancelled) return;
 
@@ -167,7 +210,7 @@ export function PaymentSuccessView({
 
       const status = await getSubscriptionStatus(row.id);
       if (status.isPro) {
-        finishSuccess(status.expiresAt);
+        finishSuccess(status.expiresAt, status.plan);
         return;
       }
 
@@ -184,11 +227,14 @@ export function PaymentSuccessView({
         clearTimeout(pollTimerRef.current);
       }
     };
-  }, [invId, finishSuccess, pollActivation]);
+  }, [invId, initialUserId, finishSuccess, pollActivation]);
 
   const handleContinue = () => {
     router.push(successRedirectPath);
   };
+
+  const displayLabel =
+    activePlan === "pro_plus" ? "Pro+" : subscriptionLabel;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-4 py-12">
@@ -240,7 +286,7 @@ export function PaymentSuccessView({
               ✓
             </div>
             <h1 className="mt-4 text-center text-xl font-semibold text-slate-900">
-              Подписка {subscriptionLabel} активна
+              Подписка {displayLabel} активна
             </h1>
             {expiresAt ? (
               <p className="mt-2 text-center text-sm text-slate-600">
@@ -252,7 +298,7 @@ export function PaymentSuccessView({
               onClick={handleContinue}
               className="mt-6 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-3 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
             >
-              Продолжить
+              На карту
             </button>
           </>
         ) : null}

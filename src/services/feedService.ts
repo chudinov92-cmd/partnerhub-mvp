@@ -60,6 +60,22 @@ export async function updatePostBody(postId: string, body: string) {
     .single();
 }
 
+export async function deletePost(postId: string) {
+  const { data, error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", postId)
+    .select("id");
+  if (error) return { data: null, error };
+  if (!data?.length) {
+    return {
+      data: null,
+      error: new Error("Не удалось удалить сообщение."),
+    };
+  }
+  return { data, error: null };
+}
+
 export async function insertPost(payload: {
   authorId: string;
   body: string;

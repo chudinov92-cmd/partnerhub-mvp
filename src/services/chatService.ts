@@ -431,6 +431,42 @@ export async function updateMessageContent(
     .single();
 }
 
+export async function deleteMessage(messageId: string) {
+  const { data, error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", messageId)
+    .select("id");
+  if (error) return { data: null, error };
+  if (!data?.length) {
+    return {
+      data: null,
+      error: new Error("Не удалось удалить сообщение."),
+    };
+  }
+  return { data, error: null };
+}
+
+/** Последнее сообщение чата — для превью в списке после удаления. */
+export async function fetchLatestMessageMeta(
+  chatId: string,
+): Promise<{ at: string; preview: string } | null> {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("created_at, content")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const at = (data as { created_at?: string | null }).created_at;
+  if (!at) return null;
+  return {
+    at,
+    preview: String((data as { content?: unknown }).content ?? "").trim(),
+  };
+}
+
 export async function insertMessage(payload: {
   chatId: string;
   senderId: string;
@@ -511,6 +547,8 @@ export type MessagesRealtimeCallbacks = {
   onInsert?: (payload: NonNullable<MessageRealtimePayload>) => void | Promise<void>;
   /** UPDATE событие сообщения. */
   onUpdate?: (payload: NonNullable<MessageRealtimePayload>) => void | Promise<void>;
+  /** DELETE: payload = old row (нужен replica identity full). */
+  onDelete?: (payload: NonNullable<MessageRealtimePayload>) => void | Promise<void>;
 };
 
 /** Подписка на realtime messages (личные чаты). */
@@ -530,6 +568,12 @@ export function subscribeToMessagesRealtime(
       { event: "UPDATE", schema: "public", table: "messages" },
       (evt) =>
         callbacks.onUpdate?.(evt.new as ChatMessage & { chat_id?: string }),
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "messages" },
+      (evt) =>
+        callbacks.onDelete?.(evt.old as ChatMessage & { chat_id?: string }),
     );
 
   channel.subscribe();

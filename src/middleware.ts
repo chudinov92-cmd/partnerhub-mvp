@@ -6,6 +6,7 @@ import { createSupabaseMiddlewareClient } from "@/lib/supabaseServer";
 /**
  * /admin/* — JWT + admin_users
  * /map — только авторизованные (гости → лендинг)
+ * /payment/success, /payment/fail — refresh cookie-сессии после Robokassa
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -38,6 +39,13 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  if (
+    pathname === "/payment/success" ||
+    pathname === "/payment/fail"
+  ) {
+    return response;
+  }
+
   if (!pathname.startsWith("/admin")) {
     return response;
   }
@@ -63,5 +71,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/map", "/map/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/map",
+    "/map/:path*",
+    "/payment/success",
+    "/payment/fail",
+  ],
 };

@@ -32,11 +32,11 @@ body {
 }
 
 /**
- * Высота TopBar (две строки слева: логотип + счётчик полезных контактов).
- * Синхронизировать с `.zeip-profile-preview-floating` в globals.css.
+ * Высота TopBar (одна строка: логотип, min-h-14).
+ * Синхронизировать с fallback `--zeip-topbar-height` (3.5rem) в calc по карте и профилю.
  */
 .zeip-topbar {
-  --zeip-topbar-height: 4.5rem;
+  --zeip-topbar-height: 3.5rem;
 }
 
 /**
@@ -47,10 +47,10 @@ body {
 .zeip-profile-preview-floating {
   left: 50%;
   transform: translateX(-50%);
-  top: calc(var(--zeip-topbar-height, 4.5rem) + env(safe-area-inset-top, 0px) + 8px);
+  top: calc(var(--zeip-topbar-height, 3.5rem) + env(safe-area-inset-top, 0px) + 8px);
   max-height: calc(
     100vh
-    - var(--zeip-topbar-height, 4.5rem)
+    - var(--zeip-topbar-height, 3.5rem)
     - env(safe-area-inset-top, 0px)
     - var(--zeip-mobile-nav-height, 3.5rem)
     - env(safe-area-inset-bottom, 0px)
@@ -62,7 +62,7 @@ body {
   .zeip-profile-preview-floating {
     max-height: calc(
       100dvh
-      - var(--zeip-topbar-height, 4.5rem)
+      - var(--zeip-topbar-height, 3.5rem)
       - env(safe-area-inset-top, 0px)
       - var(--zeip-mobile-nav-height, 3.5rem)
       - env(safe-area-inset-bottom, 0px)
@@ -75,7 +75,7 @@ body {
   .zeip-profile-preview-floating {
     max-height: calc(
       100dvh
-      - var(--zeip-topbar-height, 4.5rem)
+      - var(--zeip-topbar-height, 3.5rem)
       - env(safe-area-inset-top, 0px)
       - 16px
     );
@@ -88,19 +88,19 @@ body {
  */
 .zeip-main-stack {
   height: calc(
-    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
   );
   max-height: calc(
-    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
   );
 }
 @supports (height: 100dvh) {
   .zeip-main-stack {
     height: calc(
-      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
     );
     max-height: calc(
-      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 4.5rem)
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
     );
   }
 }

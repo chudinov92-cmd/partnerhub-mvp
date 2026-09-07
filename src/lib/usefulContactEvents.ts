@@ -1,4 +1,4 @@
-/** Событие для обновления счётчика полезных контактов в TopBar */
+/** Событие при новом сообщении: раньше обновляло счётчик в TopBar (сейчас скрыт). */
 export const USEFUL_CONTACTS_CHANGED_EVENT = "zeip-useful-contacts-changed";
 
 export function notifyUsefulContactsChanged() {

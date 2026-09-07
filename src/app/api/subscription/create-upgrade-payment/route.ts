@@ -5,7 +5,7 @@ import {
   isRobokassaTestMode,
   signPaymentRequest,
 } from "@/lib/robokassa";
-import { getSiteUrl } from "@/lib/paymentReturn";
+import { getPaymentReturnSiteUrl } from "@/lib/paymentReturn";
 import {
   buildUpgradeDescription,
   calculateUpgradePrice,
@@ -43,7 +43,7 @@ async function applyInstantUpgrade(profileId: string) {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const merchantLogin = process.env.NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN;
   const password1 = getRobokassaPassword1();
 
@@ -167,7 +167,7 @@ export async function POST() {
     url.searchParams.set("IsTest", "1");
   }
 
-  const siteUrl = getSiteUrl();
+  const siteUrl = getPaymentReturnSiteUrl(req);
   url.searchParams.set("SuccessURL", `${siteUrl}/payment/success`);
   url.searchParams.set("FailURL", `${siteUrl}/payment/fail`);
 

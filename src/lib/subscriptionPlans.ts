@@ -178,10 +178,18 @@ export function planRank(plan: SubscriptionPlan): number {
   }
 }
 
+export function comparePlanRank(
+  a: SubscriptionPlan,
+  b: SubscriptionPlan,
+): number {
+  return planRank(b) - planRank(a);
+}
+
 export const FREE_PLAN_FEATURES = [
   "До 5 профилей в день",
   "До 5 контактов в избранном",
   "Чтение общего чата",
+  "Приоритет на карте и в фильтрах ниже Pro / Pro+",
 ] as const;
 
 export const PRO_PLAN_FEATURES = [
@@ -189,6 +197,7 @@ export const PRO_PLAN_FEATURES = [
   "Избранное без ограничений",
   "Чтение общего чата",
   "Личные сообщения — до 10 человек в сутки",
+  "Приоритет на карте и в фильтрах выше Free",
 ] as const;
 
 export const PRO_PLUS_PLAN_FEATURES = [
@@ -196,6 +205,7 @@ export const PRO_PLUS_PLAN_FEATURES = [
   "Избранное без ограничений",
   "Общий чат — до 10 сообщений в сутки",
   "Личные сообщения — до 30 человек в сутки",
+  "Приоритет на карте и в фильтрах выше всех",
 ] as const;
 
 export const FREE_PLAN_PIN_FEATURE = "Пин зелёного цвета";

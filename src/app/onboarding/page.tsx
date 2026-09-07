@@ -74,12 +74,6 @@ const SEEKING_OPTIONS = [
   { value: "team", label: "Команду" },
 ] as const;
 
-const HAS_OPTIONS = [
-  { value: "ideas", label: "Идеи" },
-  { value: "project", label: "Проект(ы)" },
-  { value: "motivation", label: "Желание" },
-] as const;
-
 function toggleArrayItem(arr: string[], value: string): string[] {
   return arr.includes(value)
     ? arr.filter((v) => v !== value)
@@ -232,7 +226,6 @@ type OnboardingProfile = {
   resources: string | null;
   interested_in: string | null;
   seeking: string[];
-  has_resources: string[];
   onboarding_step: number;
   onboarding_completed: boolean;
 };
@@ -321,7 +314,7 @@ export default function OnboardingPage() {
         let { data: prof, error: profErr } = await supabase
           .from("profiles")
           .select(
-            "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, has_resources, onboarding_step, onboarding_completed",
+            "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, onboarding_step, onboarding_completed",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -335,10 +328,9 @@ export default function OnboardingPage() {
               auth_user_id: user.id,
               country: DEFAULT_COUNTRY,
               seeking: [],
-              has_resources: [],
             })
             .select(
-              "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, has_resources, onboarding_step, onboarding_completed",
+              "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, onboarding_step, onboarding_completed",
             )
             .single();
           if (createErr) {
@@ -365,7 +357,6 @@ export default function OnboardingPage() {
         setProfile({
           ...row,
           seeking: row.seeking ?? [],
-          has_resources: row.has_resources ?? [],
         });
         setStep(initialStep);
 
@@ -528,7 +519,6 @@ export default function OnboardingPage() {
         resources: maskProfanity(profile.resources),
         interested_in: profile.interested_in,
         seeking: profile.seeking ?? [],
-        has_resources: profile.has_resources ?? [],
       });
       reachYandexMetrikaGoal("onboarding_step_3");
       return;
@@ -866,31 +856,6 @@ export default function OnboardingPage() {
                           ...profile,
                           seeking: toggleArrayItem(
                             profile.seeking ?? [],
-                            value,
-                          ),
-                        })
-                      }
-                    >
-                      {label}
-                    </MultiChoiceRow>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-slate-800">
-                  Есть у меня
-                </p>
-                <p className="text-xs text-slate-500">Можно выбрать несколько</p>
-                <div className="space-y-2">
-                  {HAS_OPTIONS.map(({ value, label }) => (
-                    <MultiChoiceRow
-                      key={value}
-                      selected={(profile.has_resources ?? []).includes(value)}
-                      onClick={() =>
-                        setProfile({
-                          ...profile,
-                          has_resources: toggleArrayItem(
-                            profile.has_resources ?? [],
                             value,
                           ),
                         })

@@ -5,8 +5,8 @@ import mmrgl from "mmr-gl";
 import "mmr-gl/dist/mmr-gl.css";
 import type { LngLat } from "@/data/cityMapViews";
 import { fetchActiveLocations, getProfessionMatchIndex } from "@/services/profileService";
-import { getPinColorForPlan } from "@/lib/subscriptionPlans";
-import { getEffectiveSubscriptionPlan, isActiveProProfile } from "@/services/subscriptionService";
+import { comparePlanRank, getPinColorForPlan, planRank } from "@/lib/subscriptionPlans";
+import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 
 type LocationPoint = {
   id: string;
@@ -207,7 +207,6 @@ type MarkerRow = {
   isViewed: boolean;
   rating: number;
   isFocused: boolean;
-  isPro: boolean;
   subscriptionPlan: "free" | "pro" | "pro_plus";
   professionMatchIndex: number | null;
   zIndex: number;
@@ -305,7 +304,6 @@ export function PartnerMap({
         const isViewed = !isOwn && viewedSet.has(profile.id);
         const rating = profile.rating_count ?? 0;
         const isFocused = focusedProfileId != null && focusedProfileId === profile.id;
-        const isPro = isActiveProProfile(profile);
         const subscriptionPlan = getEffectiveSubscriptionPlan(profile);
         const professionMatchIndex = professionFilter
           ? getProfessionMatchIndex(profile, professionFilter)
@@ -318,7 +316,6 @@ export function PartnerMap({
           isViewed,
           rating,
           isFocused,
-          isPro,
           subscriptionPlan,
           professionMatchIndex,
         };
@@ -337,8 +334,8 @@ export function PartnerMap({
         }
       }
 
-      const proRank = Number(b.isPro) - Number(a.isPro);
-      if (proRank !== 0) return proRank;
+      const tierRank = comparePlanRank(a.subscriptionPlan, b.subscriptionPlan);
+      if (tierRank !== 0) return tierRank;
 
       const v = Number(a.isViewed) - Number(b.isViewed);
       if (v !== 0) return v;
@@ -350,7 +347,8 @@ export function PartnerMap({
     });
 
     return rows.map((row, idx) => {
-      const proBoost = row.isPro && !row.isOwn ? 500_000 : 0;
+      const tierBoost =
+        !row.isOwn ? planRank(row.subscriptionPlan) * 250_000 : 0;
       const viewedBoost = row.isViewed ? 0 : 1_000_000;
       const focusedBoost = row.isFocused ? 2_000_000 : 0;
       const ownBoost = row.isOwn ? 100_000 : 0;
@@ -361,7 +359,7 @@ export function PartnerMap({
       const zIndex =
         focusedBoost +
         professionBoost +
-        proBoost +
+        tierBoost +
         viewedBoost +
         ownBoost +
         (row.rating ?? 0) * 10 +
@@ -465,13 +463,13 @@ export function PartnerMap({
         : row.isViewed && !row.isOwn
           ? PIN_VIEWED_BORDER_COLOR
           : row.isOwn
-            ? PIN_FILL_COLOR
+            ? pinFill
             : PIN_BORDER_COLOR;
 
       const element = row.isOwn
         ? createPinElement(initial, PIN_BORDER_COLOR, borderColor, {
-            letterColorHex: PIN_FILL_COLOR,
-            stemHex: PIN_FILL_COLOR,
+            letterColorHex: pinFill,
+            stemHex: pinFill,
           })
         : createPinElement(initial, pinFill, borderColor);
 

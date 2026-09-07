@@ -9,5 +9,6 @@ export function ConditionalTopBar() {
   if (pathname === "/") return null;
   if (pathname === "/onboarding" || pathname.startsWith("/onboarding/")) return null;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+  if (pathname === "/payment/success" || pathname === "/payment/fail") return null;
   return <TopBar />;
 }

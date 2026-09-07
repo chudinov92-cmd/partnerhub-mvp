@@ -11,8 +11,6 @@ import {
   updateProfileLastSeen,
 } from "@/services/profileService";
 import { PROFILE_CONTACTS_CHANGED_EVENT } from "@/lib/contactEvents";
-import { USEFUL_CONTACTS_CHANGED_EVENT } from "@/lib/usefulContactEvents";
-import { fetchUsefulContactsCount } from "@/services/statsService";
 import { TopBarCitySelect } from "@/components/TopBarCitySelect";
 import { CityOnboardingBanner } from "@/components/CityOnboardingBanner";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
@@ -55,10 +53,6 @@ export function TopBar() {
     typeof window !== "undefined" ? isCityOnboardingAcknowledged() : true,
   );
   const [contactCount, setContactCount] = useState(0);
-  const [usefulContactsCount, setUsefulContactsCount] = useState<number | null>(
-    null,
-  );
-  const [usefulContactsLoading, setUsefulContactsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [contactsActive, setContactsActive] = useState(false);
@@ -105,32 +99,6 @@ export function TopBar() {
     },
     [setSelectedCity],
   );
-
-  const loadUsefulContactsCount = useCallback(async () => {
-    setUsefulContactsLoading(true);
-    try {
-      const count = await fetchUsefulContactsCount(selectedCity);
-      setUsefulContactsCount(count);
-    } catch (e) {
-      console.error("Failed to load useful contacts count", e);
-      setUsefulContactsCount(null);
-    } finally {
-      setUsefulContactsLoading(false);
-    }
-  }, [selectedCity]);
-
-  useEffect(() => {
-    void loadUsefulContactsCount();
-  }, [loadUsefulContactsCount]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const refresh = () => void loadUsefulContactsCount();
-    window.addEventListener(USEFUL_CONTACTS_CHANGED_EVENT, refresh);
-    return () => {
-      window.removeEventListener(USEFUL_CONTACTS_CHANGED_EVENT, refresh);
-    };
-  }, [loadUsefulContactsCount]);
 
   const openSupport = () => {
     setMenuOpen(false);
@@ -337,7 +305,7 @@ export function TopBar() {
   return (
     <header className="zeip-topbar sticky top-0 z-[1500] shrink-0 border-b border-gray-200 bg-white pt-[env(safe-area-inset-top,0px)] shadow-sm">
       <div className="grid min-h-14 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 md:px-4">
-      <div className="flex min-w-0 max-w-[min(100%,11rem)] flex-col gap-0.5 justify-self-start">
+      <div className="flex min-w-0 justify-self-start">
         <Link
           href="/map"
           className="flex min-w-0 items-center gap-2"
@@ -354,19 +322,6 @@ export function TopBar() {
             ЗЕИП
           </span>
         </Link>
-        <p className="flex items-baseline gap-1 overflow-hidden text-[10px] leading-tight text-slate-600 sm:text-xs">
-          <span className="hidden min-w-0 shrink truncate md:inline">Установлено полезных контактов:</span>
-          <span className="min-w-0 shrink truncate md:hidden">Полезных контактов:</span>
-          {usefulContactsLoading ? (
-            <span className="shrink-0 text-slate-400">…</span>
-          ) : usefulContactsCount != null ? (
-            <span className="shrink-0 font-semibold text-slate-800">
-              {usefulContactsCount}
-            </span>
-          ) : (
-            <span className="shrink-0 text-slate-400">—</span>
-          )}
-        </p>
       </div>
 
       <div className="flex flex-col items-center justify-self-center gap-1">

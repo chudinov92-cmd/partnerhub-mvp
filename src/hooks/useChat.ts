@@ -6,6 +6,8 @@ import {
   unsubscribeChannel,
   fetchChatMemberUserIds,
   markChatAsRead,
+  fetchLatestMessageMeta,
+  loadDmUnreadCounts,
 } from "@/services/chatService";
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import type { ChatMessage, ChatListItem, CurrentUser } from "@/types";
@@ -127,6 +129,58 @@ export function useChatMessagesRealtime(opts: {
           });
         } catch {
           //
+        }
+      },
+      onDelete: async (payload) => {
+        const msg = payload as ChatMessage & { chat_id?: string };
+        if (!msg.id) return;
+        if (msg.sender_id && blockedProfileIds.includes(msg.sender_id)) return;
+
+        try {
+          const chatId = msg.chat_id as string | undefined;
+          if (!chatId) {
+            setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
+            return;
+          }
+
+          const members = await resolveMembersForChat(
+            chatId,
+            msg.sender_id || currentUser.profileId,
+          );
+          if (!members) return;
+
+          const memberIds = members.map((m) => m.user_id as string);
+          if (!memberIds.includes(currentUser.profileId)) return;
+
+          if (activeChatId === chatId) {
+            setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
+          }
+
+          const last = await fetchLatestMessageMeta(chatId);
+          setChatList((prev) => {
+            const idx = prev.findIndex((x) => x.chatId === chatId);
+            if (idx < 0) return prev;
+            const next = [...prev];
+            next[idx] = {
+              ...next[idx],
+              lastMessageAt: last?.at ?? null,
+              lastMessagePreview: last?.preview ? last.preview : null,
+            };
+            return next;
+          });
+
+          if (
+            activeChatId !== chatId &&
+            msg.sender_id &&
+            msg.sender_id !== currentUser.profileId
+          ) {
+            const counts = await loadDmUnreadCounts(currentUser.profileId, [
+              ...blockedProfileIds,
+            ]);
+            setUnreadByUser(counts);
+          }
+        } catch {
+          setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
         }
       },
     });

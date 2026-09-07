@@ -1,21 +1,16 @@
-"use client";
-
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { PaymentSuccessView } from "@/components/PaymentSuccessView";
 import { isPaidGateMode } from "@/lib/accessMode";
+import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 
-function PaymentSuccessContent() {
-  return (
-    <PaymentSuccessView
-      successRedirectPath={
-        isPaidGateMode() ? "/map?payment=success" : "/map"
-      }
-      subscriptionLabel={isPaidGateMode() ? "Zeip" : "Pro"}
-    />
-  );
-}
+export default async function PaymentSuccessPage() {
+  const cookieStore = await cookies();
+  const sb = createSupabaseRouteClient(cookieStore);
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
 
-export default function PaymentSuccessPage() {
   return (
     <Suspense
       fallback={
@@ -24,7 +19,13 @@ export default function PaymentSuccessPage() {
         </div>
       }
     >
-      <PaymentSuccessContent />
+      <PaymentSuccessView
+        initialUserId={user?.id ?? null}
+        successRedirectPath={
+          isPaidGateMode() ? "/map?payment=success" : "/map"
+        }
+        subscriptionLabel={isPaidGateMode() ? "Zeip" : "Pro"}
+      />
     </Suspense>
   );
 }

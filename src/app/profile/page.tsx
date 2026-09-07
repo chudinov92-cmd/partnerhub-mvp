@@ -1664,8 +1664,8 @@ export default function ProfilePage() {
             }
             className={`min-h-[20rem] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${
               hasChanges
-                ? "h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-5rem-env(safe-area-inset-bottom,0px)-8rem)]"
-                : "h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-env(safe-area-inset-bottom,0px)-10rem)]"
+                ? "h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-5rem-env(safe-area-inset-bottom,0px)-8rem)]"
+                : "h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-bottom,0px)-10rem)]"
             } max-h-[42rem]`}
           />
         </div>

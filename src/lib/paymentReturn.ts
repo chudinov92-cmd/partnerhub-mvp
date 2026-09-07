@@ -1,4 +1,13 @@
 export const PAYMENT_PENDING_INV_ID_KEY = "zeip_pending_payment_inv_id";
+export const PAYMENT_AUTH_BACKUP_KEY = "zeip_payment_auth_backup";
+
+export type AuthSessionBackup = {
+  access_token: string;
+  refresh_token: string;
+};
+
+const LOCAL_DEV_ORIGIN_RE =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\d+\.\d+\.\d+\.\d+)(:\d+)?$/;
 
 export type RobokassaReturnParams = {
   invId: string | null;
@@ -83,4 +92,47 @@ export function getSiteUrl(): string {
     return window.location.origin;
   }
   return "https://zeip.ru";
+}
+
+/** Success/Fail URL для Robokassa: в dev — origin запроса (localhost), в prod — getSiteUrl(). */
+export function getPaymentReturnSiteUrl(req: Request): string {
+  const origin = new URL(req.url).origin;
+  if (
+    process.env.NODE_ENV === "development" &&
+    LOCAL_DEV_ORIGIN_RE.test(origin)
+  ) {
+    return origin;
+  }
+  return getSiteUrl();
+}
+
+export function saveAuthSessionBackup(tokens: AuthSessionBackup): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(PAYMENT_AUTH_BACKUP_KEY, JSON.stringify(tokens));
+  } catch {
+    //
+  }
+}
+
+export function readAuthSessionBackup(): AuthSessionBackup | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PAYMENT_AUTH_BACKUP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AuthSessionBackup;
+    if (!parsed.access_token || !parsed.refresh_token) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAuthSessionBackup(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(PAYMENT_AUTH_BACKUP_KEY);
+  } catch {
+    //
+  }
 }

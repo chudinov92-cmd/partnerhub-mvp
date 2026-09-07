@@ -12,6 +12,8 @@ import {
   openOrEnsurePrivateChat,
   fetchRecentMessages,
   updateMessageContent,
+  deleteMessage,
+  fetchLatestMessageMeta,
   insertMessage,
   getUniqueChatPartnersToday,
   fetchSupportProfile,
@@ -43,12 +45,12 @@ import {
 import {
   getDmPartnersDailyLimit,
   getSubscriptionStatus,
-  isActiveProProfile,
+  getEffectiveSubscriptionPlan,
   canWriteGeneralChat as userCanWriteGeneralChat,
   canSendDirectMessages,
   PRO_PLUS_CHAT_LIMIT,
 } from "@/services/subscriptionService";
-import { FREE_PROFILE_VIEWS_LIMIT } from "@/lib/subscriptionPlans";
+import { comparePlanRank, FREE_PROFILE_VIEWS_LIMIT } from "@/lib/subscriptionPlans";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
   canUnpaidOpenPinPopup,
@@ -78,6 +80,7 @@ import {
 } from "@/lib/paywallAnalytics";
 import {
   updatePostBody,
+  deletePost,
   insertPost as insertFeedPost,
   insertPostComment,
   countTodayChatPosts,
@@ -397,6 +400,7 @@ export default function Home() {
   );
   const [newPostBody, setNewPostBody] = useState("");
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<Profile | null>(null);
@@ -404,6 +408,9 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
+    null,
+  );
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatSending, setChatSending] = useState(false);
@@ -438,6 +445,8 @@ export default function Home() {
     message: string;
     actionLabel?: string;
     onAction?: () => void;
+    durationMs?: number;
+    showCloseButton?: boolean;
   } | null>(null);
   const paywallResumeHandledRef = useRef(false);
   const paymentSuccessHandledRef = useRef(false);
@@ -569,10 +578,18 @@ export default function Home() {
         return;
       }
       await navigator.clipboard.writeText(url);
-      setPaymentToast({ message: "Ссылка скопирована" });
+      setPaymentToast({
+        message: "Ссылка скопирована",
+        durationMs: 2000,
+        showCloseButton: false,
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
-      setPaymentToast({ message: url });
+      setPaymentToast({
+        message: url,
+        durationMs: 2000,
+        showCloseButton: false,
+      });
     }
   }, []);
 
@@ -681,6 +698,7 @@ export default function Home() {
     setActiveChatIsClosed(false);
     resetSupportComposer();
     setEditingMessageId(null);
+    setDeletingMessageId(null);
     setChatInput("");
   };
   const mapConfig = useMemo(
@@ -1301,6 +1319,40 @@ export default function Home() {
     }
   };
 
+  const handleDeletePost = async (postId: string) => {
+    if (!currentUser || currentUser.isBlocked) return;
+    if (deletingPostId) return;
+    if (!window.confirm("Удалить сообщение из общего чата?")) return;
+
+    setDeletingPostId(postId);
+    setCreateError(null);
+    try {
+      const { error } = await deletePost(postId);
+      if (error) throw error;
+      setPosts((prev) => {
+        const next = prev.filter((p) => p.id !== postId);
+        postsFingerprintRef.current = next.map((p) => p.id).join("|");
+        return next;
+      });
+      setCommentsByPostId((prev) => {
+        if (!(postId in prev)) return prev;
+        const next = { ...prev };
+        delete next[postId];
+        return next;
+      });
+      if (editingPostId === postId) {
+        setEditingPostId(null);
+        setNewPostBody("");
+      }
+    } catch (err: unknown) {
+      setCreateError(
+        getErrorMessage(err, "Не удалось удалить сообщение."),
+      );
+    } finally {
+      setDeletingPostId(null);
+    }
+  };
+
   const handleSubmitComment = async (postId: string, body: string) => {
     if (!currentUser || currentUser.isBlocked) return;
     const masked = (maskProfanity(body.trim()) ?? "").slice(0, 1000);
@@ -1326,6 +1378,7 @@ export default function Home() {
     setChatError(null);
     setChatLoading(true);
     setEditingMessageId(null);
+    setDeletingMessageId(null);
     setChatInput("");
 
     const envId = getSupportProfileIdFromEnv();
@@ -1714,6 +1767,47 @@ export default function Home() {
     }
   };
 
+  const handleDeleteChatMessage = async (message: ChatMessage) => {
+    if (!currentUser || currentUser.isBlocked) return;
+    if (deletingMessageId) return;
+    suppressChatOutsideCloseUntilRef.current = Date.now() + 800;
+    if (!window.confirm("Удалить сообщение? Собеседник тоже его не увидит.")) {
+      return;
+    }
+
+    setDeletingMessageId(message.id);
+    setChatError(null);
+    try {
+      const { error } = await deleteMessage(message.id);
+      if (error) throw error;
+
+      setChatMessages((prev) => prev.filter((m) => m.id !== message.id));
+      if (editingMessageId === message.id) {
+        setEditingMessageId(null);
+        setChatInput("");
+      }
+
+      if (activeChatId) {
+        const last = await fetchLatestMessageMeta(activeChatId);
+        setChatList((prev) => {
+          const idx = prev.findIndex((x) => x.chatId === activeChatId);
+          if (idx < 0) return prev;
+          const next = [...prev];
+          next[idx] = {
+            ...next[idx],
+            lastMessageAt: last?.at ?? null,
+            lastMessagePreview: last?.preview ? last.preview : null,
+          };
+          return next;
+        });
+      }
+    } catch (err: unknown) {
+      setChatError(getErrorMessage(err, "Не удалось удалить сообщение."));
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   // автоскролл к последнему сообщению при изменении списка
   useEffect(() => {
     if (!activeChatUser) return;
@@ -2046,25 +2140,42 @@ export default function Home() {
                         {body ? (
                           <p className="mb-1 text-sm text-slate-600">{text}</p>
                         ) : null}
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col items-start gap-1">
                           <span className="text-xs text-gray-400">
                             {post.created_at ? formatDateTime(post.created_at) : ""}
                             {post.edited_at ? " · изменено" : ""}
                           </span>
-                          {canWriteGeneralChat &&
-                          currentUser?.profileId &&
-                          post.author_id === currentUser.profileId ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingPostId(post.id);
-                                setNewPostBody(post.body ?? "");
-                              }}
-                              className="text-xs font-medium text-emerald-600 hover:underline"
-                            >
-                              Изменить
-                            </button>
+                          {currentUser?.profileId &&
+                          post.author_id === currentUser.profileId &&
+                          !currentUser.isBlocked ? (
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {canWriteGeneralChat ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPostId(post.id);
+                                    setNewPostBody(post.body ?? "");
+                                  }}
+                                  className="text-xs font-medium text-emerald-600 hover:underline"
+                                >
+                                  Изменить
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDeletePost(post.id);
+                                }}
+                                disabled={deletingPostId === post.id}
+                                className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-60"
+                              >
+                                {deletingPostId === post.id
+                                  ? "Удаляем…"
+                                  : "Удалить"}
+                              </button>
+                            </div>
                           ) : null}
                         </div>
                         {shouldTruncate && (
@@ -2089,6 +2200,9 @@ export default function Home() {
           {/* Форма нового сообщения / заглушка без подписки */}
           {currentUser && !canWriteGeneralChat ? (
             <div className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
+              {createError ? (
+                <p className="text-[11px] text-red-600">{createError}</p>
+              ) : null}
               <p className="text-xs text-slate-700">
                 {currentUser.isBlocked
                   ? "Ваш аккаунт заблокирован. Публикация в общем чате недоступна."
@@ -2633,8 +2747,8 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-slate-500">
                     {feedFilters.profession
-                      ? "Сортировка: сначала основная профессия, затем доп., затем Pro и рейтинг"
-                      : "Сортировка: Pro выше, затем рейтинг"}
+                      ? "Сортировка: сначала основная профессия, затем доп., затем тариф и рейтинг"
+                      : "Сортировка: Pro+ выше Pro, затем Free и рейтинг"}
                   </p>
                 </div>
                 <div className="space-y-2 p-3">
@@ -2648,9 +2762,11 @@ export default function Home() {
                           return aSlot - bSlot;
                         }
                       }
-                      const aPro = Number(isActiveProProfile(a));
-                      const bPro = Number(isActiveProProfile(b));
-                      if (bPro !== aPro) return bPro - aPro;
+                      const tierRank = comparePlanRank(
+                        getEffectiveSubscriptionPlan(a),
+                        getEffectiveSubscriptionPlan(b),
+                      );
+                      if (tierRank !== 0) return tierRank;
                       return (b.rating_count ?? 0) - (a.rating_count ?? 0);
                     })
                     .map((p) => {
@@ -2870,7 +2986,7 @@ export default function Home() {
           <div
             ref={chatWindowRef}
             data-chat-window
-            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,4.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,4.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
+            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,3.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
             style={
               isMobileLayout
                 ? {
@@ -3018,29 +3134,45 @@ export default function Home() {
                               />
                             )}
                             <div
-                              className={`mt-1 flex items-center justify-between gap-2 text-xs ${
+                              className={`mt-1 flex flex-col items-start gap-1 text-xs ${
                                 isOwn
                                   ? "text-white/80"
                                   : "text-slate-400"
                               }`}
                             >
-                              <span className="truncate">
+                              <span>
                                 {m.created_at
                                   ? formatDateTime(m.created_at)
                                   : ""}
                                 {m.edited_at ? " · изменено" : ""}
                               </span>
-                              {isOwn && !isAppeal && !isProfileShare ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingMessageId(m.id);
-                                    setChatInput(m.content ?? "");
-                                  }}
-                                  className="shrink-0 underline-offset-2 hover:underline"
-                                >
-                                  Изменить
-                                </button>
+                              {isOwn && !isAppeal ? (
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  {!isProfileShare ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingMessageId(m.id);
+                                        setChatInput(m.content ?? "");
+                                      }}
+                                      className="underline-offset-2 hover:underline"
+                                    >
+                                      Изменить
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void handleDeleteChatMessage(m);
+                                    }}
+                                    disabled={deletingMessageId === m.id}
+                                    className="underline-offset-2 hover:underline disabled:opacity-60"
+                                  >
+                                    {deletingMessageId === m.id
+                                      ? "Удаляем…"
+                                      : "Удалить"}
+                                  </button>
+                                </div>
                               ) : null}
                             </div>
                           </div>
@@ -3279,6 +3411,8 @@ export default function Home() {
           message={paymentToast.message}
           actionLabel={paymentToast.actionLabel}
           onAction={paymentToast.onAction}
+          durationMs={paymentToast.durationMs}
+          showCloseButton={paymentToast.showCloseButton}
           onDismiss={() => setPaymentToast(null)}
         />
       ) : null}
