@@ -9,16 +9,28 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${VPS_HOST:-root@186.246.2.104}"
+BODY="${ROOT}/scripts/vps/remote-fix-auth-email.sh"
 EXTRA_ARGS="${*:-}"
 
 cd "$ROOT"
 
-REMOTE="cd /root/zeip/my-app && git pull --ff-only && bash scripts/vps/fix-auth-email-on-vps.sh ${EXTRA_ARGS} && bash scripts/vps/diagnose-auth-email.sh test@gmail.com"
+run_ssh() {
+  if [[ -n "${EXTRA_ARGS}" ]]; then
+    # shellcheck disable=SC2086
+    ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$HOST" "bash -s -- ${EXTRA_ARGS}" < "$BODY"
+  else
+    ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$HOST" "bash -s" < "$BODY"
+  fi
+}
 
 if [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v expect >/dev/null 2>&1; then
   export VPS_SSH_PASSWORD
-  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" bash -c "$REMOTE"
+  # shellcheck disable=SC2086
+  expect "$ROOT/scripts/vps/ssh-with-password.expect" "$HOST" "$BODY" ${EXTRA_ARGS}
+elif [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
+  export SSHPASS="$VPS_SSH_PASSWORD"
+  run_ssh
 else
-  echo "=== SSH to VPS (enter password once) ==="
-  ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$HOST" bash -c "$REMOTE"
+  echo "=== SSH to VPS (enter root password once) ==="
+  run_ssh
 fi

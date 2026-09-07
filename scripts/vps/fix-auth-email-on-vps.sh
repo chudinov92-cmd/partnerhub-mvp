@@ -8,7 +8,16 @@
 set -euo pipefail
 
 STACK_DIR="${STACK_DIR:-/root/zeip/supabase-stack}"
-APP_DIR="${APP_DIR:-/root/zeip/my-app}"
+APP_DIR="${APP_DIR:-}"
+if [[ -z "$APP_DIR" ]]; then
+  for d in /root/zeip/my-app /root/zeip/app; do
+    if [[ -d "$d/.git" ]] || [[ -d "$d/deploy/timeweb/supabase/email-templates" ]]; then
+      APP_DIR="$d"
+      break
+    fi
+  done
+  APP_DIR="${APP_DIR:-/root/zeip/my-app}"
+fi
 TEMPLATES_SRC="${APP_DIR}/deploy/timeweb/supabase/email-templates"
 USE_587=0
 
