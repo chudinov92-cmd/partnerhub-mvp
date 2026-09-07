@@ -23,14 +23,19 @@ fi
 
 ANON=$(grep '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' "$ENV_FILE" | cut -d= -f2- | tr -d '"')
 URL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' "$ENV_FILE" | cut -d= -f2- | tr -d '"')
+REDIRECT="$(python3 - <<'PY'
+import urllib.parse
+print(urllib.parse.quote("https://zeip.ru/auth/reset-password", safe=""))
+PY
+)"
 
 if [[ -z "$ANON" || -z "$URL" ]]; then
   echo "Error: missing NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_URL in $ENV_FILE"
   exit 1
 fi
 
-echo "POST ${URL}/auth/v1/recover → ${EMAIL}"
-curl -sS -w "\nHTTP %{http_code}\n" -X POST "${URL}/auth/v1/recover" \
+echo "POST ${URL}/auth/v1/recover?redirect_to=${REDIRECT} → ${EMAIL}"
+curl -sS -w "\nHTTP %{http_code}\n" -X POST "${URL}/auth/v1/recover?redirect_to=${REDIRECT}" \
   -H "apikey: ${ANON}" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${EMAIL}\"}"
