@@ -45,7 +45,8 @@ if grep -q '^SMTP_PASS=fake_mail_password$' "$ENV_FILE"; then
 fi
 
 echo "Current SMTP-related lines:"
-grep -n '^SMTP_\|^ENABLE_EMAIL_AUTOCONFIRM=' "$ENV_FILE" || true
+grep -n '^SMTP_\|^ENABLE_EMAIL_AUTOCONFIRM=' "$ENV_FILE" \
+  | sed 's/^\([0-9]*:SMTP_PASS=\).*/\1***/' || true
 
 if [[ "$missing" -eq 1 ]]; then
   echo "SMTP env check: FAILED"

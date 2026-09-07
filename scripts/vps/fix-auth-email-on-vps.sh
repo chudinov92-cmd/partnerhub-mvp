@@ -34,11 +34,10 @@ ls -la volumes/templates/
 ensure_env_kv() {
   local key="$1"
   local value="$2"
-  if grep -q "^${key}=" .env 2>/dev/null; then
-    sed -i "s|^${key}=.*|${key}=${value}|" .env
-  else
-    echo "${key}=${value}" >> .env
-  fi
+  # Remove all duplicates, keep single canonical line
+  grep -v "^${key}=" .env > .env.tmp 2>/dev/null || true
+  mv .env.tmp .env
+  echo "${key}=${value}" >> .env
 }
 
 echo "=== Patch .env (mailer + external hosts) ==="

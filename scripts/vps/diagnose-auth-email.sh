@@ -53,11 +53,16 @@ echo ""
 echo "=== templates-server from auth container ==="
 for tpl in recovery.html confirm.html; do
   echo "--- http://templates-server/${tpl} ---"
-  if docker exec supabase-auth wget -qO- --timeout=5 "http://templates-server/${tpl}" 2>/dev/null | head -3; then
+  tmp="/tmp/zeip-template-${tpl}"
+  if docker exec supabase-auth wget -qO "$tmp" --timeout=5 "http://templates-server/${tpl}" 2>/dev/null \
+    && [[ -s "$tmp" ]]; then
+    head -3 "$tmp"
     echo "(OK)"
+    rm -f "$tmp"
   else
     echo "FAIL: cannot fetch ${tpl} from auth container"
     echo "Fix: bash ${APP_DIR}/scripts/vps/fix-auth-email-on-vps.sh"
+    rm -f "$tmp"
   fi
 done
 
@@ -109,30 +114,22 @@ if [[ "$SMTP_PORT" == "587" ]]; then
   SWAKS_TLS_ARGS=(--tls)
 fi
 
-LOG="/tmp/zeip-swaks-$(date +%Y%m%d-%H%M%S).log"
+LOG="/tmp/zeip-swaks-latest.log"
 echo "Logging to ${LOG}"
 
-nohup swaks --to "$TEST_TO" \
+# Synchronous with timeout — survives better than nohup over SSH one-liner
+if timeout 90 swaks --to "$TEST_TO" \
   --from "$FROM" \
   --server "$SMTP_HOST" --port "$SMTP_PORT" \
   --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
   "${SWAKS_TLS_ARGS[@]}" \
   --header "Subject: Zeip SMTP test $(date +%H:%M)" \
   --body "Test from $(hostname) at $(date -Iseconds). Check Inbox, Spam, Promotions." \
-  > "$LOG" 2>&1 &
-SWAKS_PID=$!
-
-for _ in $(seq 1 30); do
-  if ! kill -0 "$SWAKS_PID" 2>/dev/null; then
-    break
-  fi
-  sleep 1
-done
-
-if kill -0 "$SWAKS_PID" 2>/dev/null; then
-  echo "swaks still running (pid ${SWAKS_PID}). Check later: cat ${LOG}"
-else
+  > "$LOG" 2>&1; then
   cat "$LOG"
+else
+  echo "swaks exited non-zero or timed out. Log:"
+  cat "$LOG" 2>/dev/null || true
 fi
 
 echo ""
