@@ -9,6 +9,7 @@ import {
   sendTransactionalEmail,
   verifyInternalEmailSecret,
 } from "@/lib/emailServer";
+import { SUPPORT_AUTH_USER_ID } from "@/lib/support";
 
 type CityGrowthBatch = {
   city: string;
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
       .select("id, auth_user_id, created_at, last_city_growth_email_at")
       .eq("city", city)
       .not("auth_user_id", "is", null)
+      .neq("auth_user_id", SUPPORT_AUTH_USER_ID)
       .lte("created_at", weekAgoIso);
 
     if (recipientsErr) {

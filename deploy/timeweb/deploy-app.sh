@@ -58,6 +58,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-08-19-subscription-payments-period.
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-mrr-snapshots.sql" "mrr-snapshots"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-profile-share-codes.sql" "profile-share-codes"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-04-delete-own-messages.sql" "delete-own-messages"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-07-exclude-support-from-email.sql" "exclude-support-from-email"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"
