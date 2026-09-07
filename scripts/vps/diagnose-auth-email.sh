@@ -50,19 +50,64 @@ echo "=== Template files on disk ==="
 ls -la volumes/templates/ 2>/dev/null || echo "volumes/templates/ missing"
 
 echo ""
-echo "=== templates-server from auth container ==="
+echo "=== Docker networks (auth vs templates-server) ==="
+AUTH_NETS="$(docker inspect supabase-auth --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null || true)"
+TPL_CID="$(docker compose ps -q templates-server 2>/dev/null || true)"
+TPL_NETS=""
+if [[ -n "$TPL_CID" ]]; then
+  TPL_NETS="$(docker inspect "$TPL_CID" --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null || true)"
+fi
+echo "auth: ${AUTH_NETS:-unknown}"
+echo "templates-server: ${TPL_NETS:-not running}"
+
+fetch_template() {
+  local tpl="$1"
+  local url="http://templates-server/${tpl}"
+  local body=""
+
+  # GoTrue image often has no wget/curl — use sidecar on auth network namespace
+  body="$(docker run --rm --network "container:supabase-auth" curlimages/curl:8.5.0 \
+    -sf --max-time 8 "$url" 2>/dev/null || true)"
+  if [[ -n "$body" ]]; then
+    printf '%s' "$body"
+    return 0
+  fi
+
+  # Fallback: first network of auth container
+  local net
+  net="$(docker inspect supabase-auth --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' 2>/dev/null | head -1)"
+  if [[ -n "$net" ]]; then
+    body="$(docker run --rm --network "$net" curlimages/curl:8.5.0 \
+      -sf --max-time 8 "$url" 2>/dev/null || true)"
+    if [[ -n "$body" ]]; then
+      printf '%s' "$body"
+      return 0
+    fi
+  fi
+
+  # Local check on templates-server itself
+  if [[ -n "$TPL_CID" ]]; then
+    body="$(docker exec "$TPL_CID" wget -qO- --timeout=5 "http://127.0.0.1/${tpl}" 2>/dev/null || true)"
+    if [[ -n "$body" ]]; then
+      printf '%s' "$body"
+      echo "(templates-server local OK; auth may not reach templates-server — check compose networks)" >&2
+      return 0
+    fi
+  fi
+  return 1
+}
+
+echo ""
+echo "=== templates-server HTTP (same network as auth) ==="
 for tpl in recovery.html confirm.html; do
   echo "--- http://templates-server/${tpl} ---"
-  tmp="/tmp/zeip-template-${tpl}"
-  if docker exec supabase-auth wget -qO "$tmp" --timeout=5 "http://templates-server/${tpl}" 2>/dev/null \
-    && [[ -s "$tmp" ]]; then
-    head -3 "$tmp"
+  body="$(fetch_template "$tpl" || true)"
+  if [[ -n "$body" ]]; then
+    printf '%s\n' "$body" | head -3
     echo "(OK)"
-    rm -f "$tmp"
   else
-    echo "FAIL: cannot fetch ${tpl} from auth container"
+    echo "FAIL: auth network cannot reach ${tpl}"
     echo "Fix: bash ${APP_DIR}/scripts/vps/fix-auth-email-on-vps.sh"
-    rm -f "$tmp"
   fi
 done
 
@@ -82,67 +127,66 @@ if command -v openssl >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "=== swaks test to ${TEST_TO} (nohup, SSH-safe) ==="
-if ! command -v swaks >/dev/null 2>&1; then
-  echo "Installing swaks..."
-  apt-get update -qq && apt-get install -y swaks
-fi
-
-SMTP_HOST=$(grep '^GOTRUE_SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-if [[ -z "$SMTP_HOST" ]]; then
-  SMTP_HOST=$(grep '^SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
-fi
-SMTP_PORT=$(grep '^GOTRUE_SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-if [[ -z "$SMTP_PORT" ]]; then
-  SMTP_PORT=$(grep '^SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
-fi
-SMTP_USER=$(grep '^GOTRUE_SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-if [[ -z "$SMTP_USER" ]]; then
-  SMTP_USER=$(grep '^SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
-fi
-SMTP_PASS=$(grep '^GOTRUE_SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-if [[ -z "$SMTP_PASS" ]]; then
-  SMTP_PASS=$(grep '^SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
-fi
-FROM=$(grep '^GOTRUE_SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
-if [[ -z "$FROM" ]]; then
-  FROM=$(grep '^SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
-fi
-
-SWAKS_TLS_ARGS=(--tls-on-connect)
-if [[ "$SMTP_PORT" == "587" ]]; then
-  SWAKS_TLS_ARGS=(--tls)
-fi
-
-LOG="/tmp/zeip-swaks-latest.log"
-echo "Logging to ${LOG}"
-
-# Synchronous with timeout — survives better than nohup over SSH one-liner
-if timeout 90 swaks --to "$TEST_TO" \
-  --from "$FROM" \
-  --server "$SMTP_HOST" --port "$SMTP_PORT" \
-  --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
-  "${SWAKS_TLS_ARGS[@]}" \
-  --header "Subject: Zeip SMTP test $(date +%H:%M)" \
-  --body "Test from $(hostname) at $(date -Iseconds). Check Inbox, Spam, Promotions." \
-  > "$LOG" 2>&1; then
-  cat "$LOG"
+echo "=== swaks test to ${TEST_TO} (background — SSH-safe) ==="
+if [[ "${ZEIP_SKIP_SWAKS:-}" == "1" ]]; then
+  echo "Skipped (ZEIP_SKIP_SWAKS=1). Run: bash ${APP_DIR}/scripts/vps/run-swaks-on-vps.sh ${TEST_TO}"
 else
-  echo "swaks exited non-zero or timed out. Log:"
-  cat "$LOG" 2>/dev/null || true
-fi
+  if ! command -v swaks >/dev/null 2>&1; then
+    echo "Installing swaks..."
+    apt-get update -qq && apt-get install -y swaks
+  fi
 
-echo ""
-if grep -q '250 ' "$LOG" 2>/dev/null; then
-  echo "swaks: 250 OK — SMTP accepted. If inbox empty → spam or provider reputation."
-elif grep -qiE '535|authentication' "$LOG" 2>/dev/null; then
-  echo "swaks: auth failed — update SMTP password in Timeweb panel + .env, then:"
-  echo "  bash ${APP_DIR}/scripts/vps/fix-auth-email-on-vps.sh"
-elif grep -qiE '550|554|421' "$LOG" 2>/dev/null; then
-  echo "swaks: server rejected — check Timeweb mailbox noreply@zeip.ru"
-else
-  echo "swaks: inconclusive — cat ${LOG}"
-  echo "If timeout on 465, try port 587: bash ${APP_DIR}/scripts/vps/fix-auth-email-on-vps.sh --smtp-587"
+  SMTP_HOST=$(grep '^GOTRUE_SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
+  if [[ -z "$SMTP_HOST" ]]; then
+    SMTP_HOST=$(grep '^SMTP_HOST=' "$ENV_FILE" | cut -d= -f2-)
+  fi
+  SMTP_PORT=$(grep '^GOTRUE_SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
+  if [[ -z "$SMTP_PORT" ]]; then
+    SMTP_PORT=$(grep '^SMTP_PORT=' "$ENV_FILE" | cut -d= -f2-)
+  fi
+  SMTP_USER=$(grep '^GOTRUE_SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
+  if [[ -z "$SMTP_USER" ]]; then
+    SMTP_USER=$(grep '^SMTP_USER=' "$ENV_FILE" | cut -d= -f2-)
+  fi
+  SMTP_PASS=$(grep '^GOTRUE_SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
+  if [[ -z "$SMTP_PASS" ]]; then
+    SMTP_PASS=$(grep '^SMTP_PASS=' "$ENV_FILE" | cut -d= -f2-)
+  fi
+  FROM=$(grep '^GOTRUE_SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
+  if [[ -z "$FROM" ]]; then
+    FROM=$(grep '^SMTP_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)
+  fi
+
+  SWAKS_TLS_ARGS=(--tls-on-connect)
+  if [[ "$SMTP_PORT" == "587" ]]; then
+    SWAKS_TLS_ARGS=(--tls)
+  fi
+
+  LOG="/tmp/zeip-swaks-latest.log"
+  echo "Logging to ${LOG} (detached; SSH may close before swaks finishes)"
+
+  nohup bash -c "timeout 90 swaks --to '${TEST_TO}' \
+    --from '${FROM}' \
+    --server '${SMTP_HOST}' --port '${SMTP_PORT}' \
+    --auth LOGIN --auth-user '${SMTP_USER}' --auth-password '${SMTP_PASS}' \
+    ${SWAKS_TLS_ARGS[*]} \
+    --header 'Subject: Zeip SMTP test $(date +%H:%M)' \
+    --body 'Test from $(hostname)' \
+    > '${LOG}' 2>&1" </dev/null >/dev/null 2>&1 &
+
+  echo "swaks pid $! — wait 20s, then on VPS: cat ${LOG}"
+  sleep 3
+  if [[ -s "$LOG" ]]; then
+    tail -20 "$LOG"
+  fi
+
+  if grep -q '250 ' "$LOG" 2>/dev/null; then
+    echo "swaks: 250 OK — SMTP accepted."
+  elif [[ -s "$LOG" ]]; then
+    echo "swaks: see full log — cat ${LOG}"
+  else
+    echo "swaks: still running or SSH closed early — reconnect and: cat ${LOG}"
+  fi
 fi
 
 echo ""

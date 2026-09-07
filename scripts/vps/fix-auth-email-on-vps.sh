@@ -132,9 +132,11 @@ docker compose config -q
 docker compose up -d --force-recreate --no-deps templates-server auth
 docker compose restart kong
 
-echo "=== Verify templates from auth ==="
+echo "=== Verify templates from auth network ==="
 sleep 3
-docker exec supabase-auth wget -qO- --timeout=5 http://templates-server/recovery.html | head -3
+docker run --rm --network "container:supabase-auth" curlimages/curl:8.5.0 \
+  -sf --max-time 8 http://templates-server/recovery.html | head -3 \
+  || echo "WARN: auth network cannot reach templates-server — check docker compose networks"
 
 echo ""
 echo "=== Auth mailer env ==="
