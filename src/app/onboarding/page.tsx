@@ -10,7 +10,9 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { authGetUser, authLocalSignOut } from "@/services/authService";
+import { profileTable, profileRpc } from "@/services/profileEditorService";
+import { upsertProfilePrivate, insertLocation, completeOnboarding, claimPioneerSlot } from "@/services/profileService";
 import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import {
   AUTH_OPERATION_TIMEOUT_MS,
@@ -19,7 +21,10 @@ import {
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
 import { DropdownSelect } from "@/components/DropdownSelect";
+import { MultiChoiceRow } from "@/components/MultiChoiceRow";
 import { PioneerModal } from "@/components/PioneerModal";
+import { QuizCompleteModal } from "@/components/QuizCompleteModal";
+import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
 import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
@@ -67,18 +72,6 @@ const CURRENT_STATUS_OPTIONS = [
   "Предприниматель",
   "Фрилансер",
 ] as const;
-
-const SEEKING_OPTIONS = [
-  { value: "ideas", label: "Идеи" },
-  { value: "project", label: "Проект(ы)" },
-  { value: "team", label: "Команду" },
-] as const;
-
-function toggleArrayItem(arr: string[], value: string): string[] {
-  return arr.includes(value)
-    ? arr.filter((v) => v !== value)
-    : [...arr, value];
-}
 
 const MAX_INTERESTED = 5;
 const DEFAULT_COUNTRY = "Россия";
@@ -159,43 +152,6 @@ function ChoiceChip({
   );
 }
 
-function MultiChoiceRow({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={
-        "flex min-h-12 w-full items-center gap-3 rounded-2xl border px-3.5 text-left text-sm font-medium transition " +
-        (selected
-          ? "border-[#009966] bg-[#009966]/10 text-slate-900"
-          : "border-slate-200 bg-white text-slate-700 active:bg-slate-50")
-      }
-    >
-      <span
-        className={
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] " +
-          (selected
-            ? "border-[#009966] bg-[#009966] text-white"
-            : "border-slate-300 bg-white text-transparent")
-        }
-        aria-hidden
-      >
-        ✓
-      </span>
-      {children}
-    </button>
-  );
-}
-
 function OnboardingShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-[#f6f8f7] bg-[radial-gradient(ellipse_80%_40%_at_50%_-10%,rgba(0,153,102,0.14),transparent)] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
@@ -270,6 +226,7 @@ export default function OnboardingPage() {
   const [interestedDraft, setInterestedDraft] = useState<string | null>(null);
   const [pioneerRemaining, setPioneerRemaining] = useState<number | null>(null);
   const [pioneerModalOpen, setPioneerModalOpen] = useState(false);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const coordsMovedRef = useRef(false);
 
   const interestedValues = useMemo(
@@ -299,20 +256,19 @@ export default function OnboardingPage() {
           data: { user },
           error: userErr,
         } = await withAuthTimeout(
-          supabase.auth.getUser(),
+          authGetUser(),
           "getUser",
           AUTH_OPERATION_TIMEOUT_MS,
         );
         if (userErr || !user) {
-          await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+          await authLocalSignOut().catch(() => undefined);
           if (!cancelled) {
             setError("Нет активной сессии. Зарегистрируйтесь заново.");
           }
           return;
         }
 
-        let { data: prof, error: profErr } = await supabase
-          .from("profiles")
+        let { data: prof, error: profErr } = await profileTable("profiles")
           .select(
             "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, onboarding_step, onboarding_completed",
           )
@@ -322,8 +278,7 @@ export default function OnboardingPage() {
         if (profErr) throw profErr;
 
         if (!prof) {
-          const { data: created, error: createErr } = await supabase
-            .from("profiles")
+          const { data: created, error: createErr } = await profileTable("profiles")
             .insert({
               auth_user_id: user.id,
               country: DEFAULT_COUNTRY,
@@ -334,7 +289,7 @@ export default function OnboardingPage() {
             )
             .single();
           if (createErr) {
-            await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+            await authLocalSignOut().catch(() => undefined);
             throw new Error(
               "Не удалось создать профиль. Сессия после удаления аккаунта недействительна — зарегистрируйтесь заново.",
             );
@@ -360,8 +315,7 @@ export default function OnboardingPage() {
         });
         setStep(initialStep);
 
-        const { data: privateRow } = await supabase
-          .from("profile_private")
+        const { data: privateRow } = await profileTable("profile_private")
           .select("last_name")
           .eq("profile_id", row.id)
           .maybeSingle();
@@ -369,8 +323,7 @@ export default function OnboardingPage() {
           setLastName(privateRow.last_name);
         }
 
-        const { data: loc } = await supabase
-          .from("locations")
+        const { data: loc } = await profileTable("locations")
           .select("lat, lng")
           .eq("user_id", row.id)
           .maybeSingle();
@@ -426,8 +379,7 @@ export default function OnboardingPage() {
   const persistStep = useCallback(
     async (nextStep: number, patch: Record<string, unknown>) => {
       if (!profile) return;
-      const { error: updateErr } = await supabase
-        .from("profiles")
+      const { error: updateErr } = await profileTable("profiles")
         .update({
           ...patch,
           onboarding_step: nextStep,
@@ -471,14 +423,11 @@ export default function OnboardingPage() {
 
     if (step === 0) {
       const trimmedLastName = (lastName ?? "").trim().slice(0, 25);
-      await supabase.from("profile_private").upsert(
-        {
-          profile_id: profile.id,
-          last_name: maskProfanity(trimmedLastName) || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "profile_id" },
-      );
+      await upsertProfilePrivate({
+        profile_id: profile.id,
+        last_name: maskProfanity(trimmedLastName) || null,
+        updated_at: new Date().toISOString(),
+      });
       await persistStep(step + 1, {
         full_name: maskProfanity(profile.full_name),
         age: profile.age,
@@ -525,15 +474,13 @@ export default function OnboardingPage() {
     }
 
     if (step === 3) {
-      const { data: existingLoc } = await supabase
-        .from("locations")
+      const { data: existingLoc } = await profileTable("locations")
         .select("id")
         .eq("user_id", profile.id)
         .maybeSingle();
 
       if (existingLoc?.id) {
-        const { error: locErr } = await supabase
-          .from("locations")
+        const { error: locErr } = await profileTable("locations")
           .update({
             lat: coords!.lat,
             lng: coords!.lng,
@@ -543,7 +490,7 @@ export default function OnboardingPage() {
           .eq("id", existingLoc.id);
         if (locErr) throw locErr;
       } else {
-        const { error: insertErr } = await supabase.from("locations").insert({
+        const { error: insertErr } = await insertLocation({
           user_id: profile.id,
           lat: coords!.lat,
           lng: coords!.lng,
@@ -553,14 +500,7 @@ export default function OnboardingPage() {
         if (insertErr) throw insertErr;
       }
 
-      const { error: completeErr } = await supabase
-        .from("profiles")
-        .update({
-          onboarding_completed: true,
-          onboarding_step: 4,
-          map_visible: true,
-        })
-        .eq("id", profile.id);
+      const { error: completeErr } = await completeOnboarding(profile.id);
       if (completeErr) throw completeErr;
       reachYandexMetrikaGoal("onboarding_step_4");
       reachYandexMetrikaGoal("onboarding_complete", {
@@ -570,10 +510,10 @@ export default function OnboardingPage() {
       const city = profile.city?.trim();
       let isPioneer = false;
       if (isPioneerPromoEnabled() && city) {
-        const { data: claimed, error: rpcErr } = await supabase.rpc(
-          "claim_pioneer_slot",
-          { p_city: city },
-        );
+        const { data: claimed, error: rpcErr } = await claimPioneerSlot({
+          p_profile_id: profile.id,
+          p_city: city,
+        });
         if (!rpcErr && claimed === true) {
           isPioneer = true;
         }
@@ -582,7 +522,7 @@ export default function OnboardingPage() {
       if (isPioneer) {
         setPioneerModalOpen(true);
       } else {
-        router.replace("/map");
+        setCompleteModalOpen(true);
       }
     }
   };
@@ -965,8 +905,9 @@ export default function OnboardingPage() {
           {step === 3 ? (
             <>
               <p className="text-sm leading-relaxed text-slate-600">
-                Кликните по карте, чтобы указать район. Точная точка скрыта для
-                других пользователей.
+                Кликните по карте, чтобы указать район. Ваши точные координаты
+                скрыты от других пользователей. Точка показывается произвольно в
+                радиусе 300 метров от указанной вами.
               </p>
               <LocationPicker
                 value={coords}
@@ -1012,6 +953,10 @@ export default function OnboardingPage() {
       <PioneerModal
         open={pioneerModalOpen}
         onClose={() => setPioneerModalOpen(false)}
+      />
+      <QuizCompleteModal
+        open={completeModalOpen}
+        onClose={() => setCompleteModalOpen(false)}
       />
     </>
   );

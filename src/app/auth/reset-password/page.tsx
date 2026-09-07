@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   classifyAuthEmailCallback,
   clearAuthCallbackFromUrl,
-  completeAuthEmailCallback,
   consumedOtpUserMessage,
   isConsumedOtpErrorText,
   isRecoveryEmailCallback,
@@ -16,7 +15,15 @@ import {
   markPasswordResetComplete,
 } from "@/lib/authRecovery";
 import { PasswordInput } from "@/components/PasswordInput";
-import { supabase } from "@/lib/supabaseClient";
+import {
+  authGetSession,
+  authOnAuthStateChange,
+  authRefreshSessionPublic,
+  authSignInWithPassword,
+  authUpdateUser,
+  authVerifyOtp,
+  completeAuthEmailCallbackWithParams,
+} from "@/services/authService";
 import type { Session } from "@supabase/supabase-js";
 
 function getAuthErrorMessage(err: unknown) {
@@ -91,7 +98,7 @@ export default function ResetPasswordPage() {
       rejectReset(null);
     };
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = authOnAuthStateChange(async (event, session) => {
       if (cancelled) return;
       if (event === "PASSWORD_RECOVERY") {
         allowReset();
@@ -111,8 +118,7 @@ export default function ResetPasswordPage() {
       const kind = classifyAuthEmailCallback(params);
 
       if (kind !== "none") {
-        const { error: callbackErr } = await completeAuthEmailCallback(
-          supabase,
+        const { error: callbackErr } = await completeAuthEmailCallbackWithParams(
           params,
         );
         if (cancelled) return;
@@ -123,7 +129,7 @@ export default function ResetPasswordPage() {
         }
         const {
           data: { session },
-        } = await supabase.auth.getSession();
+        } = await authGetSession();
         if (cancelled) return;
         if (
           isPasswordRecoverySession(session) ||
@@ -138,7 +144,7 @@ export default function ResetPasswordPage() {
 
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await authGetSession();
       applyExistingSession(session);
     };
 
@@ -164,7 +170,7 @@ export default function ResetPasswordPage() {
     }
     setOtpLoading(true);
     try {
-      const { error: otpErr } = await supabase.auth.verifyOtp({
+      const { error: otpErr } = await authVerifyOtp({
         email: otpEmail.trim(),
         token: otpCode.trim(),
         type: "recovery",
@@ -197,21 +203,21 @@ export default function ResetPasswordPage() {
     try {
       const {
         data: { session: sessionBefore },
-      } = await supabase.auth.getSession();
+      } = await authGetSession();
       const email = sessionBefore?.user?.email ?? null;
 
-      const { error: updErr } = await supabase.auth.updateUser({
+      const { error: updErr } = await authUpdateUser({
         password,
       });
       if (updErr) throw updErr;
 
-      await supabase.auth.refreshSession();
+      await authRefreshSessionPublic();
       const {
         data: { session: sessionAfterRefresh },
-      } = await supabase.auth.getSession();
+      } = await authGetSession();
 
       if (isPasswordRecoverySession(sessionAfterRefresh) && email) {
-        const { error: signInErr } = await supabase.auth.signInWithPassword({
+        const { error: signInErr } = await authSignInWithPassword({
           email,
           password,
         });

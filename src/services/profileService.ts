@@ -116,7 +116,7 @@ export async function fetchProfileForMapById(id: string): Promise<Profile | null
 }
 
 const PROFILE_MAP_SELECT =
-  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, rating_avg, rating_count, is_pro, pro_expires_at, subscription_plan";
+  "id, full_name, age, city, industry, subindustry, role_title, last_seen_at, content_updated_at, skills, resources, current_status, experience_years, interested_in, seeking, rating_avg, rating_count, is_pro, pro_expires_at, subscription_plan";
 
 export type CurrentProfileRow = {
   id: string;
@@ -370,4 +370,103 @@ export async function insertProfileLike(
     liked_profile_id: likedProfileId,
   });
   if (error) throw error;
+}
+
+export async function resolveProfileShareCode(code: string): Promise<string | null> {
+  const { data, error } = await supabasePublic.rpc("resolve_profile_share_code", {
+    p_code: code,
+  });
+  if (error || data == null) return null;
+  return String(data);
+}
+
+export async function upsertProfilePrivate(row: {
+  profile_id: string;
+  last_name: string | null;
+  updated_at: string;
+}) {
+  return supabase.from("profile_private").upsert(row, { onConflict: "profile_id" });
+}
+
+export async function insertLocation(row: {
+  user_id: string;
+  lat: number;
+  lng: number;
+  city: string | null;
+  is_active: boolean;
+}) {
+  return supabase.from("locations").insert(row);
+}
+
+export async function claimPioneerSlot(params: {
+  p_profile_id: string;
+  p_city: string;
+}) {
+  return supabase.rpc("claim_pioneer_slot", params);
+}
+
+export async function completeOnboarding(profileId: string) {
+  return supabase
+    .from("profiles")
+    .update({
+      onboarding_completed: true,
+      onboarding_step: 4,
+      map_visible: true,
+    })
+    .eq("id", profileId);
+}
+
+export async function deleteProfileWork(profileId: string) {
+  return supabase.from("profile_work").delete().eq("profile_id", profileId);
+}
+
+export async function insertProfileWork(
+  rows: Record<string, unknown>[],
+) {
+  return supabase.from("profile_work").insert(rows);
+}
+
+export async function fetchProfileMetaByAuthUserId(authUserId: string) {
+  return supabase
+    .from("profiles")
+    .select("id, onboarding_completed")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+}
+
+export async function fetchPublicProfileById(profileId: string) {
+  const primary = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, seeking, rating_count, deleted_at",
+    )
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (!primary.error) return primary;
+
+  const msg = String(primary.error.message ?? "");
+  if (!/deleted_at|column/i.test(msg)) {
+    return primary;
+  }
+
+  return supabase
+    .from("profiles")
+    .select(
+      "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, seeking, rating_count",
+    )
+    .eq("id", profileId)
+    .maybeSingle();
+}
+
+export async function checkProfileContact(
+  ownerId: string,
+  contactProfileId: string,
+) {
+  return supabase
+    .from("profile_contacts")
+    .select("contact_profile_id")
+    .eq("owner_id", ownerId)
+    .eq("contact_profile_id", contactProfileId)
+    .maybeSingle();
 }

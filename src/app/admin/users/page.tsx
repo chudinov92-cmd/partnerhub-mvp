@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type AdminUserRow = {
@@ -36,8 +36,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await supabase
-        .from("profiles")
+      const res = await adminFrom("profiles")
         .select("id, full_name, city, role_title, rating_count, last_seen_at, is_blocked")
         .order("full_name", { ascending: true })
         .limit(500);

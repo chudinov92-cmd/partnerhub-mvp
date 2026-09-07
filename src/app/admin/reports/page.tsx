@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type ReportStatus = "new" | "in_review" | "resolved" | "rejected";
@@ -33,8 +33,7 @@ export default function AdminReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await supabase
-        .from("abuse_reports")
+      const res = await adminFrom("abuse_reports")
         .select(
           "id, created_at, reporter_profile_id, target_type, target_id, category, comment, status, resolution, assigned_to, resolved_at",
         )
@@ -86,19 +85,18 @@ export default function AdminReportsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const { error: updErr } = await supabase
-        .from("abuse_reports")
+      const { error: updErr } = await adminFrom("abuse_reports")
         .update(patch)
         .eq("id", id);
       if (updErr) throw updErr;
 
       setRows((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as any : x)));
-      await supabase.from("abuse_report_events").insert({
+      await adminFrom("abuse_report_events").insert({
         report_id: id,
         action: eventAction,
         payload,
       });
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: `reports.${eventAction}`,
         target_type: "abuse_report",
         target_id: id,

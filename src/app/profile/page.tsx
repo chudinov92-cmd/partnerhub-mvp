@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { supabase } from "@/lib/supabaseClient";
+import { profileTable } from "@/services/profileEditorService";
+import { upsertProfilePrivate, insertLocation, deleteProfileWork, insertProfileWork } from "@/services/profileService";
 import { authGetUser } from "@/services/authService";
 import {
   OTHER_PROFESSION_LABEL,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/professionCatalog";
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { CityDropdown } from "@/components/CityDropdown";
+import { MultiChoiceRow } from "@/components/MultiChoiceRow";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
 import { maskProfanity } from "@/lib/profanity";
 import {
@@ -26,6 +28,7 @@ import {
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
 import { CITY_VIEWS } from "@/data/cityMapViews";
+import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
 import { isActiveProProfile } from "@/services/subscriptionService";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
@@ -260,6 +263,7 @@ type Profile = {
   resources: string | null;
   can_help_with: string | null; // legacy in DB (not shown in UI)
   interested_in: string | null;
+  seeking: string[];
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
 };
@@ -508,10 +512,9 @@ export default function ProfilePage() {
           return;
         }
 
-        let { data: profData, error: pErr } = await supabase
-          .from("profiles")
+        let { data: profData, error: pErr } = await profileTable("profiles")
           .select(
-            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, is_pro, pro_expires_at",
+            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -524,14 +527,13 @@ export default function ProfilePage() {
         }
 
         if (!profData) {
-          const { data: created, error: cErr } = await supabase
-            .from("profiles")
+          const { data: created, error: cErr } = await profileTable("profiles")
             .insert({
               auth_user_id: user.id,
               country: DEFAULT_COUNTRY,
             })
             .select(
-              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, is_pro, pro_expires_at",
+              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at",
             )
             .single();
 
@@ -548,11 +550,11 @@ export default function ProfilePage() {
         const prof = {
           ...(profData as Profile),
           country: (profData as Profile).country?.trim() || DEFAULT_COUNTRY,
+          seeking: (profData as Profile).seeking ?? [],
         };
         setProfile(prof);
 
-        const { data: privateRow, error: privateLoadError } = await supabase
-          .from("profile_private")
+        const { data: privateRow, error: privateLoadError } = await profileTable("profile_private")
           .select("last_name")
           .eq("profile_id", prof.id)
           .maybeSingle();
@@ -570,16 +572,14 @@ export default function ProfilePage() {
           subindustryRows,
         ] = await Promise.all([
           loadProfessionCatalog().catch(() => [] as ProfessionCatalogRow[]),
-          supabase
-            .from("profile_work")
+          profileTable("profile_work")
             .select(
               "id, role_title, industry, industry_other, subindustry, experience_years, sort_order",
             )
             .eq("profile_id", prof.id)
             .order("sort_order", { ascending: true })
             .order("created_at", { ascending: true }),
-          supabase
-            .from("locations")
+          profileTable("locations")
             .select("id, user_id, lat, lng, city")
             .eq("user_id", prof.id)
             .maybeSingle(),
@@ -778,8 +778,7 @@ export default function ProfilePage() {
       }
 
       // обновляем профиль
-      const { error: updateError } = await supabase
-        .from("profiles")
+      const { error: updateError } = await profileTable("profiles")
         .update({
           full_name: maskProfanity(profile.full_name),
           age: profile.age,
@@ -800,6 +799,7 @@ export default function ProfilePage() {
           looking_for: maskProfanity(profile.looking_for),
           resources: maskProfanity(profile.resources),
           interested_in: serializeInterestedProfessions(interestedProfessionValues),
+          seeking: profile.seeking ?? [],
         })
         .eq("id", profile.id);
 
@@ -807,19 +807,16 @@ export default function ProfilePage() {
 
       const trimmedLastName = (lastName ?? "").trim().slice(0, 25);
       const maskedLastName = maskProfanity(trimmedLastName) ?? null;
-      const { error: privateError } = await supabase.from("profile_private").upsert(
-        {
-          profile_id: profile.id,
-          last_name: maskedLastName || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "profile_id" },
-      );
+      const { error: privateError } = await upsertProfilePrivate({
+        profile_id: profile.id,
+        last_name: maskedLastName || null,
+        updated_at: new Date().toISOString(),
+      });
       if (privateError) throw privateError;
 
       // Sync repeating work blocks to DB (replace-all strategy)
       try {
-        await supabase.from("profile_work").delete().eq("profile_id", profile.id);
+        await deleteProfileWork(profile.id);
         const payload = workBlocks
           .filter((b) => {
             const hasRole = (b.role_title ?? "").trim().length > 0;
@@ -839,7 +836,7 @@ export default function ProfilePage() {
             sort_order: index,
           }));
         if (payload.length > 0) {
-          await supabase.from("profile_work").insert(payload);
+          await insertProfileWork(payload);
         }
       } catch {
         // best-effort: do not block profile save
@@ -847,8 +844,7 @@ export default function ProfilePage() {
 
       // обновляем / создаём локацию (is_active следует за map_visible)
       if (coords) {
-        const { data: visibilityRow } = await supabase
-          .from("profiles")
+        const { data: visibilityRow } = await profileTable("profiles")
           .select("map_visible")
           .eq("id", profile.id)
           .maybeSingle();
@@ -858,8 +854,7 @@ export default function ProfilePage() {
         const mapVisible = mapVisibleSetting;
 
         if (location) {
-          const { error: locErr } = await supabase
-            .from("locations")
+          const { error: locErr } = await profileTable("locations")
             .update({
               lat: coords.lat,
               lng: coords.lng,
@@ -870,7 +865,7 @@ export default function ProfilePage() {
 
           if (locErr) throw locErr;
         } else {
-          const { error: insertErr } = await supabase.from("locations").insert({
+          const { error: insertErr } = await insertLocation({
             user_id: profile.id, // profiles.id
             lat: coords.lat,
             lng: coords.lng,
@@ -1499,6 +1494,28 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-800">
+                Ищу
+              </label>
+              <div className="grid gap-2">
+                {SEEKING_OPTIONS.map(({ value, label }) => (
+                  <MultiChoiceRow
+                    key={value}
+                    selected={(profile.seeking ?? []).includes(value)}
+                    onClick={() =>
+                      setProfile({
+                        ...profile,
+                        seeking: toggleArrayItem(profile.seeking ?? [], value),
+                      })
+                    }
+                  >
+                    {label}
+                  </MultiChoiceRow>
+                ))}
+              </div>
+            </div>
+
             {/* О себе */}
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">

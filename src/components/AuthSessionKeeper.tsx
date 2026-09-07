@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import {
+  authGetSession,
   authOnAuthStateChange,
   scheduleProactiveAuthRefresh,
   stopProactiveAuthRefresh,
 } from "@/services/authService";
-import { supabase } from "@/lib/supabaseClient";
 
 /**
  * Глобальный keep-alive сессии: проактивный refresh до истечения access token.
@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabaseClient";
  */
 export function AuthSessionKeeper() {
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => {
+    void authGetSession().then(({ data }) => {
       scheduleProactiveAuthRefresh(data.session);
     });
 

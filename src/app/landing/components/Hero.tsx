@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { ButtonLink } from "@/app/landing/components/Button";
-import { isPaidGateMode } from "@/lib/accessMode";
 import {
   LANDING_GUEST_CTA,
   resolveLandingHeroCta,
   type LandingHeroCta,
 } from "@/lib/authEntryPath";
-import { supabase } from "@/lib/supabaseClient";
 import {
   AUTH_OPERATION_TIMEOUT_MS,
+  authGetUser,
+  authLocalSignOut,
   withAuthTimeout,
 } from "@/services/authService";
 
@@ -34,7 +34,7 @@ export function Hero({ assets }: HeroProps) {
           data: { user },
           error,
         } = await withAuthTimeout(
-          supabase.auth.getUser(),
+          authGetUser(),
           "getUser(hero)",
           AUTH_OPERATION_TIMEOUT_MS,
         );
@@ -42,7 +42,7 @@ export function Hero({ assets }: HeroProps) {
 
         if (error || !user) {
           if (error) {
-            await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+            await authLocalSignOut().catch(() => undefined);
           }
           setCta(LANDING_GUEST_CTA);
           return;
@@ -52,7 +52,7 @@ export function Hero({ assets }: HeroProps) {
         if (cancelled) return;
 
         if (next.signOutLocal) {
-          await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+          await authLocalSignOut().catch(() => undefined);
         }
         setCta({
           href: next.href,
@@ -80,12 +80,6 @@ export function Hero({ assets }: HeroProps) {
           <p className="hero__subtitle">
             Один легко сдаётся. Найди тех, кто готов двигаться — и дело пойдёт.
           </p>
-
-          {isPaidGateMode() ? (
-            <p className="mt-3 text-sm text-slate-600">
-              Карту смотреть бесплатно · участие от 249 ₽ / 30 дней
-            </p>
-          ) : null}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <ButtonLink

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, supabaseAuthForms } from "@/lib/supabaseClient";
 
 export type AuthChangeCallback = Parameters<
   SupabaseClient["auth"]["onAuthStateChange"]
@@ -197,6 +197,126 @@ export async function authGetUser(): Promise<AuthGetUserResult> {
 export function authSignOut() {
   stopProactiveAuthRefresh();
   return supabase.auth.signOut();
+}
+
+export function authLocalSignOut() {
+  return supabase.auth.signOut({ scope: "local" });
+}
+
+export function authGetSession() {
+  return withAuthTimeout(supabase.auth.getSession(), "getSession");
+}
+
+export function authUpdateUser(
+  attributes: Parameters<SupabaseClient["auth"]["updateUser"]>[0],
+  options?: Parameters<SupabaseClient["auth"]["updateUser"]>[1],
+) {
+  return withAuthTimeout(
+    supabase.auth.updateUser(attributes, options),
+    "updateUser",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authSignInWithPassword(credentials: {
+  email: string;
+  password: string;
+}) {
+  return withAuthTimeout(
+    supabase.auth.signInWithPassword(credentials),
+    "signInWithPassword",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authVerifyOtp(
+  params: Parameters<SupabaseClient["auth"]["verifyOtp"]>[0],
+) {
+  return withAuthTimeout(
+    supabase.auth.verifyOtp(params),
+    "verifyOtp",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authSetSession(session: {
+  access_token: string;
+  refresh_token: string;
+}) {
+  return withAuthTimeout(supabase.auth.setSession(session), "setSession");
+}
+
+export function authRefreshSessionPublic() {
+  return supabase.auth.refreshSession();
+}
+
+export function authFormsResend(
+  params: Parameters<typeof supabaseAuthForms.auth.resend>[0],
+) {
+  return withAuthTimeout(
+    supabaseAuthForms.auth.resend(params),
+    "authForms.resend",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authFormsResetPasswordForEmail(
+  email: string,
+  options: Parameters<typeof supabaseAuthForms.auth.resetPasswordForEmail>[1],
+) {
+  return withAuthTimeout(
+    supabaseAuthForms.auth.resetPasswordForEmail(email, options),
+    "authForms.resetPasswordForEmail",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authFormsSignUp(
+  params: Parameters<typeof supabaseAuthForms.auth.signUp>[0],
+) {
+  return withAuthTimeout(
+    supabaseAuthForms.auth.signUp(params),
+    "authForms.signUp",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authFormsOnAuthStateChange(cb: AuthChangeCallback) {
+  return supabaseAuthForms.auth.onAuthStateChange(cb);
+}
+
+export function authFormsSignInWithPassword(credentials: {
+  email: string;
+  password: string;
+}) {
+  return withAuthTimeout(
+    supabaseAuthForms.auth.signInWithPassword(credentials),
+    "authForms.signInWithPassword",
+    AUTH_FORM_TIMEOUT_MS,
+  );
+}
+
+export function authFormsGetSession() {
+  return supabaseAuthForms.auth.getSession();
+}
+
+export async function completeAuthEmailCallbackFromLocation(
+  search: string,
+  hash: string,
+) {
+  const { completeAuthEmailCallback, parseAuthEmailCallbackParams } =
+    await import("@/lib/authEmailCallback");
+  const params = parseAuthEmailCallbackParams(search, hash);
+  return completeAuthEmailCallback(supabase, params);
+}
+
+export async function completeAuthEmailCallbackWithParams(
+  params: Parameters<
+    Awaited<typeof import("@/lib/authEmailCallback")>["completeAuthEmailCallback"]
+  >[1],
+) {
+  const { completeAuthEmailCallback } = await import("@/lib/authEmailCallback");
+  return completeAuthEmailCallback(supabase, params);
 }
 
 export function authOnAuthStateChange(cb: AuthChangeCallback) {

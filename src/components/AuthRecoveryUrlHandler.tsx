@@ -7,7 +7,7 @@ import {
   isPasswordResetComplete,
   recoveryCallbackPendingInUrl,
 } from "@/lib/authRecovery";
-import { supabase } from "@/lib/supabaseClient";
+import { authOnAuthStateChange } from "@/services/authService";
 
 function resetPasswordTarget(): string {
   return `/auth/reset-password${window.location.search}${window.location.hash}`;
@@ -47,7 +47,7 @@ export function AuthRecoveryUrlHandler() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = authOnAuthStateChange(async (event, session) => {
       if (session && !isPasswordRecoverySession(session)) {
         clearPasswordResetComplete();
       }

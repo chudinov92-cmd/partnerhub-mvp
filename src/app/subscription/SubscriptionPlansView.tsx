@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authGetUser } from "@/services/authService";
-import { supabase } from "@/lib/supabaseClient";
+import { authGetSession, authGetUser } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import {
   getSubscriptionStatus,
@@ -105,7 +104,7 @@ type SubscriptionPlansViewProps = {
 async function persistAuthBeforePaymentRedirect(): Promise<void> {
   const {
     data: { session },
-  } = await supabase.auth.getSession();
+  } = await authGetSession();
   if (session?.access_token && session.refresh_token) {
     saveAuthSessionBackup({
       access_token: session.access_token,

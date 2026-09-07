@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type IndustryRow = { label: string; is_stock: boolean };
@@ -41,9 +41,9 @@ export default function AdminCatalogsPage() {
     setInfo(null);
     try {
       const [industriesRes, subindustriesRes, professionsRes] = await Promise.all([
-        supabase.from("industry_catalog").select("label,is_stock"),
-        supabase.from("subindustry_catalog").select("industry_label,label,is_stock"),
-        supabase.from("profession_catalog").select("label,is_stock"),
+        adminFrom("industry_catalog").select("label,is_stock"),
+        adminFrom("subindustry_catalog").select("industry_label,label,is_stock"),
+        adminFrom("profession_catalog").select("label,is_stock"),
       ]);
       if (industriesRes.error) throw industriesRes.error;
       if (subindustriesRes.error) throw subindustriesRes.error;
@@ -108,14 +108,13 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await supabase
-        .from("industry_catalog")
+      const { error: insErr } = await adminFrom("industry_catalog")
         .insert({ label: v });
       if (insErr) throw insErr;
       setNewIndustry("");
       await loadAll();
       setInfo("Отрасль добавлена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.industry.insert",
         target_type: "industry_catalog",
         target_id: v,
@@ -132,14 +131,13 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await supabase
-        .from("subindustry_catalog")
+      const { error: insErr } = await adminFrom("subindustry_catalog")
         .insert({ industry_label: ind, label: sub });
       if (insErr) throw insErr;
       setNewSubindustry("");
       await loadAll();
       setInfo("Подотрасль добавлена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.subindustry.insert",
         target_type: "subindustry_catalog",
         target_id: `${ind}::${sub}`,
@@ -155,14 +153,13 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await supabase
-        .from("profession_catalog")
+      const { error: insErr } = await adminFrom("profession_catalog")
         .insert({ label: v });
       if (insErr) throw insErr;
       setNewProfession("");
       await loadAll();
       setInfo("Профессия добавлена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.profession.insert",
         target_type: "profession_catalog",
         target_id: v,
@@ -176,15 +173,14 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      await supabase.from("subindustry_catalog").delete().eq("industry_label", label);
-      const { error: delErr } = await supabase
-        .from("industry_catalog")
+      await adminFrom("subindustry_catalog").delete().eq("industry_label", label);
+      const { error: delErr } = await adminFrom("industry_catalog")
         .delete()
         .eq("label", label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Отрасль удалена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.industry.delete",
         target_type: "industry_catalog",
         target_id: label,
@@ -198,15 +194,14 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await supabase
-        .from("subindustry_catalog")
+      const { error: delErr } = await adminFrom("subindustry_catalog")
         .delete()
         .eq("industry_label", industryLabel)
         .eq("label", label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Подотрасль удалена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.subindustry.delete",
         target_type: "subindustry_catalog",
         target_id: `${industryLabel}::${label}`,
@@ -220,14 +215,13 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await supabase
-        .from("profession_catalog")
+      const { error: delErr } = await adminFrom("profession_catalog")
         .delete()
         .eq("label", label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Профессия удалена.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "catalogs.profession.delete",
         target_type: "profession_catalog",
         target_id: label,

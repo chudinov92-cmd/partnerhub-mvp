@@ -18,7 +18,20 @@ import {
 } from "@/lib/authRecovery";
 import { resolveAuthedAppEntryPath } from "@/lib/authEntryPath";
 import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
-import { supabase, supabaseAuthForms } from "@/lib/supabaseClient";
+import {
+  authFormsGetSession,
+  authFormsOnAuthStateChange,
+  authFormsResend,
+  authFormsResetPasswordForEmail,
+  authFormsSignInWithPassword,
+  authFormsSignUp,
+  authGetSession,
+  authGetUser,
+  authLocalSignOut,
+  authOnAuthStateChange,
+  authSignInWithPassword,
+  completeAuthEmailCallbackFromLocation,
+} from "@/services/authService";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import { PasswordInput } from "@/components/PasswordInput";
 import {
@@ -387,7 +400,7 @@ export default function AuthPage() {
         window.location.hash,
       );
       const { error: callbackErr, redirectPath } =
-        await completeAuthEmailCallback(supabase, params);
+        await completeAuthEmailCallbackFromLocation(window.location.search, window.location.hash);
       if (cancelled) return;
       if (callbackErr) {
         setError(callbackErr);
@@ -425,13 +438,13 @@ export default function AuthPage() {
           data: { user },
           error,
         } = await withAuthTimeout(
-          supabase.auth.getUser(),
+          authGetUser(),
           "getUser",
           AUTH_OPERATION_TIMEOUT_MS,
         );
         if (error || !user) {
           await withAuthTimeout(
-            supabase.auth.signOut({ scope: "local" }),
+            authLocalSignOut(),
             "signOut(local)",
             AUTH_OPERATION_TIMEOUT_MS,
           ).catch(() => undefined);
@@ -440,7 +453,7 @@ export default function AuthPage() {
         const {
           data: { session },
         } = await withAuthTimeout(
-          supabase.auth.getSession(),
+          authGetSession(),
           "getSession",
           AUTH_OPERATION_TIMEOUT_MS,
         );
@@ -466,7 +479,7 @@ export default function AuthPage() {
     setInfo(null);
     try {
       const { error: resendErr } = await withAuthTimeout(
-        supabaseAuthForms.auth.resend({
+        authFormsResend({
           type: "signup",
           email: email.trim(),
           options: {
@@ -505,7 +518,7 @@ export default function AuthPage() {
       if (mode === "forgot") {
         const redirectTo = getEmailAuthResetPasswordUrl();
         const { error } = await withAuthTimeout(
-          supabaseAuthForms.auth.resetPasswordForEmail(email, {
+          authFormsResetPasswordForEmail(email, {
             redirectTo,
           }),
           "resetPasswordForEmail",
@@ -517,7 +530,7 @@ export default function AuthPage() {
         );
       } else if (mode === "signup") {
         const { error } = await withAuthTimeout(
-          supabaseAuthForms.auth.signUp({
+          authFormsSignUp({
             email,
             password,
             options: {
@@ -553,7 +566,7 @@ export default function AuthPage() {
 
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange((event, session) => {
+        } = authOnAuthStateChange(async (event, session) => {
           if (event === "SIGNED_IN" && session?.user) {
             void finishSignIn(session.user.id);
           }
@@ -561,7 +574,7 @@ export default function AuthPage() {
 
         try {
           const { error } = await withAuthTimeout(
-            supabase.auth.signInWithPassword({
+            authSignInWithPassword({
               email,
               password,
             }),
@@ -572,7 +585,7 @@ export default function AuthPage() {
           const {
             data: { session },
           } = await withAuthTimeout(
-            supabase.auth.getSession(),
+            authGetSession(),
             "getSession(post-login)",
             AUTH_OPERATION_TIMEOUT_MS,
           );
@@ -588,7 +601,7 @@ export default function AuthPage() {
               const {
                 data: { session },
               } = await withAuthTimeout(
-                supabase.auth.getSession(),
+                authGetSession(),
                 "getSession(post-login)",
                 AUTH_OPERATION_TIMEOUT_MS,
               );
@@ -813,7 +826,7 @@ export default function AuthPage() {
                     rel="noopener noreferrer"
                     className="font-medium text-[#009966] underline underline-offset-2 hover:text-[#008855]"
                   >
-                    Согласием на обработку ПД
+                    Согласием на обработку персональных данных
                   </a>
                 </span>
               </label>

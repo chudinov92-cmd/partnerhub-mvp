@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  clearAuthCallbackFromUrl,
-  completeAuthEmailCallback,
-  parseAuthEmailCallbackParams,
-} from "@/lib/authEmailCallback";
+import { clearAuthCallbackFromUrl } from "@/lib/authEmailCallback";
 import { linkAnonymousCookieConsent } from "@/lib/cookieConsent";
-import { supabase } from "@/lib/supabaseClient";
+import { completeAuthEmailCallbackFromLocation } from "@/services/authService";
 
 export default function AuthCallbackPage() {
   const [message, setMessage] = useState("Подтверждаем email…");
@@ -16,14 +12,9 @@ export default function AuthCallbackPage() {
     let cancelled = false;
 
     const run = async () => {
-      const params = parseAuthEmailCallbackParams(
+      const { error, redirectPath } = await completeAuthEmailCallbackFromLocation(
         window.location.search,
         window.location.hash,
-      );
-
-      const { error, redirectPath } = await completeAuthEmailCallback(
-        supabase,
-        params,
       );
 
       if (cancelled) return;

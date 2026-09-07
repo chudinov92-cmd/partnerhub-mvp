@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type AdminRole = "super_admin" | "moderator" | "support";
@@ -27,8 +27,7 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const res = await supabase
-        .from("admin_users")
+      const res = await adminFrom("admin_users")
         .select("auth_user_id, role, created_at, created_by")
         .order("created_at", { ascending: false })
         .limit(200);
@@ -55,8 +54,8 @@ export default function AdminAdminsPage() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
-      const { error: insErr } = await supabase.from("admin_users").insert({
+      } = await adminGetAuthUser();
+      const { error: insErr } = await adminFrom("admin_users").insert({
         auth_user_id: v,
         role: newRole,
         created_by: user?.id ?? null,
@@ -65,7 +64,7 @@ export default function AdminAdminsPage() {
       setNewAuthUserId("");
       await load();
       setInfo("Админ добавлен.");
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "admin_users.insert",
         target_type: "admin_users",
         target_id: v,
@@ -83,13 +82,12 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: updErr } = await supabase
-        .from("admin_users")
+      const { error: updErr } = await adminFrom("admin_users")
         .update({ role })
         .eq("auth_user_id", id);
       if (updErr) throw updErr;
       setRows((prev) => prev.map((x) => (x.auth_user_id === id ? { ...x, role } : x)));
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "admin_users.update_role",
         target_type: "admin_users",
         target_id: id,
@@ -108,13 +106,12 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await supabase
-        .from("admin_users")
+      const { error: delErr } = await adminFrom("admin_users")
         .delete()
         .eq("auth_user_id", id);
       if (delErr) throw delErr;
       setRows((prev) => prev.filter((x) => x.auth_user_id !== id));
-      await supabase.from("admin_audit_log").insert({
+      await adminFrom("admin_audit_log").insert({
         action: "admin_users.delete",
         target_type: "admin_users",
         target_id: id,

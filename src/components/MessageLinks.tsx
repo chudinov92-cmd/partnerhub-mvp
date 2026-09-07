@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback } from "react";
 import { splitMessageWithLinks } from "@/lib/linkifyMessage";
 import { isZeipProfileUrl, parseZeipProfileLink } from "@/lib/profileShare";
-import { supabasePublic } from "@/lib/supabaseClient";
+import { resolveProfileShareCode } from "@/services/profileService";
 
 export type MessageLinksProps = {
   content: string;
@@ -29,12 +29,8 @@ export function MessageLinks({ content, isOwn, onOpenProfile }: MessageLinksProp
       if (ref.kind === "profile_id") {
         profileId = ref.profileId;
       } else {
-        const { data, error } = await supabasePublic.rpc(
-          "resolve_profile_share_code",
-          { p_code: ref.code },
-        );
-        if (error || !data) return;
-        profileId = String(data);
+        profileId = await resolveProfileShareCode(ref.code);
+        if (!profileId) return;
       }
 
       if (profileId) {

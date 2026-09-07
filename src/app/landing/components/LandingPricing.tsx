@@ -16,7 +16,7 @@ import {
   PRO_PLUS_PLAN_PIN_FEATURE,
   SUBSCRIPTION_PRICING,
 } from "@/lib/subscriptionPlans";
-import { supabase } from "@/lib/supabaseClient";
+import { authGetUser } from "@/services/authService";
 
 function IconCheck() {
   return (
@@ -110,12 +110,9 @@ export function LandingPricing() {
 
     const resolveAuth = async () => {
       try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
+        const result = await authGetUser();
         if (cancelled) return;
-        setIsAuthenticated(Boolean(user) && !error);
+        setIsAuthenticated(Boolean(result.data.user) && !result.error);
       } catch {
         if (!cancelled) setIsAuthenticated(false);
       }

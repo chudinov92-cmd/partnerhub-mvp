@@ -23,6 +23,8 @@ const PIN_FILL_COLOR = "#10B981";
 const PIN_BORDER_COLOR = "#FFFFFF";
 const PIN_VIEWED_BORDER_COLOR = "#9CA3AF";
 const PIN_FOCUSED_BORDER_COLOR = "#F59E0B";
+const Z_PIN_FOCUSED = 10_000_000;
+const Z_PIN_OWN = 5_000_000;
 const VK_MAP_STYLE = "mmr://api/styles/main_style.json";
 
 function hashToSeed(str: string) {
@@ -326,6 +328,9 @@ export function PartnerMap({
       const f = Number(b.isFocused) - Number(a.isFocused);
       if (f !== 0) return f;
 
+      const own = Number(b.isOwn) - Number(a.isOwn);
+      if (own !== 0) return own;
+
       if (professionFilter) {
         const aSlot = a.professionMatchIndex;
         const bSlot = b.professionMatchIndex;
@@ -350,8 +355,8 @@ export function PartnerMap({
       const tierBoost =
         !row.isOwn ? planRank(row.subscriptionPlan) * 250_000 : 0;
       const viewedBoost = row.isViewed ? 0 : 1_000_000;
-      const focusedBoost = row.isFocused ? 2_000_000 : 0;
-      const ownBoost = row.isOwn ? 100_000 : 0;
+      const focusedBoost = row.isFocused ? Z_PIN_FOCUSED : 0;
+      const ownBoost = row.isOwn ? Z_PIN_OWN : 0;
       const professionBoost =
         professionFilter && row.professionMatchIndex != null
           ? (10 - row.professionMatchIndex) * 300_000

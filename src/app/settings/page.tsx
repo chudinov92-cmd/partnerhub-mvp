@@ -6,9 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
-import { supabase } from "@/lib/supabaseClient";
 import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
-import { authGetUser, authSignOut } from "@/services/authService";
+import {
+  authGetUser,
+  authSignOut,
+  authSignInWithPassword,
+  authUpdateUser,
+} from "@/services/authService";
 import {
   fetchCurrentUserProfileRow,
   setProfileMapVisible,
@@ -166,7 +170,7 @@ export default function SettingsPage() {
     setEmailBusy(true);
     try {
       const origin = getEmailRedirectOrigin();
-      const { error } = await supabase.auth.updateUser(
+      const { error } = await authUpdateUser(
         { email: trimmed },
         { emailRedirectTo: `${origin}/settings` },
       );
@@ -200,7 +204,7 @@ export default function SettingsPage() {
     }
     setPasswordBusy(true);
     try {
-      const { error: signErr } = await supabase.auth.signInWithPassword({
+      const { error: signErr } = await authSignInWithPassword({
         email,
         password: currentPassword,
       });
@@ -208,7 +212,7 @@ export default function SettingsPage() {
         setPasswordErr("Текущий пароль неверный");
         return;
       }
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await authUpdateUser({ password: newPassword });
       if (error) throw error;
       setPasswordMsg("Пароль обновлён");
       setCurrentPassword("");

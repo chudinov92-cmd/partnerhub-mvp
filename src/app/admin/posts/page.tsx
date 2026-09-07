@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type ModerationStatus = "active" | "hidden" | "deleted";
@@ -35,8 +35,7 @@ export default function AdminPostsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await supabase
-        .from("posts")
+      const res = await adminFrom("posts")
         .select(
           "id, body, created_at, city, author_id, moderation_status, moderation_reason, moderated_at, author:profiles(full_name)",
         )

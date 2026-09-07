@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import { authGetUser } from "@/services/authService";
+import { authGetUser, authSetSession } from "@/services/authService";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import { getSubscriptionStatus } from "@/services/subscriptionService";
 import { fetchPaymentStatusByInvId } from "@/services/paymentStatusService";
@@ -61,7 +60,7 @@ async function restoreAuthSessionFromBackup() {
   if (!backup) return null;
 
   try {
-    const { data, error } = await supabase.auth.setSession(backup);
+    const { data, error } = await authSetSession(backup);
     clearAuthSessionBackup();
     if (!error && data.user) return data.user;
   } catch {
@@ -84,8 +83,8 @@ async function resolveAuthenticatedUser(initialUserId?: string | null) {
   if (restoredUser) return restoredUser;
 
   try {
-    const { data, error } = await supabase.auth.getUser();
-    if (!error && data.user) return data.user;
+    const result = await authGetUser();
+    if (!result.error && result.data.user) return result.data.user;
   } catch {
     //
   }

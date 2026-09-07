@@ -8,6 +8,7 @@ import {
   insertProfileLike,
   removeProfileLike,
 } from "@/services/profileService";
+import { seekingLabels } from "@/lib/seekingOptions";
 
 export type ProfilePreviewData = {
   id: string;
@@ -19,6 +20,7 @@ export type ProfilePreviewData = {
   skills?: string | null;
   resources?: string | null;
   interested_in?: string | null;
+  seeking?: string[] | null;
   rating_count?: number | null;
   work_blocks?: {
     id?: string;
@@ -237,6 +239,7 @@ export function ProfilePreviewCard({
   const aboutItems = splitToBulletItems(profile.skills);
   const resourceItems = splitToBulletItems(profile.resources);
   const interestedItems = splitToBulletItems(profile.interested_in);
+  const seekingItems = seekingLabels(profile.seeking);
   const hasIndustryBlock = !!(profile.industry?.trim() || profile.subindustry?.trim());
   const extraWorkBlocks = (profile.work_blocks ?? []).filter(isWorkBlockVisible);
   const hasExtraWorkBlocks = extraWorkBlocks.length > 0;
@@ -561,6 +564,25 @@ export function ProfilePreviewCard({
               ))}
             </ul>
           </div>
+
+          {seekingItems.length > 0 ? (
+            <div className="space-y-2">
+              <div className={`flex items-center gap-2 text-slate-900 ${sectionTitle}`}>
+                <IconBriefcase className="h-4 w-4 shrink-0" />
+                <h3>Ищу</h3>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pl-6">
+                {seekingItems.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {resourceItems.length > 0 ? (
             <div className="space-y-2">

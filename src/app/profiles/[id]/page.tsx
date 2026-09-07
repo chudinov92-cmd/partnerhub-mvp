@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { authGetUser } from "@/services/authService";
+import { deleteContact, insertContact } from "@/services/contactService";
+import {
+  checkProfileContact,
+  fetchProfileMetaByAuthUserId,
+  fetchPublicProfileById,
+} from "@/services/profileService";
 import { notifyProfileContactsChanged } from "@/lib/contactEvents";
+import { seekingLabels } from "@/lib/seekingOptions";
 
 type PublicProfile = {
   id: string;
@@ -21,6 +28,7 @@ type PublicProfile = {
   resources: string | null;
   can_help_with: string | null;
   interested_in: string | null;
+  seeking: string[] | null;
   rating_count: number | null;
 };
 
@@ -51,20 +59,15 @@ export default function PublicProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const userResult = await authGetUser();
+        const user = userResult.data.user;
 
         if (!user) {
           router.replace("/auth?redirect=" + encodeURIComponent(`/profiles/${profileId}`));
           return;
         }
 
-        const { data: me } = await supabase
-          .from("profiles")
-          .select("id, onboarding_completed")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
+        const { data: me } = await fetchProfileMetaByAuthUserId(user.id);
         const myId = (me as { id?: string; onboarding_completed?: boolean } | null)?.id ?? null;
         setCurrentProfileId(myId);
 
@@ -73,28 +76,9 @@ export default function PublicProfilePage() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(
-            "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count, deleted_at",
-          )
-          .eq("id", profileId)
-          .maybeSingle();
+        const { data, error } = await fetchPublicProfileById(profileId);
 
         if (error) {
-          const msg = String(error.message ?? "");
-          if (/deleted_at|column/i.test(msg)) {
-            const fallback = await supabase
-              .from("profiles")
-              .select(
-                "id, full_name, country, city, industry, industry_other, subindustry, role_title, experience_years, skills, looking_for, resources, can_help_with, interested_in, rating_count",
-              )
-              .eq("id", profileId)
-              .maybeSingle();
-            if (fallback.error) throw fallback.error;
-            setProfile((fallback.data as PublicProfile) ?? null);
-            return;
-          }
           throw error;
         }
         const row = data as (PublicProfile & { deleted_at?: string | null }) | null;
@@ -103,7 +87,7 @@ export default function PublicProfilePage() {
           setError("Профиль удалён");
           return;
         }
-        setProfile(row ?? null);
+        setProfile(row ? { ...row, seeking: row.seeking ?? [] } : null);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Не удалось загрузить профиль");
       } finally {
@@ -124,12 +108,7 @@ export default function PublicProfilePage() {
       return;
     }
     let alive = true;
-    supabase
-      .from("profile_contacts")
-      .select("contact_profile_id")
-      .eq("owner_id", currentProfileId)
-      .eq("contact_profile_id", profileId)
-      .maybeSingle()
+    void checkProfileContact(currentProfileId, profileId)
       .then(({ data, error }) => {
         if (!alive) return;
         if (error && (error as { code?: string }).code !== "PGRST116") {
@@ -165,6 +144,7 @@ export default function PublicProfilePage() {
       ? profile.industry_other
       : profile.industry;
   const interestedProfessionItems = splitLines(profile.interested_in);
+  const seekingItems = seekingLabels(profile.seeking);
 
   return (
     <div className="flex min-h-screen justify-center bg-slate-50 px-3 py-6">
@@ -206,6 +186,21 @@ export default function PublicProfilePage() {
             </p>
           </div>
         ) : null}
+        {seekingItems.length > 0 ? (
+          <div>
+            <h2 className="text-sm font-medium text-slate-900">Ищу</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {seekingItems.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-800"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {interestedProfessionItems.length > 0 ? (
           <div>
             <h2 className="text-sm font-medium text-slate-900">
@@ -232,16 +227,9 @@ export default function PublicProfilePage() {
               setContactLoading(true);
               try {
                 if (isContact) {
-                  await supabase
-                    .from("profile_contacts")
-                    .delete()
-                    .eq("owner_id", currentProfileId)
-                    .eq("contact_profile_id", profileId);
+                  await deleteContact(currentProfileId, profileId);
                 } else {
-                  await supabase.from("profile_contacts").insert({
-                    owner_id: currentProfileId,
-                    contact_profile_id: profileId,
-                  });
+                  await insertContact(currentProfileId, profileId);
                 }
                 setIsContact(!isContact);
                 notifyProfileContactsChanged();

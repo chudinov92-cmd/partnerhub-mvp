@@ -56,6 +56,7 @@ export type FeedFilters = {
   age_from: number | null;
   age_to: number | null;
   recommendedContacts: boolean;
+  seeking: string[];
 };
 
 export const DEFAULT_FEED_FILTERS: FeedFilters = {
@@ -67,6 +68,7 @@ export const DEFAULT_FEED_FILTERS: FeedFilters = {
   age_from: null,
   age_to: null,
   recommendedContacts: false,
+  seeking: [],
 };
 
 export type CurrentUser = {

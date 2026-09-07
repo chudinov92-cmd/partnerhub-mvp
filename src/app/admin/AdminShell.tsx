@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 
 type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -53,15 +53,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         const {
           data: { user },
           error: userErr,
-        } = await supabase.auth.getUser();
+        } = await adminGetAuthUser();
         if (userErr) throw userErr;
         if (!user) {
           setError("Нужно войти в аккаунт.");
           return;
         }
 
-        const { data, error: adminErr } = await supabase
-          .from("admin_users")
+        const { data, error: adminErr } = await adminFrom("admin_users")
           .select("auth_user_id, role")
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -162,7 +161,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={async () => {
-                await supabase.auth.signOut();
+                await adminSignOut();
                 router.push("/auth");
               }}
               className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"

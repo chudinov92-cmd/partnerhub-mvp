@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 import { ProfessionDemandAnalytics } from "@/components/admin/ProfessionDemandAnalytics";
 import { PaywallFunnelAnalytics } from "@/components/admin/PaywallFunnelAnalytics";
@@ -73,27 +73,22 @@ export default function AdminAnalyticsPage() {
         reportsResolvedRes,
         activityKpisRes,
       ] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase
-          .from("profiles")
+        adminFrom("profiles").select("id", { count: "exact", head: true }),
+        adminFrom("profiles")
           .select("id", { count: "exact", head: true })
           .gte("last_seen_at", activeCutoff),
-        supabase
-          .from("posts")
+        adminFrom("posts")
           .select("id", { count: "exact", head: true })
           .gte("created_at", fromIso)
           .lte("created_at", toIso),
-        supabase
-          .from("messages")
+        adminFrom("messages")
           .select("id", { count: "exact", head: true })
           .gte("created_at", fromIso)
           .lte("created_at", toIso),
-        supabase
-          .from("abuse_reports")
+        adminFrom("abuse_reports")
           .select("id", { count: "exact", head: true })
           .eq("status", "new"),
-        supabase
-          .from("abuse_reports")
+        adminFrom("abuse_reports")
           .select("id", { count: "exact", head: true })
           .eq("status", "resolved"),
         fetch("/api/admin/analytics/activity-kpis"),
