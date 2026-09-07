@@ -31,6 +31,8 @@ SMTP_PORT="$(read_env GOTRUE_SMTP_PORT SMTP_PORT)"
 SMTP_USER="$(read_env GOTRUE_SMTP_USER SMTP_USER)"
 SMTP_PASS="$(read_env GOTRUE_SMTP_PASS SMTP_PASS)"
 FROM="$(read_env GOTRUE_SMTP_ADMIN_EMAIL SMTP_ADMIN_EMAIL)"
+SENDER_NAME="$(read_env GOTRUE_SMTP_SENDER_NAME SMTP_SENDER_NAME)"
+SENDER_NAME="${SENDER_NAME:-Zeip}"
 
 if [[ -z "$SMTP_HOST" || -z "$SMTP_PORT" || -z "$SMTP_USER" || -z "$SMTP_PASS" || -z "$FROM" ]]; then
   echo "Error: incomplete SMTP config in ${ENV_FILE}"
@@ -48,8 +50,9 @@ timeout 90 swaks --to "$TEST_TO" \
   --server "$SMTP_HOST" --port "$SMTP_PORT" \
   --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
   "${TLS[@]}" \
-  --header "Subject: Zeip SMTP test $(date +%H:%M)" \
-  --body "Test from $(hostname)" \
+  --header "From: ${SENDER_NAME} <${FROM}>" \
+  --header "Subject: Сброс пароля — Zeip" \
+  --body "Вы запросили сброс пароля на https://zeip.ru. Если это тест доставки — откройте письмо и нажмите «Не спам» в Gmail, чтобы следующие письма шли во входящие." \
   2>&1 | tee "$LOG"
 
 if grep -q '250 ' "$LOG"; then
