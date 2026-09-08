@@ -29,6 +29,10 @@ import {
 } from "@/lib/industryCatalog";
 import { CITY_VIEWS } from "@/data/cityMapViews";
 import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
+import {
+  ABOUT_ME_PLACEHOLDER,
+  RESOURCES_PLACEHOLDER,
+} from "@/lib/profileFieldPlaceholders";
 import { isActiveProProfile } from "@/services/subscriptionService";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
@@ -1526,6 +1530,7 @@ export default function ProfilePage() {
                 onChange={(e) =>
                   setProfile({ ...profile, skills: e.target.value.slice(0, 600) })
                 }
+                placeholder={ABOUT_ME_PLACEHOLDER}
                 maxLength={600}
                 rows={3}
                 className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
@@ -1540,14 +1545,12 @@ export default function ProfilePage() {
               <label className="mb-1 block text-sm font-medium text-slate-800">
                 Ресурсы
               </label>
-              <p className="mb-1 text-xs text-slate-500">
-                Пример: Недвижимость, оборудование, транспорт, ПО
-              </p>
               <textarea
                 value={profile.resources ?? ""}
                 onChange={(e) =>
                   setProfile({ ...profile, resources: e.target.value.slice(0, 600) })
                 }
+                placeholder={RESOURCES_PLACEHOLDER}
                 maxLength={600}
                 rows={3}
                 className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"

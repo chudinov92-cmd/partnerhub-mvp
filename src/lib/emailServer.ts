@@ -25,11 +25,16 @@ function getSmtpConfig() {
   return { host, port, user, pass, fromEmail, fromName };
 }
 
+export function isSmtpConfigured(): boolean {
+  return getSmtpConfig() !== null;
+}
+
 export async function sendTransactionalEmail(
   params: SendEmailParams,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cfg = getSmtpConfig();
   if (!cfg) {
+    console.error("[email] SMTP is not configured");
     return { ok: false, error: "SMTP is not configured" };
   }
 
@@ -54,6 +59,7 @@ export async function sendTransactionalEmail(
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to send email";
+    console.error("[email] send failed:", message);
     return { ok: false, error: message };
   }
 }

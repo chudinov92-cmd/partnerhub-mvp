@@ -62,8 +62,12 @@ dig +short MX "$DOMAIN" 2>/dev/null || echo "MISSING"
 echo ""
 echo "--- Summary ---"
 echo "OK checks: ${ok}, issues: ${fail}"
-if dig +short TXT "_dmarc.${DOMAIN}" 2>/dev/null | grep -q 'p=none'; then
-  echo "Note: DMARC p=none — для репутации со временем перейти на p=quarantine (после стабильного DKIM)."
+if dig +short TXT "_dmarc.${DOMAIN}" 2>/dev/null | grep -q 'p=quarantine'; then
+  echo "Note: DMARC p=quarantine — Yandex/Gmail могут задерживать первые письма."
+  echo "      Для мгновенной доставки на время прогрева IP: p=none в Timeweb DNS (_dmarc.${DOMAIN})."
+  echo "      Значение: v=DMARC1; p=none; rua=mailto:dmarc@${DOMAIN}"
+elif dig +short TXT "_dmarc.${DOMAIN}" 2>/dev/null | grep -q 'p=none'; then
+  echo "Note: DMARC p=none — мягкая политика, подходит для прогрева репутации отправителя."
 fi
 if dig +short TXT "$DOMAIN" 2>/dev/null | grep -q '~all'; then
   echo "Note: SPF ~all (softfail) — Timeweb обычно так; при проблемах уточните в поддержке Timeweb."

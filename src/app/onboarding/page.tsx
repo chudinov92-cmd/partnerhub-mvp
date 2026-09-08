@@ -25,6 +25,10 @@ import { MultiChoiceRow } from "@/components/MultiChoiceRow";
 import { PioneerModal } from "@/components/PioneerModal";
 import { QuizCompleteModal } from "@/components/QuizCompleteModal";
 import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
+import {
+  ABOUT_ME_PLACEHOLDER,
+  RESOURCES_PLACEHOLDER,
+} from "@/lib/profileFieldPlaceholders";
 import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
@@ -816,6 +820,8 @@ export default function OnboardingPage() {
                       skills: e.target.value.slice(0, 600),
                     })
                   }
+                  placeholder={ABOUT_ME_PLACEHOLDER}
+                  maxLength={600}
                   rows={3}
                   className={TEXTAREA_CLASS}
                 />
@@ -830,6 +836,8 @@ export default function OnboardingPage() {
                       resources: e.target.value.slice(0, 600),
                     })
                   }
+                  placeholder={RESOURCES_PLACEHOLDER}
+                  maxLength={600}
                   rows={2}
                   className={TEXTAREA_CLASS}
                 />

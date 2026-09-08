@@ -1,20 +1,39 @@
 #!/usr/bin/env bash
-# Починка дубликатов GOTRUE_MAILER_* в docker-compose.yml на VPS.
-#
-# cd /Users/vladimirchudinov/Desktop/my-startup/my-app
-# bash scripts/vps/fix-compose-mailer-dupes.sh
-
+# Патч OTP-only env на VPS без git pull (inline с Mac).
+# Папка:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+#   bash scripts/vps/run-fix-auth-email-otp-inline-remote.sh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOST="${VPS_HOST:-root@186.246.2.104}"
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
 
-REMOTE='set -euo pipefail
-cd /root/zeip/supabase-stack
-cp docker-compose.yml "docker-compose.yml.bak.$(date +%s)"
+echo "=== SSH: patch OTP mailer env + recreate auth (inline) ==="
+ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$HOST" 'bash -s' <<'REMOTE'
+set -euo pipefail
+STACK=/root/zeip/supabase-stack
+cd "$STACK"
 
-python3 <<'"'"'PY'"'"'
+ensure_env_kv() {
+  local key="$1"
+  local value="$2"
+  grep -v "^${key}=" .env > .env.tmp 2>/dev/null || true
+  mv .env.tmp .env
+  echo "${key}=${value}" >> .env
+}
+
+echo "=== Patch .env (OTP subjects + exp) ==="
+ensure_env_kv "MAILER_SUBJECTS_CONFIRMATION" "Код подтверждения — Zeip"
+ensure_env_kv "MAILER_TEMPLATES_CONFIRMATION" "http://templates-server/confirm.html"
+ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Код для сброса пароля — Zeip"
+ensure_env_kv "MAILER_TEMPLATES_RECOVERY" "http://templates-server/recovery.html"
+ensure_env_kv "MAILER_OTP_EXP" "600"
+ensure_env_kv "GOTRUE_MAILER_OTP_EXP" "600"
+ensure_env_kv "GOTRUE_MAILER_EXTERNAL_HOSTS" "supabase.zeip.ru"
+
+grep -E '^MAILER_|^GOTRUE_MAILER_OTP_EXP|^GOTRUE_MAILER_EXTERNAL' .env || true
+
+echo "=== Patch docker-compose.yml mailer keys ==="
+python3 <<'PY'
 from pathlib import Path
 import re
 import subprocess
@@ -55,22 +74,16 @@ for line in filtered:
 path.write_text("".join(out))
 print(f"removed {removed} duplicate mailer line(s), inserted 5 canonical keys")
 subprocess.run(["docker", "compose", "config", "-q"], check=True)
-print("docker compose config OK")
 PY
 
-docker compose up -d --force-recreate --no-deps templates-server auth
+echo "=== Recreate auth ==="
+docker compose up -d --force-recreate --no-deps auth
 docker compose restart kong
-docker compose ps templates-server auth
-'
+sleep 3
 
-run() {
-  if [[ -n "${VPS_SSH_PASSWORD:-}" ]] && command -v sshpass >/dev/null 2>&1; then
-    SSHPASS="$VPS_SSH_PASSWORD" sshpass -e ssh "${SSH_OPTS[@]}" "$HOST" bash -s <<< "$REMOTE"
-  else
-    echo "=== SSH (пароль root один раз) ==="
-    ssh "${SSH_OPTS[@]}" "$HOST" bash -s <<< "$REMOTE"
-  fi
-}
+echo "=== Auth mailer env (expect OTP_EXP=600) ==="
+docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -E 'GOTRUE_MAILER_OTP_EXP|GOTRUE_MAILER_SUBJECTS' || true
+REMOTE
 
-run
 echo "Done."

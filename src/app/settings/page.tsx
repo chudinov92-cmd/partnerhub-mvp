@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
-import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
 import {
   authGetUser,
@@ -56,8 +55,6 @@ export default function SettingsPage() {
   const [mapBusy, setMapBusy] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [proExpiresAt, setProExpiresAt] = useState<string | null>(null);
-  const [paywallOpen, setPaywallOpen] = useState(false);
-
   const [newEmail, setNewEmail] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
@@ -139,10 +136,6 @@ export default function SettingsPage() {
 
   const onToggleMapVisible = async (next: boolean) => {
     if (!profileId || mapBusy) return;
-    if (isPaidGateMode() && next && !isPro) {
-      setPaywallOpen(true);
-      return;
-    }
     setMapBusy(true);
     try {
       await setProfileMapVisible(profileId, next);
@@ -288,12 +281,6 @@ export default function SettingsPage() {
           <p className="mt-2 text-sm text-slate-600">
             Если выключить, ваш пин и профиль не будут видны другим на карте и в
             ленте карты. Чаты и контакты сохранятся.
-            {isPaidGateMode() && !isPro ? (
-              <>
-                {" "}
-                Без подписки пин на карте недоступен.
-              </>
-            ) : null}
           </p>
           <label className="mt-4 flex cursor-pointer items-center justify-between gap-3">
             <span className="text-sm font-medium text-slate-800">
@@ -395,7 +382,7 @@ export default function SettingsPage() {
           ) : (
             <p className="mt-2 text-sm text-slate-600">
               {isPaidGateMode()
-                ? "Подписка не оформлена — пин на карте и переписка недоступны"
+                ? "Подписка не оформлена — личные сообщения и чат недоступны"
                 : "Сейчас активен бесплатный тариф"}
             </p>
           )}
@@ -458,11 +445,6 @@ export default function SettingsPage() {
           </button>
         </section>
       </div>
-      <PaywallDrawer
-        open={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        context={{ intent: "pin" }}
-      />
     </div>
   );
 }

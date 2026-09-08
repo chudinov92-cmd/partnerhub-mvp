@@ -66,12 +66,19 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+echo "=== sync SMTP from supabase-stack/.env → .env.app ==="
+if [[ -f "${ROOT}/scripts/vps/sync-smtp-to-env-app.sh" ]]; then
+  bash "${ROOT}/scripts/vps/sync-smtp-to-env-app.sh"
+else
+  echo "WARN: sync-smtp-to-env-app.sh не найден — проверьте SMTP_* в ${ENV_FILE} вручную"
+fi
+
 # shellcheck disable=SC1090
 set -a
 source "${ENV_FILE}"
 set +a
 
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT INTERNAL_PUSH_SECRET; do
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT INTERNAL_PUSH_SECRET SMTP_HOST SMTP_USER SMTP_PASS SMTP_ADMIN_EMAIL; do
   if [[ -z "${!var:-}" ]] || [[ "${!var}" == REPLACE_* ]]; then
     echo "ОШИБКА: в ${ENV_FILE} не задано или плейсхолдер: ${var}"
     exit 1

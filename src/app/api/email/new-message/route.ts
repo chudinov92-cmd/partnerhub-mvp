@@ -5,6 +5,7 @@ import {
   wrapTransactionalEmail,
 } from "@/lib/emailContent";
 import {
+  isSmtpConfigured,
   sendTransactionalEmail,
   verifyInternalEmailSecret,
 } from "@/lib/emailServer";
@@ -17,6 +18,13 @@ type MessageEmailCandidate = {
 export async function POST(req: Request) {
   if (!verifyInternalEmailSecret(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!isSmtpConfigured()) {
+    return NextResponse.json(
+      { error: "SMTP is not configured" },
+      { status: 503 },
+    );
   }
 
   const admin = createSupabaseAdmin();

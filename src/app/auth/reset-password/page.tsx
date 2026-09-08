@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   classifyAuthEmailCallback,
   clearAuthCallbackFromUrl,
@@ -38,7 +38,7 @@ function getAuthErrorMessage(err: unknown) {
     if (/code verifier|bad_code_verifier/i.test(raw)) {
       return (
         "Ссылка открыта не в том браузере, где запрашивали письмо. " +
-        "Запросите новое письмо и откройте ссылку в том же браузере."
+        "Запросите новый код на странице входа."
       );
     }
     if (/new password should be different from the old password/i.test(raw)) {
@@ -57,6 +57,7 @@ function getAuthErrorMessage(err: unknown) {
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,9 +65,17 @@ export default function ResetPasswordPage() {
   const [canReset, setCanReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [legacyLinkError, setLegacyLinkError] = useState<string | null>(null);
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
+
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    if (emailParam) {
+      setOtpEmail(emailParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,11 +85,12 @@ export default function ResetPasswordPage() {
       setCanReset(true);
       setChecking(false);
       setError(null);
+      setLegacyLinkError(null);
     };
 
-    const rejectReset = (message: string | null) => {
+    const showOtpEntry = (message: string | null) => {
       if (cancelled) return;
-      if (message) setError(message);
+      if (message) setLegacyLinkError(message);
       setCanReset(false);
       setChecking(false);
     };
@@ -95,7 +105,7 @@ export default function ResetPasswordPage() {
         router.replace("/map");
         return;
       }
-      rejectReset(null);
+      showOtpEntry(null);
     };
 
     const { data: sub } = authOnAuthStateChange(async (event, session) => {
@@ -124,7 +134,7 @@ export default function ResetPasswordPage() {
         if (cancelled) return;
         clearAuthCallbackFromUrl();
         if (callbackErr) {
-          rejectReset(callbackErr);
+          showOtpEntry(callbackErr);
           return;
         }
         const {
@@ -178,6 +188,7 @@ export default function ResetPasswordPage() {
       if (otpErr) throw otpErr;
       setCanReset(true);
       setError(null);
+      setLegacyLinkError(null);
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err));
     } finally {
@@ -241,7 +252,7 @@ export default function ResetPasswordPage() {
   if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
-        <p className="text-sm text-slate-600">Проверка ссылки…</p>
+        <p className="text-sm text-slate-600">Загрузка…</p>
       </div>
     );
   }
@@ -251,21 +262,18 @@ export default function ResetPasswordPage() {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
         <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-lg">
           <h1 className="text-xl font-semibold text-slate-900">
-            Ссылка недействительна или устарела
+            Введите код из письма
           </h1>
           <p className="mt-3 text-sm text-slate-600">
-            {error ??
-              "Запросите новую ссылку на странице входа («Забыли пароль?»)."}
+            6-значный код для сброса пароля. Код действует 10 минут. Проверьте
+            папку «Спам».
           </p>
 
+          {legacyLinkError ? (
+            <p className="mt-3 text-sm text-amber-700">{legacyLinkError}</p>
+          ) : null}
+
           <form onSubmit={handleOtpSubmit} className="mt-6 space-y-3">
-            <p className="text-sm font-medium text-slate-800">
-              Код из письма
-            </p>
-            <p className="text-xs text-slate-500">
-              Если ссылка не открылась, введите email и 6-значный код из того же
-              письма.
-            </p>
             <input
               type="email"
               autoComplete="email"
@@ -285,10 +293,11 @@ export default function ResetPasswordPage() {
               }
               className={inputClassName}
             />
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
             <button
               type="submit"
               disabled={otpLoading}
-              className="flex h-12 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 py-2 text-sm font-semibold text-[#009966] shadow-sm transition hover:bg-emerald-50 disabled:opacity-60"
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60"
             >
               {otpLoading ? "Проверка…" : "Подтвердить код"}
             </button>
@@ -297,9 +306,9 @@ export default function ResetPasswordPage() {
           <button
             type="button"
             onClick={() => router.push("/auth")}
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855]"
+            className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 py-2 text-sm font-semibold text-[#009966] shadow-sm transition hover:bg-emerald-50"
           >
-            На страницу входа
+            Запросить новый код
           </button>
         </div>
       </div>

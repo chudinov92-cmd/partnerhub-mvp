@@ -50,10 +50,12 @@ ensure_env_kv() {
 }
 
 echo "=== Patch .env (mailer + external hosts) ==="
-ensure_env_kv "MAILER_SUBJECTS_CONFIRMATION" "Подтвердите email — Zeip"
+ensure_env_kv "MAILER_SUBJECTS_CONFIRMATION" "Код подтверждения — Zeip"
 ensure_env_kv "MAILER_TEMPLATES_CONFIRMATION" "http://templates-server/confirm.html"
-ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Сброс пароля — Zeip"
+ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Код для сброса пароля — Zeip"
 ensure_env_kv "MAILER_TEMPLATES_RECOVERY" "http://templates-server/recovery.html"
+ensure_env_kv "MAILER_OTP_EXP" "600"
+ensure_env_kv "GOTRUE_MAILER_OTP_EXP" "600"
 ensure_env_kv "GOTRUE_MAILER_EXTERNAL_HOSTS" "supabase.zeip.ru"
 
 # Mirror SMTP_* → GOTRUE_SMTP_* in .env (grep + set -e safe for other scripts)
@@ -117,14 +119,15 @@ if not path.exists():
 lines = path.read_text().splitlines(keepends=True)
 
 mailer_keys = {
-    "GOTRUE_MAILER_SUBJECTS_CONFIRMATION": "${MAILER_SUBJECTS_CONFIRMATION:-Подтвердите email — Zeip}",
+    "GOTRUE_MAILER_SUBJECTS_CONFIRMATION": "${MAILER_SUBJECTS_CONFIRMATION:-Код подтверждения — Zeip}",
     "GOTRUE_MAILER_TEMPLATES_CONFIRMATION": "${MAILER_TEMPLATES_CONFIRMATION:-http://templates-server/confirm.html}",
-    "GOTRUE_MAILER_SUBJECTS_RECOVERY": "${MAILER_SUBJECTS_RECOVERY:-Сброс пароля — Zeip}",
+    "GOTRUE_MAILER_SUBJECTS_RECOVERY": "${MAILER_SUBJECTS_RECOVERY:-Код для сброса пароля — Zeip}",
     "GOTRUE_MAILER_TEMPLATES_RECOVERY": "${MAILER_TEMPLATES_RECOVERY:-http://templates-server/recovery.html}",
+    "GOTRUE_MAILER_OTP_EXP": "${GOTRUE_MAILER_OTP_EXP:-600}",
 }
 
 key_re = re.compile(
-    r"^\s+(GOTRUE_MAILER_(?:SUBJECTS|TEMPLATES)_(?:CONFIRMATION|RECOVERY)):\s*"
+    r"^\s+(GOTRUE_MAILER_(?:SUBJECTS|TEMPLATES)_(?:CONFIRMATION|RECOVERY)|GOTRUE_MAILER_OTP_EXP):\s*"
 )
 
 removed = sum(1 for line in lines if key_re.match(line))
@@ -147,7 +150,7 @@ for line in filtered:
         inserted = True
 
 path.write_text("".join(out))
-print(f"removed {removed} duplicate mailer line(s), inserted 4 canonical keys")
+print(f"removed {removed} duplicate mailer line(s), inserted 5 canonical keys")
 subprocess.run(["docker", "compose", "config", "-q"], check=True)
 print("docker compose config OK")
 PY
@@ -167,6 +170,13 @@ echo ""
 echo "=== Auth mailer env ==="
 docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -E 'GOTRUE_MAILER|GOTRUE_SMTP|EXTERNAL_HOSTS' | grep -v PASS || true
+
+echo "=== Sync SMTP to Next.js .env.app + recreate app-web ==="
+if [[ -f "${APP_DIR}/scripts/vps/sync-smtp-to-env-app.sh" ]]; then
+  bash "${APP_DIR}/scripts/vps/sync-smtp-to-env-app.sh" --recreate
+else
+  echo "WARN: sync-smtp-to-env-app.sh not found — update .env.app SMTP_* manually"
+fi
 
 echo ""
 echo "Done. Run diagnose:"

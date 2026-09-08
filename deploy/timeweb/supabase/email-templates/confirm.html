@@ -2,38 +2,18 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Подтверждение email</title>
+  <title>Подтверждение email — Zeip</title>
 </head>
-<body style="margin: 0; padding: 24px; background: #f5f5f5; font-family: system-ui, -apple-system, Segoe UI, sans-serif; line-height: 1.5; color: #111;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; margin: 0 auto;">
-    <tr>
-      <td style="background: #ffffff; border-radius: 12px; padding: 32px 28px;">
-        <p style="margin: 0 0 8px; font-size: 13px; color: #666; letter-spacing: 0.04em; text-transform: uppercase;">Zeip</p>
-        <h1 style="margin: 0 0 16px; font-size: 22px; line-height: 1.3;">Подтвердите email</h1>
-        <p style="margin: 0 0 24px; font-size: 16px; color: #333;">
-          Добро пожаловать! Подтвердите почту, чтобы войти на карту и найти людей рядом. Откройте ссылку в браузере, не через превью Mail.ru или Telegram.
-        </p>
-        <p style="margin: 0 0 24px;">
-          <a href="{{ if .RedirectTo }}{{ .RedirectTo }}{{ else }}{{ .SiteURL }}/auth/callback{{ end }}?token_hash={{ .TokenHash }}&type=signup" style="display: inline-block; background: #111; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 600;">
-            Подтвердить email
-          </a>
-        </p>
-        <p style="margin: 0 0 8px; font-size: 14px; color: #666;">
-          Если кнопка не работает, скопируйте ссылку:
-        </p>
-        <p style="margin: 0 0 24px; font-size: 13px; word-break: break-all;">
-          <a href="{{ if .RedirectTo }}{{ .RedirectTo }}{{ else }}{{ .SiteURL }}/auth/callback{{ end }}?token_hash={{ .TokenHash }}&type=signup" style="color: #111;">{{ if .RedirectTo }}{{ .RedirectTo }}{{ else }}{{ .SiteURL }}/auth/callback{{ end }}?token_hash={{ .TokenHash }}&type=signup</a>
-        </p>
-        {{ if .Token }}
-        <p style="margin: 0 0 8px; font-size: 14px; color: #666;">Либо введите код на странице входа:</p>
-        <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px;">{{ .Token }}</p>
-        {{ end }}
-        <p style="margin: 24px 0 0; font-size: 13px; color: #888;">
-          Если вы не регистрировались в Zeip, просто проигнорируйте это письмо.
-        </p>
-      </td>
-    </tr>
-  </table>
+<body style="margin:0;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:16px;line-height:1.6;color:#111;background:#fff;">
+  <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:0.04em;">Zeip</p>
+  <p style="margin:0 0 16px;font-size:20px;font-weight:600;">Подтверждение email</p>
+  {{ if .Token }}
+  <p style="margin:0 0 8px;color:#333;">Ваш код:</p>
+  <p style="margin:0 0 24px;font-size:32px;font-weight:700;letter-spacing:8px;color:#111;">{{ .Token }}</p>
+  {{ end }}
+  <p style="margin:0 0 8px;color:#333;">Код действует 10 минут.</p>
+  <p style="margin:0 0 8px;color:#333;">Введите код на странице:</p>
+  <p style="margin:0 0 24px;color:#333;">https://zeip.ru/auth</p>
+  <p style="margin:0;font-size:14px;color:#888;">Если вы не регистрировались в Zeip, проигнорируйте это письмо.</p>
 </body>
 </html>

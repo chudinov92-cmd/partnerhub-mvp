@@ -231,6 +231,9 @@ export function PartnerMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mmrgl.Map | null>(null);
   const markersRef = useRef<Map<string, mmrgl.Marker>>(new Map());
+  const appliedCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
+    null,
+  );
   const [points, setPoints] = useState<LocationPoint[]>([]);
   const [mapReady, setMapReady] = useState(false);
 
@@ -269,7 +272,10 @@ export function PartnerMap({
     };
   }, [locationsFetchKey]);
 
-  const effectiveCenter = toLngLat(center ?? PERM_CENTER);
+  const effectiveCenter = useMemo(
+    () => toLngLat(center ?? PERM_CENTER),
+    [center?.[0], center?.[1]],
+  );
   const effectiveZoom = zoom ?? DEFAULT_ZOOM;
   void onOpenChat;
   void onToggleContact;
@@ -394,7 +400,7 @@ export function PartnerMap({
       style: VK_MAP_STYLE,
       center: effectiveCenter,
       zoom: effectiveZoom,
-      scrollZoom: false,
+      scrollZoom: true,
       attributionControl: false,
     });
 
@@ -424,6 +430,15 @@ export function PartnerMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+
+    const [lng, lat] = effectiveCenter;
+    const prev = appliedCityViewRef.current;
+    if (prev && prev.lng === lng && prev.lat === lat && prev.zoom === effectiveZoom) {
+      map.resize();
+      return;
+    }
+
+    appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
     map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
     map.resize();
   }, [effectiveCenter, effectiveZoom, mapReady]);

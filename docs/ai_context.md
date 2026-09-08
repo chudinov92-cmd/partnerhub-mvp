@@ -14,7 +14,7 @@
 
 1. Код приложения: репозиторий `my-app/` (на VPS: `/root/zeip/my-app`).
 2. Сборка: Docker Compose `deploy/timeweb/docker-compose.app.yml`, образ Next.js standalone.
-3. Переменные: `deploy/timeweb/.env.app` — без `NEXT_PUBLIC_SUPABASE_*` и `SUPABASE_SERVICE_ROLE_KEY` прод не работает.
+3. Переменные: `deploy/timeweb/.env.app` — без `NEXT_PUBLIC_SUPABASE_*` и `SUPABASE_SERVICE_ROLE_KEY` прод не работает. **Транзакционные письма** (`/api/email/*`) требуют `SMTP_*` в том же файле; при деплое они копируются из `/root/zeip/supabase-stack/.env` скриптом `scripts/vps/sync-smtp-to-env-app.sh` (источник истины — stack `.env`, в git не коммитить).
 4. Локально перед пушем: `cd my-app && npm run build`.
 5. Деплой с Mac: `bash scripts/vps/run-deploy-remote.sh` или на сервере:
    `cd /root/zeip/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh`.

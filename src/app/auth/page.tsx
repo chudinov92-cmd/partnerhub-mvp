@@ -378,6 +378,7 @@ export default function AuthPage() {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
+  const [showEmailOtpEntry, setShowEmailOtpEntry] = useState(false);
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpLoading, setSignupOtpLoading] = useState(false);
   const router = useRouter();
@@ -545,9 +546,10 @@ export default function AuthPage() {
       );
       if (resendErr) throw resendErr;
       setInfo(
-        "Письмо с подтверждением отправлено повторно. Откройте ссылку в том же браузере, где регистрировались. Проверьте папки «Спам» и «Промоакции».",
+        "Письмо с новым кодом отправлено. Проверьте «Спам». Код действует 10 минут.",
       );
-      setShowResendConfirmation(false);
+      setShowResendConfirmation(true);
+      setShowEmailOtpEntry(true);
     } catch (err: unknown) {
       setError(getAuthErrorMessage(err, "signup"));
     } finally {
@@ -560,6 +562,7 @@ export default function AuthPage() {
     setError(null);
     setInfo(null);
     setShowResendConfirmation(false);
+    setShowEmailOtpEntry(false);
 
     if (mode === "signup" && password !== passwordConfirm) {
       setError("Пароли не совпадают");
@@ -579,9 +582,10 @@ export default function AuthPage() {
           AUTH_FORM_TIMEOUT_MS,
         );
         if (error) throw error;
-        setInfo(
-          "Если указанный email зарегистрирован, мы отправили письмо со ссылкой для сброса пароля. Откройте ссылку в браузере — не через превью Mail.ru или Telegram. Проверьте «Спам» и «Промоакции» (в Gmail часто попадает в Спам — откройте письмо и нажмите «Не спам»). Если письма нет более 5 минут — напишите в поддержку.",
+        router.push(
+          `/auth/reset-password?email=${encodeURIComponent(email.trim())}`,
         );
+        return;
       } else if (mode === "signup") {
         const { data, error } = await withAuthTimeout(
           authFormsSignUp({
@@ -603,15 +607,17 @@ export default function AuthPage() {
             "Этот email уже зарегистрирован. Войдите с вашим паролем или нажмите «Забыли пароль?». Если почта не подтверждена — отправьте письмо ещё раз кнопкой ниже.",
           );
           setShowResendConfirmation(true);
+          setShowEmailOtpEntry(true);
           return;
         }
         reachYandexMetrikaGoal("signup", { method: "email" });
         recordAgreementConsent();
         linkAnonymousCookieConsent();
         setInfo(
-          "На указанный вами email отправлено письмо с подтверждением. Перейдите по ссылке в письме и возвращайтесь. Проверьте папки «Спам» и «Промоакции».",
+          "6-значный код отправлен на email. Проверьте «Спам». Код действует 10 минут.",
         );
         setShowResendConfirmation(true);
+        setShowEmailOtpEntry(true);
       } else {
         let redirected = false;
 
@@ -678,6 +684,9 @@ export default function AuthPage() {
           if (!redirected) {
             setError(getAuthErrorMessage(err, "signin"));
             setShowResendConfirmation(isEmailNotConfirmedError(err));
+            if (isEmailNotConfirmedError(err)) {
+              setShowEmailOtpEntry(true);
+            }
           }
         } finally {
           subscription.unsubscribe();
@@ -691,6 +700,7 @@ export default function AuthPage() {
       setError(getAuthErrorMessage(err, mode));
       if (mode === "signup" && isUserAlreadyRegistered(err)) {
         setShowResendConfirmation(true);
+        setShowEmailOtpEntry(true);
       }
     } finally {
       setLoading(false);
@@ -741,6 +751,7 @@ export default function AuthPage() {
                 setError(null);
                 setInfo(null);
                 setShowResendConfirmation(false);
+                setShowEmailOtpEntry(false);
               }}
               className={`flex-1 rounded-full px-3 py-2 text-sm font-medium transition ${
                 mode === "signin"
@@ -772,7 +783,7 @@ export default function AuthPage() {
           </div>
         ) : (
           <p className="mb-6 text-sm text-slate-600">
-            Укажите email аккаунта — мы отправим ссылку для установки нового
+            Укажите email аккаунта — мы отправим 6-значный код для сброса
             пароля.
           </p>
         )}
@@ -934,7 +945,7 @@ export default function AuthPage() {
             {loading
               ? "Подождите..."
               : mode === "forgot"
-                ? "Отправить ссылку"
+                ? "Отправить код"
                 : mode === "signup"
                   ? "Зарегистрироваться"
                   : "Войти"}
@@ -949,25 +960,27 @@ export default function AuthPage() {
             </p>
           ) : null}
 
-          {(mode === "signin" || mode === "signup") && showResendConfirmation && (
+          {(mode === "signin" || mode === "signup") &&
+            (showResendConfirmation || showEmailOtpEntry) && (
             <div className="space-y-3">
-              <div className="text-center">
-                <button
-                  type="button"
-                  disabled={resendLoading}
-                  onClick={() => void handleResendConfirmation()}
-                  className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
-                >
-                  {resendLoading
-                    ? "Отправляем…"
-                    : "Отправить письмо подтверждения ещё раз"}
-                </button>
-              </div>
-              {mode === "signup" ? (
+              {showResendConfirmation ? (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    disabled={resendLoading}
+                    onClick={() => void handleResendConfirmation()}
+                    className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
+                  >
+                    {resendLoading
+                      ? "Отправляем…"
+                      : "Отправить код ещё раз"}
+                  </button>
+                </div>
+              ) : null}
+              {showEmailOtpEntry ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                   <p className="mb-2 text-center text-xs text-slate-600">
-                    Если письмо не приходит — введите 6-значный код из письма
-                    (если оно всё же дошло) или запросите повторно.
+                    Введите 6-значный код из письма. Код действует 10 минут.
                   </p>
                   <form
                     onSubmit={(e) => void handleSignupOtpSubmit(e)}
@@ -1011,6 +1024,7 @@ export default function AuthPage() {
                   setError(null);
                   setInfo(null);
                   setShowResendConfirmation(false);
+                  setShowEmailOtpEntry(false);
                 }}
                 className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline"
               >

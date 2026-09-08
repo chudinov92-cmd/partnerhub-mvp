@@ -61,10 +61,12 @@ ensure_env_kv() {
   fi
 }
 
-ensure_env_kv "MAILER_SUBJECTS_CONFIRMATION" "Подтвердите email — Zeip"
+ensure_env_kv "MAILER_SUBJECTS_CONFIRMATION" "Код подтверждения — Zeip"
 ensure_env_kv "MAILER_TEMPLATES_CONFIRMATION" "http://templates-server/confirm.html"
-ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Сброс пароля — Zeip"
+ensure_env_kv "MAILER_SUBJECTS_RECOVERY" "Код для сброса пароля — Zeip"
 ensure_env_kv "MAILER_TEMPLATES_RECOVERY" "http://templates-server/recovery.html"
+ensure_env_kv "MAILER_OTP_EXP" "600"
+ensure_env_kv "GOTRUE_MAILER_OTP_EXP" "600"
 
 echo "=== .env (mailer keys) ==="
 grep -E '^MAILER_' .env || true
@@ -81,14 +83,15 @@ path = Path("docker-compose.yml")
 lines = path.read_text().splitlines(keepends=True)
 
 mailer_keys = {
-    "GOTRUE_MAILER_SUBJECTS_CONFIRMATION": "${MAILER_SUBJECTS_CONFIRMATION:-Подтвердите email — Zeip}",
+    "GOTRUE_MAILER_SUBJECTS_CONFIRMATION": "${MAILER_SUBJECTS_CONFIRMATION:-Код подтверждения — Zeip}",
     "GOTRUE_MAILER_TEMPLATES_CONFIRMATION": "${MAILER_TEMPLATES_CONFIRMATION:-http://templates-server/confirm.html}",
-    "GOTRUE_MAILER_SUBJECTS_RECOVERY": "${MAILER_SUBJECTS_RECOVERY:-Сброс пароля — Zeip}",
+    "GOTRUE_MAILER_SUBJECTS_RECOVERY": "${MAILER_SUBJECTS_RECOVERY:-Код для сброса пароля — Zeip}",
     "GOTRUE_MAILER_TEMPLATES_RECOVERY": "${MAILER_TEMPLATES_RECOVERY:-http://templates-server/recovery.html}",
+    "GOTRUE_MAILER_OTP_EXP": "${GOTRUE_MAILER_OTP_EXP:-600}",
 }
 
 key_re = re.compile(
-    r"^\s+(GOTRUE_MAILER_(?:SUBJECTS|TEMPLATES)_(?:CONFIRMATION|RECOVERY)):\s*"
+    r"^\s+(GOTRUE_MAILER_(?:SUBJECTS|TEMPLATES)_(?:CONFIRMATION|RECOVERY)|GOTRUE_MAILER_OTP_EXP):\s*"
 )
 
 # Удаляем все старые/дублирующиеся строки mailer-шаблонов

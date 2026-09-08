@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { PIN_COLOR_FREE, PIN_COLOR_PRO_PLUS } from "@/lib/subscriptionPlans";
+import { PIN_COLOR_PRO_PLUS } from "@/lib/subscriptionPlans";
 import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 
 const PAYWALL_BANNER_HEIGHT_VAR = "--zeip-paywall-banner-height";
@@ -57,8 +57,7 @@ export function OnboardingPaywallBanner() {
             reachYandexMetrikaGoal("banner_map_cta");
             router.push("/subscription");
           }}
-          className="shrink-0 rounded-xl px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
-          style={{ backgroundColor: PIN_COLOR_FREE }}
+          className="shrink-0 cursor-pointer rounded-xl bg-[#10B981] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-[color,background-color,transform,box-shadow] hover:bg-emerald-600 hover:shadow-md active:scale-[0.98] active:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
         >
           Тарифы
         </button>
