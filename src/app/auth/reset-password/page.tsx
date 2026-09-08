@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   classifyAuthEmailCallback,
   clearAuthCallbackFromUrl,
@@ -57,7 +57,6 @@ function getAuthErrorMessage(err: unknown) {
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,11 +70,12 @@ export default function ResetPasswordPage() {
   const [otpLoading, setOtpLoading] = useState(false);
 
   useEffect(() => {
-    const emailParam = searchParams.get("email");
+    if (typeof window === "undefined") return;
+    const emailParam = new URLSearchParams(window.location.search).get("email");
     if (emailParam) {
       setOtpEmail(emailParam);
     }
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
