@@ -69,7 +69,7 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
         <FeatureSplit
           reverse
           title="Команда на расстоянии вытянутой руки."
-          body={"Твой будущий партнёр может пить кофе в кофейне за углом.\nНе нужно ждать случайного знакомства.\nЗеип сокращает дистанцию до минимума."}
+          body={"Твой будущий партнёр может пить кофе в кофейне за углом.\nНе нужно ждать случайного знакомства.\nЗЕИП сокращает дистанцию до минимума."}
           visual={
             // eslint-disable-next-line @next/next/no-img-element -- decorative landing art; skip next/image cache
             <img

@@ -292,8 +292,19 @@ export type LocationPointRow = {
   city: string | null;
 };
 
+function mapLocationRow(row: LocationPointRow): LocationPointRow {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    lat: row.lat,
+    lng: row.lng,
+    city: row.city ?? null,
+  };
+}
+
 export async function fetchActiveLocations(
   limit = 200,
+  ownUserId?: string | null,
 ): Promise<LocationPointRow[]> {
   const { data, error } = await supabasePublic
     .from("locations")
@@ -301,13 +312,23 @@ export async function fetchActiveLocations(
     .eq("is_active", true)
     .limit(limit);
   if (error || !data) return [];
-  return (data as LocationPointRow[]).map((row) => ({
-    id: row.id,
-    user_id: row.user_id,
-    lat: row.lat,
-    lng: row.lng,
-    city: row.city ?? null,
-  }));
+
+  const rows = (data as LocationPointRow[]).map(mapLocationRow);
+  const ownId = ownUserId?.trim();
+  if (!ownId || rows.some((row) => row.user_id === ownId)) {
+    return rows;
+  }
+
+  const { data: ownData, error: ownError } = await supabasePublic
+    .from("locations")
+    .select("id, user_id, lat, lng, city")
+    .eq("is_active", true)
+    .eq("user_id", ownId)
+    .maybeSingle();
+
+  if (ownError || !ownData) return rows;
+
+  return [...rows, mapLocationRow(ownData as LocationPointRow)];
 }
 
 /** Вкл/выкл видимость на карте: profiles.map_visible + locations.is_active. */

@@ -292,10 +292,12 @@ export function PartnerMap({
   const markersRef = useRef<Map<string, mmrgl.Marker>>(new Map());
   const ownPinWrapRef = useRef<HTMLElement | null>(null);
   const pinHelloPlayedRef = useRef(false);
+  const ownPinCenteredRef = useRef(false);
   const appliedCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
     null,
   );
   const [points, setPoints] = useState<LocationPoint[]>([]);
+  const [locationsLoaded, setLocationsLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   const profileById = useMemo(() => {
@@ -312,9 +314,10 @@ export function PartnerMap({
 
   useEffect(() => {
     let cancelled = false;
+    setLocationsLoaded(false);
 
     const load = async () => {
-      const pts = await fetchActiveLocations(200);
+      const pts = await fetchActiveLocations(200, currentUserProfileId);
       if (cancelled) return;
       setPoints(
         pts.map((row) => ({
@@ -325,13 +328,14 @@ export function PartnerMap({
           city: row.city ?? null,
         })),
       );
+      setLocationsLoaded(true);
     };
 
     void load();
     return () => {
       cancelled = true;
     };
-  }, [locationsFetchKey]);
+  }, [locationsFetchKey, currentUserProfileId]);
 
   const effectiveCenter = useMemo(
     () => toLngLat(center ?? PERM_CENTER),
@@ -357,6 +361,11 @@ export function PartnerMap({
     if (!focusedProfileId) return null;
     return obfByUserId.get(focusedProfileId) ?? null;
   }, [focusedProfileId, obfByUserId]);
+
+  const ownPinTarget = useMemo(() => {
+    if (!currentUserProfileId) return null;
+    return obfByUserId.get(currentUserProfileId) ?? null;
+  }, [currentUserProfileId, obfByUserId]);
 
   const sortedPoints = useMemo(() => {
     const ownId =
@@ -494,15 +503,69 @@ export function PartnerMap({
 
     const [lng, lat] = effectiveCenter;
     const prev = appliedCityViewRef.current;
+    const cityChanged =
+      prev != null &&
+      (prev.lng !== lng || prev.lat !== lat || prev.zoom !== effectiveZoom);
+
+    if (cityChanged) {
+      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
+      ownPinCenteredRef.current = true;
+      map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
+      map.resize();
+      return;
+    }
+
+    if (!ownPinCenteredRef.current && currentUserProfileId) {
+      map.resize();
+      return;
+    }
+
+    if (!ownPinCenteredRef.current && !currentUserProfileId) {
+      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
+      ownPinCenteredRef.current = true;
+      map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
+      map.resize();
+      return;
+    }
+
     if (prev && prev.lng === lng && prev.lat === lat && prev.zoom === effectiveZoom) {
       map.resize();
       return;
     }
 
-    appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
-    map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
     map.resize();
-  }, [effectiveCenter, effectiveZoom, mapReady]);
+  }, [effectiveCenter, effectiveZoom, mapReady, currentUserProfileId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || ownPinCenteredRef.current) return;
+    if (!currentUserProfileId || !locationsLoaded) return;
+    if (focusedProfileId) {
+      ownPinCenteredRef.current = true;
+      return;
+    }
+
+    if (ownPinTarget) {
+      const { lng, lat } = ownPinTarget;
+      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
+      map.jumpTo({ center: [lng, lat], zoom: effectiveZoom });
+    } else {
+      const [lng, lat] = effectiveCenter;
+      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
+      map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
+    }
+
+    ownPinCenteredRef.current = true;
+    map.resize();
+  }, [
+    mapReady,
+    currentUserProfileId,
+    locationsLoaded,
+    ownPinTarget,
+    focusedProfileId,
+    effectiveCenter,
+    effectiveZoom,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
