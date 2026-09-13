@@ -18,12 +18,37 @@ export const PIN_COLOR_FREE = "#10B981";
 export const PIN_COLOR_PRO = "#FDE047";
 export const PIN_COLOR_PRO_PLUS = "#6466FA";
 
+/** Читаемый жёлтый для текста на белом фоне (пины остаются PIN_COLOR_PRO). */
+export const PLAN_TEXT_COLOR_PRO = "#CA8A04";
+
 export function getPinColorForPlan(plan: SubscriptionPlan): string {
   switch (plan) {
     case "pro_plus":
       return PIN_COLOR_PRO_PLUS;
     case "pro":
       return PIN_COLOR_PRO;
+    default:
+      return PIN_COLOR_FREE;
+  }
+}
+
+export function getPlanLabel(plan: SubscriptionPlan): string {
+  switch (plan) {
+    case "pro_plus":
+      return "Pro+";
+    case "pro":
+      return "Pro";
+    default:
+      return "Free";
+  }
+}
+
+export function getPlanTextColor(plan: SubscriptionPlan): string {
+  switch (plan) {
+    case "pro_plus":
+      return PIN_COLOR_PRO_PLUS;
+    case "pro":
+      return PLAN_TEXT_COLOR_PRO;
     default:
       return PIN_COLOR_FREE;
   }
@@ -68,8 +93,8 @@ export function formatUpgradeOutSum(amount: number): string {
   return amount.toFixed(2);
 }
 
-export function buildUpgradeDescription(remainingDays: number): string {
-  return `Апгрейд до Zeip Pro+ (${remainingDays} дн.)`;
+export function buildUpgradeDescription(_remainingDays: number): string {
+  return "Тариф Pro+";
 }
 
 export function isUpgradePaymentPlan(planId: string): boolean {
@@ -105,28 +130,28 @@ export function parsePaymentPlanId(planId: string): {
       period: "monthly",
       days: 30,
       outSum: "249.00",
-      description: "Подписка Zeip Pro на 1 месяц",
+      description: "Тариф Pro",
     },
     pro_yearly: {
       subscriptionPlan: "pro",
       period: "yearly",
       days: 365,
       outSum: "2390.00",
-      description: "Подписка Zeip Pro на 1 год",
+      description: "Тариф Pro",
     },
     pro_plus_monthly: {
       subscriptionPlan: "pro_plus",
       period: "monthly",
       days: 30,
       outSum: "449.00",
-      description: "Подписка Zeip Pro+ на 1 месяц",
+      description: "Тариф Pro+",
     },
     pro_plus_yearly: {
       subscriptionPlan: "pro_plus",
       period: "yearly",
       days: 365,
       outSum: "4310.00",
-      description: "Подписка Zeip Pro+ на 1 год",
+      description: "Тариф Pro+",
     },
   };
 

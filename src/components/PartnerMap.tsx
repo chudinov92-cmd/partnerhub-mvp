@@ -132,6 +132,62 @@ function createPinElement(
   return root;
 }
 
+const PIN_HELLO_WRAP_CLASS = "partner-map-pin-wrap--hello";
+
+function prefersReducedMotion() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function triggerOwnPinHello(
+  wrap: HTMLElement,
+  playedRef: { current: boolean },
+) {
+  if (playedRef.current || prefersReducedMotion()) {
+    playedRef.current = true;
+    return;
+  }
+
+  playedRef.current = true;
+  wrap.classList.add(PIN_HELLO_WRAP_CLASS);
+
+  const head = wrap.querySelector<HTMLElement>(".partner-map-pin-head");
+  if (!head) {
+    wrap.classList.remove(PIN_HELLO_WRAP_CLASS);
+    return;
+  }
+
+  const onAnimationEnd = (event: AnimationEvent) => {
+    if (event.target !== head) return;
+    wrap.classList.remove(PIN_HELLO_WRAP_CLASS);
+    head.removeEventListener("animationend", onAnimationEnd);
+  };
+
+  head.addEventListener("animationend", onAnimationEnd);
+}
+
+function scheduleOwnPinHello(
+  map: mmrgl.Map,
+  wrap: HTMLElement,
+  playedRef: { current: boolean },
+) {
+  if (playedRef.current || prefersReducedMotion()) {
+    playedRef.current = true;
+    return;
+  }
+
+  const onIdle = () => {
+    map.off("idle", onIdle);
+    if (!wrap.isConnected || playedRef.current) return;
+    triggerOwnPinHello(wrap, playedRef);
+  };
+
+  map.once("idle", onIdle);
+  return () => {
+    map.off("idle", onIdle);
+  };
+}
+
 function setMarkerTooltip(
   root: HTMLElement,
   fullName: string,
@@ -164,6 +220,8 @@ export type PartnerMapProps = {
   viewedProfileIds?: string[];
   focusedProfileId?: string | null;
   invalidateKey?: string;
+  /** Меняется при каждом «открытии» карты (вкладка map, remount). Сбрасывает hello-анимацию своего пина. */
+  mapVisitKey?: string;
   currentUserProfileId?: string | null;
   center?: LngLat;
   zoom?: number;
@@ -222,6 +280,7 @@ export function PartnerMap({
   viewedProfileIds,
   focusedProfileId,
   invalidateKey,
+  mapVisitKey = "map",
   currentUserProfileId,
   profiles,
   center,
@@ -231,6 +290,8 @@ export function PartnerMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mmrgl.Map | null>(null);
   const markersRef = useRef<Map<string, mmrgl.Marker>>(new Map());
+  const ownPinWrapRef = useRef<HTMLElement | null>(null);
+  const pinHelloPlayedRef = useRef(false);
   const appliedCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
     null,
   );
@@ -462,8 +523,16 @@ export function PartnerMap({
   }, [focusedTarget, mapReady]);
 
   useEffect(() => {
+    if (mapVisitKey === "map") {
+      pinHelloPlayedRef.current = false;
+    }
+  }, [mapVisitKey]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+
+    ownPinWrapRef.current = null;
 
     for (const marker of markersRef.current.values()) {
       marker.remove();
@@ -506,6 +575,13 @@ export function PartnerMap({
         onOpenProfile?.(row.profile);
       });
 
+      if (row.isOwn) {
+        const wrap = element.querySelector<HTMLElement>(".partner-map-pin-wrap");
+        if (wrap) {
+          ownPinWrapRef.current = wrap;
+        }
+      }
+
       const marker = new mmrgl.Marker({ element, anchor: "bottom" })
         .setLngLat([obf.lng, obf.lat])
         .addTo(map);
@@ -513,6 +589,14 @@ export function PartnerMap({
       markersRef.current.set(row.pt.id, marker);
     }
   }, [sortedPoints, obfByUserId, onOpenProfile, mapReady]);
+
+  useEffect(() => {
+    if (mapVisitKey !== "map" || !mapReady) return;
+    const map = mapRef.current;
+    const wrap = ownPinWrapRef.current;
+    if (!map || !wrap?.isConnected || pinHelloPlayedRef.current) return;
+    return scheduleOwnPinHello(map, wrap, pinHelloPlayedRef);
+  }, [mapVisitKey, mapReady, sortedPoints, currentUserProfileId]);
 
   return (
     <div className="relative isolate h-full min-h-0 w-full overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">

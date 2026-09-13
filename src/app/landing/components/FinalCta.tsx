@@ -37,7 +37,7 @@ export function FinalCta(props: FinalCtaProps) {
     <section className="section section--darkCta" aria-label="Призыв к действию">
       <div className="container cta">
         <div className="cta__copy">
-          <p className="cta__title">Воплощай свои идеи. Сделай первый шаг и заходи дальше</p>
+          <p className="cta__title">Сделай первый шаг и заходи дальше</p>
           {flat ? (
             <ButtonLink
               href="/auth"

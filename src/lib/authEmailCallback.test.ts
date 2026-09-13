@@ -3,12 +3,16 @@ import { describe, it } from "node:test";
 import {
   authEmailCallbackErrorMessage,
   authEmailCallbackPendingInUrl,
+  authOtpVerifyErrorMessage,
   classifyAuthEmailCallback,
   consumedOtpUserMessage,
+  extractAuthErrorTexts,
   hasAuthEmailCallbackParams,
   isConsumedOtpErrorText,
+  isOtpVerifyError,
   isRecoveryEmailCallback,
   parseAuthEmailCallbackParams,
+  SIGNUP_OTP_VERIFY_ERROR,
 } from "./authEmailCallback.ts";
 
 describe("parseAuthEmailCallbackParams", () => {
@@ -101,5 +105,37 @@ describe("consumed OTP messages", () => {
     });
     assert.equal(msg, consumedOtpUserMessage("recovery"));
     assert.match(msg, /код из письма/i);
+  });
+});
+
+describe("auth OTP verify errors", () => {
+  it("извлекает тексты из ответа GoTrue verifyOtp", () => {
+    const texts = extractAuthErrorTexts({
+      code: 403,
+      error_code: "otp_expired",
+      msg: "Token has expired or is invalid",
+    });
+    assert.deepEqual(new Set(texts), new Set([
+      "403",
+      "otp_expired",
+      "Token has expired or is invalid",
+    ]));
+  });
+
+  it("распознаёт otp_expired от verifyOtp", () => {
+    assert.equal(
+      isOtpVerifyError({
+        code: 403,
+        error_code: "otp_expired",
+        msg: "Token has expired or is invalid",
+      }),
+      true,
+    );
+  });
+
+  it("signup verify message не про отправку письма", () => {
+    assert.equal(authOtpVerifyErrorMessage("signup"), SIGNUP_OTP_VERIFY_ERROR);
+    assert.match(authOtpVerifyErrorMessage("signup"), /Код неверный/i);
+    assert.doesNotMatch(authOtpVerifyErrorMessage("signup"), /отправить письмо/i);
   });
 });

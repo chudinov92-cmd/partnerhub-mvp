@@ -20,6 +20,8 @@ import {
   shouldShowCityOnboarding,
 } from "@/lib/cityOnboarding";
 import { isPaidGateMode } from "@/lib/accessMode";
+import { getPlanLabel, getPlanTextColor } from "@/lib/subscriptionPlans";
+import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;
@@ -47,6 +49,12 @@ function IconUsers({ className }: { className?: string }) {
 export function TopBar() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [fullName, setFullName] = useState<string | null>(null);
+  const [subscriptionPlanLabel, setSubscriptionPlanLabel] = useState<
+    string | null
+  >(null);
+  const [subscriptionPlanColor, setSubscriptionPlanColor] = useState<
+    string | null
+  >(null);
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [profileCity, setProfileCity] = useState<string | null>(null);
   const [onboardingAcknowledged, setOnboardingAcknowledged] = useState(() =>
@@ -86,8 +94,14 @@ export function TopBar() {
 
       if (!p?.id) {
         setProfileCity(null);
+        setSubscriptionPlanLabel(null);
+        setSubscriptionPlanColor(null);
         return p;
       }
+
+      const plan = getEffectiveSubscriptionPlan(p);
+      setSubscriptionPlanLabel(getPlanLabel(plan));
+      setSubscriptionPlanColor(getPlanTextColor(plan));
 
       setProfileCity(p.city ?? null);
 
@@ -167,6 +181,8 @@ export function TopBar() {
           setFullName(null);
           setMyProfileId(null);
           setProfileCity(null);
+          setSubscriptionPlanLabel(null);
+          setSubscriptionPlanColor(null);
           return;
         }
 
@@ -191,6 +207,8 @@ export function TopBar() {
           setFullName(null);
           setMyProfileId(null);
           setProfileCity(null);
+          setSubscriptionPlanLabel(null);
+          setSubscriptionPlanColor(null);
         });
         return;
       }
@@ -198,6 +216,8 @@ export function TopBar() {
       setFullName(null);
       setMyProfileId(null);
       setProfileCity(null);
+      setSubscriptionPlanLabel(null);
+      setSubscriptionPlanColor(null);
       setContactCount(0);
       setLoading(false);
     });
@@ -367,6 +387,14 @@ export function TopBar() {
                 <span className="hidden max-w-[120px] truncate text-sm font-medium text-slate-900 md:inline-block">
                   {fullName ? fullName.split(" ")[0] : "Профиль"}
                 </span>
+                {subscriptionPlanLabel && subscriptionPlanColor ? (
+                  <span
+                    className="hidden text-sm font-medium md:inline-block"
+                    style={{ color: subscriptionPlanColor }}
+                  >
+                    {subscriptionPlanLabel}
+                  </span>
+                ) : null}
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-11 z-50 w-40 rounded-xl border border-gray-200 bg-white py-1 text-xs shadow-lg">

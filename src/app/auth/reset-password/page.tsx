@@ -15,6 +15,11 @@ import {
   markPasswordResetComplete,
 } from "@/lib/authRecovery";
 import { PasswordInput } from "@/components/PasswordInput";
+import { useOtpSendCooldown } from "@/hooks/useOtpSendCooldown";
+import {
+  isOtpSendLimitedError,
+  requestOtpSend,
+} from "@/lib/authOtpSendClient";
 import {
   authGetSession,
   authOnAuthStateChange,
@@ -68,6 +73,8 @@ export default function ResetPasswordPage() {
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const otpCooldown = useOtpSendCooldown(otpEmail, Boolean(otpEmail.trim()) && !canReset);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -196,6 +203,35 @@ export default function ResetPasswordPage() {
     }
   };
 
+  const handleResendRecovery = async () => {
+    if (!otpEmail.trim()) {
+      setError("Укажите email аккаунта.");
+      return;
+    }
+    if (otpCooldown.blocked) {
+      setError(otpCooldown.message);
+      return;
+    }
+    setResendLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const limit = await requestOtpSend(otpEmail, "recovery");
+      otpCooldown.applyResult(limit);
+      setInfo(
+        "Письмо с новым кодом отправлено. Проверьте «Спам». Код действует 10 минут. Предыдущий код больше не действует.",
+      );
+    } catch (err: unknown) {
+      if (isOtpSendLimitedError(err)) {
+        otpCooldown.applyLimitedError(err);
+        return;
+      }
+      setError(getAuthErrorMessage(err));
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -294,6 +330,7 @@ export default function ResetPasswordPage() {
               className={inputClassName}
             />
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {info ? <p className="text-sm text-emerald-700">{info}</p> : null}
             <button
               type="submit"
               disabled={otpLoading}
@@ -305,11 +342,17 @@ export default function ResetPasswordPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/auth")}
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 py-2 text-sm font-semibold text-[#009966] shadow-sm transition hover:bg-emerald-50"
+            disabled={resendLoading || otpCooldown.blocked || !otpEmail.trim()}
+            onClick={() => void handleResendRecovery()}
+            className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 py-2 text-sm font-semibold text-[#009966] shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Запросить новый код
+            {resendLoading ? "Отправляем…" : "Запросить новый код"}
           </button>
+          {otpCooldown.countdownLabel ? (
+            <p className="mt-2 text-center text-xs text-slate-600">
+              {otpCooldown.countdownLabel}
+            </p>
+          ) : null}
         </div>
       </div>
     );

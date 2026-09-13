@@ -3,9 +3,9 @@ import { HomeLanding } from "@/app/landing/pages/HomeLanding";
 import { fetchPublicStats } from "@/services/statsPublicService";
 
 export const metadata: Metadata = {
-  title: "Зеип — карта людей, готовых делать проекты вместе",
+  title: "Зеип — карта людей для бизнес-проектов",
   description:
-    "Зеип (Zeip) — карта людей в твоём городе, готовых вместе делать бизнес-проекты. Найди партнёра, единомышленника или команду рядом.",
+    "Зеип (Zeip) — карта людей для бизнес-проектов. Сделай первый шаг и появись на карте. Найди партнёра, единомышленника или команду рядом.",
   alternates: { canonical: "https://zeip.ru" },
 };
 

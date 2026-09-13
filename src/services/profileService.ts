@@ -258,18 +258,29 @@ export async function countContactsForOwner(profileId: string): Promise<number> 
   return count ?? 0;
 }
 
+export type TopBarProfileRow = {
+  id: string;
+  full_name: string | null;
+  city: string | null;
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
+  subscription_plan?: "free" | "pro" | "pro_plus" | null;
+};
+
 export async function fetchTopBarProfile(
   authUserId: string,
-): Promise<{ id: string; full_name: string | null; city: string | null } | null> {
+): Promise<TopBarProfileRow | null> {
   // Не фильтруем deleted_at в SQL: до миграции колонки нет → запрос падает и TopBar
   // показывает «Профиль». После soft delete auth_user_id = null — запись всё равно не найдётся.
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, full_name, city")
+    .select(
+      "id, full_name, city, is_pro, pro_expires_at, subscription_plan",
+    )
     .eq("auth_user_id", authUserId)
     .maybeSingle();
   if (error) throw error;
-  return (profile as { id: string; full_name: string | null; city: string | null } | null) ?? null;
+  return (profile as TopBarProfileRow | null) ?? null;
 }
 
 /** Точки карты (locations). */

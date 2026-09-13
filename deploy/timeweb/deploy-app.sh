@@ -60,6 +60,8 @@ run_sql_migration "${ROOT}/supabase/sql/2026-08-19-profile-share-codes.sql" "pro
 run_sql_migration "${ROOT}/supabase/sql/2026-09-04-delete-own-messages.sql" "delete-own-messages"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-07-exclude-support-from-email.sql" "exclude-support-from-email"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-07-email-internal-urls.sql" "email-internal-urls"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-11-profiles-age-1-99.sql" "profiles-age-1-99"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-13-auth-otp-sends.sql" "auth-otp-sends"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

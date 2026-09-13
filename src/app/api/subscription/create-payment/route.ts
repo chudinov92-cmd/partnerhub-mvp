@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
+  applyRobokassaInvoiceDescription,
   getRobokassaPassword1,
   isRobokassaTestMode,
   signPaymentRequest,
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
   url.searchParams.set("MerchantLogin", merchantLogin);
   url.searchParams.set("OutSum", pricing.outSum);
   url.searchParams.set("InvId", String(invId));
-  url.searchParams.set("Description", pricing.description);
+  applyRobokassaInvoiceDescription(url, pricing.description);
   url.searchParams.set("SignatureValue", signatureValue);
   url.searchParams.set("Culture", "ru");
   if (isRobokassaTestMode()) {

@@ -165,6 +165,37 @@ body {
     0 8px 10px -6px rgb(15 23 42 / 0.1);
 }
 
+@keyframes partner-map-pin-hello {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 15px -3px rgb(15 23 42 / 0.12),
+      0 4px 6px -4px rgb(15 23 42 / 0.08);
+  }
+
+  20%,
+  80% {
+    transform: scale(1.25);
+    box-shadow:
+      0 20px 25px -5px rgb(15 23 42 / 0.15),
+      0 8px 10px -6px rgb(15 23 42 / 0.1);
+  }
+
+  40%,
+  60% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 15px -3px rgb(15 23 42 / 0.12),
+      0 4px 6px -4px rgb(15 23 42 / 0.08);
+  }
+}
+
+.partner-map-pin-wrap--hello .partner-map-pin-head {
+  animation: partner-map-pin-hello 1.5s ease forwards;
+  transition: none;
+}
+
 .partner-map-hover-tooltip {
   display: none;
   position: absolute;
@@ -242,4 +273,10 @@ body {
 
 .mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:disabled {
   color: rgb(148 163 184);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-map-pin-wrap--hello .partner-map-pin-head {
+    animation: none;
+  }
 }

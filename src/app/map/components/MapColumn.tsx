@@ -13,6 +13,12 @@ import { logMapSearchEvent } from "@/services/analyticsService";
 import { comparePlanRank } from "@/lib/subscriptionPlans";
 import { getProfessionMatchIndex } from "@/services/profileService";
 import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import {
+  AGE_MAX,
+  AGE_MIN,
+  formatAgeInputValue,
+  parseAgeInput,
+} from "@/lib/ageInput";
 import { DEFAULT_FEED_FILTERS, type FeedFilters } from "@/types";
 import { RUSSIA_LABEL } from "@/data/cities";
 import { SORTED_INDUSTRY_OPTIONS, CURRENT_STATUS_OPTIONS } from "../constants";
@@ -372,24 +378,23 @@ export function MapColumn(props: Props) {
                             От
                           </label>
                           <input
-                            type="number"
+                            type="text"
                             inputMode="numeric"
-                            min={0}
-                            max={80}
-                            value={feedFilters.age_from ?? ""}
+                            pattern="[1-9][0-9]?"
+                            min={AGE_MIN}
+                            max={AGE_MAX}
+                            maxLength={2}
+                            value={formatAgeInputValue(feedFilters.age_from)}
                             onChange={(e) => {
-                              const raw = e.target.value;
-                              const n = raw === "" ? null : Number(raw);
                               const next: FeedFilters = {
                                 ...feedFilters,
-                                age_from:
-                                  raw === "" ? null : Number.isFinite(n) ? n : null,
+                                age_from: parseAgeInput(e.target.value),
                               };
                               setFeedFilters(next);
                               persistFeedFilters(next);
                             }}
                             className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
-                            placeholder="0"
+                            placeholder="1"
                           />
                         </div>
                         <div>
@@ -397,24 +402,23 @@ export function MapColumn(props: Props) {
                             До
                           </label>
                           <input
-                            type="number"
+                            type="text"
                             inputMode="numeric"
-                            min={0}
-                            max={80}
-                            value={feedFilters.age_to ?? ""}
+                            pattern="[1-9][0-9]?"
+                            min={AGE_MIN}
+                            max={AGE_MAX}
+                            maxLength={2}
+                            value={formatAgeInputValue(feedFilters.age_to)}
                             onChange={(e) => {
-                              const raw = e.target.value;
-                              const n = raw === "" ? null : Number(raw);
                               const next: FeedFilters = {
                                 ...feedFilters,
-                                age_to:
-                                  raw === "" ? null : Number.isFinite(n) ? n : null,
+                                age_to: parseAgeInput(e.target.value),
                               };
                               setFeedFilters(next);
                               persistFeedFilters(next);
                             }}
                             className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
-                            placeholder="80"
+                            placeholder="99"
                           />
                         </div>
                       </div>
@@ -520,6 +524,7 @@ export function MapColumn(props: Props) {
                   viewedProfileIds={effectiveViewedProfileIds}
                   focusedProfileId={focusedProfileId}
                   currentUserProfileId={currentUser?.profileId ?? null}
+                  mapVisitKey={mobileTab}
                   invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${profiles.length}`}
                   center={mapConfig.center}
                   zoom={mapConfig.zoom}

@@ -56,3 +56,13 @@ export function signResultWebhook(
 ): string {
   return buildRobokassaSignature(`${outSum}:${invId}:${password2}`);
 }
+
+/** Описание счёта в ссылке Robokassa (Description + InvDesc + Encoding). */
+export function applyRobokassaInvoiceDescription(
+  url: URL,
+  description: string,
+): void {
+  url.searchParams.set("Description", description);
+  url.searchParams.set("InvDesc", description);
+  url.searchParams.set("Encoding", "utf-8");
+}

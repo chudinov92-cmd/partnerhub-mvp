@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   authEmailCallbackPendingInUrl,
+  authOtpVerifyErrorMessage,
   clearAuthCallbackFromUrl,
-  completeAuthEmailCallback,
   getEmailAuthCallbackUrl,
-  getEmailAuthResetPasswordUrl,
+  isConsumedOtpErrorText,
   isEmailNotConfirmedError,
+  isOtpVerifyError,
   parseAuthEmailCallbackParams,
 } from "@/lib/authEmailCallback";
 import {
@@ -21,8 +22,6 @@ import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import {
   authFormsGetSession,
   authFormsOnAuthStateChange,
-  authFormsResend,
-  authFormsResetPasswordForEmail,
   authFormsSignInWithPassword,
   authFormsSignUp,
   authGetSession,
@@ -35,6 +34,11 @@ import {
 } from "@/services/authService";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import { PasswordInput } from "@/components/PasswordInput";
+import { useOtpSendCooldown } from "@/hooks/useOtpSendCooldown";
+import {
+  isOtpSendLimitedError,
+  requestOtpSend,
+} from "@/lib/authOtpSendClient";
 import {
   AUTH_FORM_TIMEOUT_MS,
   AUTH_OPERATION_TIMEOUT_MS,
@@ -139,7 +143,7 @@ function isSilentDuplicateSignUp(data: {
 const GENERIC_AUTH_ERROR =
   "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
 
-function sanitizeSupabaseMessage(m: string): string {
+function sanitizeSupabaseMessage(m: string, mode?: Mode): string {
   if (
     /неверный|invalid login|wrong password|invalid email or password/i.test(m)
   ) {
@@ -150,6 +154,9 @@ function sanitizeSupabaseMessage(m: string): string {
   }
   if (/email.*confirm|подтверд/i.test(m)) {
     return "Проверьте почту и перейдите по ссылке подтверждения.";
+  }
+  if (isConsumedOtpErrorText(m) || /^otp_expired$/i.test(m)) {
+    return authOtpVerifyErrorMessage(mode);
   }
   return GENERIC_AUTH_ERROR;
 }
@@ -214,15 +221,23 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
     );
   }
 
+  if (isOtpVerifyError(err)) {
+    return authUserMessage(err, mode, authOtpVerifyErrorMessage(mode));
+  }
+
   if (!err) return authUserMessage(err, mode, "Ошибка авторизации");
 
   if (typeof err === "string") {
-    return authUserMessage(err, mode, sanitizeSupabaseMessage(err));
+    return authUserMessage(err, mode, sanitizeSupabaseMessage(err, mode));
   }
 
   if (typeof err !== "object" || err === null) {
     try {
-      return authUserMessage(err, mode, sanitizeSupabaseMessage(String(err)));
+      return authUserMessage(
+        err,
+        mode,
+        sanitizeSupabaseMessage(String(err), mode),
+      );
     } catch {
       return authUserMessage(err, mode, "Ошибка авторизации");
     }
@@ -263,10 +278,13 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
           "Ошибка конфигурации сервиса. Напишите в поддержку — мы разберёмся.",
         );
       }
-      return authUserMessage(err, mode, sanitizeSupabaseMessage(msg));
+      return authUserMessage(err, mode, sanitizeSupabaseMessage(msg, mode));
     }
 
     const code = formatAuthCode(ae.code);
+    if (isOtpVerifyError(err)) {
+      return authUserMessage(err, mode, authOtpVerifyErrorMessage(mode));
+    }
     if (code || st !== undefined) {
       return authUserMessage(err, mode, GENERIC_AUTH_ERROR);
     }
@@ -308,7 +326,7 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
         "Ошибка конфигурации сервиса. Напишите в поддержку — мы разберёмся.",
       );
     }
-    return authUserMessage(err, mode, sanitizeSupabaseMessage(m));
+    return authUserMessage(err, mode, sanitizeSupabaseMessage(m, mode));
   }
 
   if (
@@ -318,7 +336,7 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
     return authUserMessage(
       err,
       mode,
-      sanitizeSupabaseMessage(maybeError.error_description.trim()),
+      sanitizeSupabaseMessage(maybeError.error_description.trim(), mode),
     );
   }
 
@@ -332,6 +350,10 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
       mode,
       "Сервис временно недоступен. Попробуйте через 1–2 минуты.",
     );
+  }
+
+  if (isOtpVerifyError(err)) {
+    return authUserMessage(err, mode, authOtpVerifyErrorMessage(mode));
   }
 
   if (code || status !== undefined) {
@@ -382,6 +404,13 @@ export default function AuthPage() {
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpLoading, setSignupOtpLoading] = useState(false);
   const router = useRouter();
+  const otpCooldownEnabled =
+    Boolean(email.trim()) &&
+    (mode === "forgot" ||
+      mode === "signup" ||
+      showResendConfirmation ||
+      showEmailOtpEntry);
+  const otpCooldown = useOtpSendCooldown(email, otpCooldownEnabled);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -483,8 +512,7 @@ export default function AuthPage() {
     void check();
   }, [router]);
 
-  const handleSignupOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignupOtpSubmit = async () => {
     if (!email.trim()) {
       setError("Укажите email аккаунта.");
       return;
@@ -529,28 +557,26 @@ export default function AuthPage() {
       setError("Укажите email для повторной отправки письма.");
       return;
     }
+    if (otpCooldown.blocked) {
+      setError(otpCooldown.message);
+      return;
+    }
     setResendLoading(true);
     setError(null);
     setInfo(null);
     try {
-      const { error: resendErr } = await withAuthTimeout(
-        authFormsResend({
-          type: "signup",
-          email: email.trim(),
-          options: {
-            emailRedirectTo: getEmailAuthCallbackUrl(),
-          },
-        }),
-        "resendSignupConfirmation",
-        AUTH_FORM_TIMEOUT_MS,
-      );
-      if (resendErr) throw resendErr;
+      const limit = await requestOtpSend(email, "signup_resend");
+      otpCooldown.applyResult(limit);
       setInfo(
-        "Письмо с новым кодом отправлено. Проверьте «Спам». Код действует 10 минут.",
+        "Письмо с новым кодом отправлено. Проверьте «Спам». Код действует 10 минут. Предыдущий код больше не действует — используйте код из последнего письма.",
       );
       setShowResendConfirmation(true);
       setShowEmailOtpEntry(true);
     } catch (err: unknown) {
+      if (isOtpSendLimitedError(err)) {
+        otpCooldown.applyLimitedError(err);
+        return;
+      }
       setError(getAuthErrorMessage(err, "signup"));
     } finally {
       setResendLoading(false);
@@ -559,6 +585,14 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (
+      mode === "signup" &&
+      (showEmailOtpEntry || showResendConfirmation)
+    ) {
+      return;
+    }
+
     setError(null);
     setInfo(null);
     setShowResendConfirmation(false);
@@ -573,20 +607,14 @@ export default function AuthPage() {
 
     try {
       if (mode === "forgot") {
-        const redirectTo = getEmailAuthResetPasswordUrl();
-        const { error } = await withAuthTimeout(
-          authFormsResetPasswordForEmail(email, {
-            redirectTo,
-          }),
-          "resetPasswordForEmail",
-          AUTH_FORM_TIMEOUT_MS,
-        );
-        if (error) throw error;
+        const limit = await requestOtpSend(email, "recovery");
+        otpCooldown.applyResult(limit);
         router.push(
           `/auth/reset-password?email=${encodeURIComponent(email.trim())}`,
         );
         return;
       } else if (mode === "signup") {
+        await requestOtpSend(email, "signup");
         const { data, error } = await withAuthTimeout(
           authFormsSignUp({
             email,
@@ -609,6 +637,14 @@ export default function AuthPage() {
           setShowResendConfirmation(true);
           setShowEmailOtpEntry(true);
           return;
+        }
+        try {
+          const recorded = await requestOtpSend(email, "record");
+          otpCooldown.applyResult(recorded);
+        } catch (recordErr: unknown) {
+          if (isOtpSendLimitedError(recordErr)) {
+            otpCooldown.applyLimitedError(recordErr);
+          }
         }
         reachYandexMetrikaGoal("signup", { method: "email" });
         recordAgreementConsent();
@@ -697,6 +733,10 @@ export default function AuthPage() {
         return;
       }
     } catch (err: unknown) {
+      if (isOtpSendLimitedError(err)) {
+        otpCooldown.applyLimitedError(err);
+        return;
+      }
       setError(getAuthErrorMessage(err, mode));
       if (mode === "signup" && isUserAlreadyRegistered(err)) {
         setShowResendConfirmation(true);
@@ -709,6 +749,73 @@ export default function AuthPage() {
 
   const inputClassName =
     "h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]";
+
+  const signupOtpStepActive =
+    mode === "signup" && (showEmailOtpEntry || showResendConfirmation);
+  const emailOtpUiActive =
+    (mode === "signin" || mode === "signup") &&
+    (showResendConfirmation || showEmailOtpEntry);
+
+  const primarySubmitClassName =
+    "flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60";
+
+  const emailOtpBlock = emailOtpUiActive ? (
+    <div className="space-y-3">
+      {showEmailOtpEntry ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="mb-2 text-center text-xs text-slate-600">
+            Введите 6-значный код из письма. Код действует 10 минут.
+          </p>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="Код из письма"
+              value={signupOtpCode}
+              onChange={(e) =>
+                setSignupOtpCode(e.target.value.replace(/\D/g, ""))
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSignupOtpSubmit();
+                }
+              }}
+              className={inputClassName}
+            />
+            <button
+              type="button"
+              disabled={signupOtpLoading}
+              onClick={() => void handleSignupOtpSubmit()}
+              className={primarySubmitClassName}
+            >
+              {signupOtpLoading ? "Проверяем…" : "Подтвердить"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {showResendConfirmation ? (
+        <div className="space-y-1 text-center">
+          <button
+            type="button"
+            disabled={resendLoading || otpCooldown.blocked}
+            onClick={() => void handleResendConfirmation()}
+            className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:no-underline"
+          >
+            {resendLoading ? "Отправляем…" : "Отправить код ещё раз"}
+          </button>
+          {otpCooldown.countdownLabel ? (
+            <p className="text-xs text-slate-600">{otpCooldown.countdownLabel}</p>
+          ) : null}
+          <p className="text-xs text-slate-500">
+            После повторной отправки предыдущий код не действует.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
@@ -881,7 +988,9 @@ export default function AuthPage() {
             ) : null}
           </div>
 
-          {mode === "signup" && (
+          {signupOtpStepActive ? emailOtpBlock : null}
+
+          {mode === "signup" && !signupOtpStepActive && (
             <div className="space-y-3">
               <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
                 <input
@@ -926,32 +1035,45 @@ export default function AuthPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={
-              loading ||
-              (mode === "signup" && (!consentChecked || !agreementChecked))
-            }
-            onClick={() => {
-              if (
-                mode === "signup" &&
-                (!consentChecked || !agreementChecked)
-              ) {
-                setSubmitAttempted(true);
-              }
-            }}
-            className="flex h-12 w-full items-center justify-center rounded-xl bg-[#009966] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#008855] disabled:opacity-60"
-          >
-            {loading
-              ? "Подождите..."
-              : mode === "forgot"
-                ? "Отправить код"
-                : mode === "signup"
-                  ? "Зарегистрироваться"
-                  : "Войти"}
-          </button>
+          {!signupOtpStepActive ? (
+            <>
+              <button
+                type="submit"
+                disabled={
+                  loading ||
+                  ((mode === "forgot" || mode === "signup") &&
+                    otpCooldown.blocked) ||
+                  (mode === "signup" && (!consentChecked || !agreementChecked))
+                }
+                onClick={() => {
+                  if (
+                    mode === "signup" &&
+                    (!consentChecked || !agreementChecked)
+                  ) {
+                    setSubmitAttempted(true);
+                  }
+                }}
+                className={primarySubmitClassName}
+              >
+                {loading
+                  ? "Подождите..."
+                  : mode === "forgot"
+                    ? "Отправить код"
+                    : mode === "signup"
+                      ? "Зарегистрироваться"
+                      : "Войти"}
+              </button>
+              {otpCooldown.countdownLabel &&
+              (mode === "forgot" || mode === "signup") ? (
+                <p className="text-center text-xs text-slate-600">
+                  {otpCooldown.countdownLabel}
+                </p>
+              ) : null}
+            </>
+          ) : null}
 
           {mode === "signup" &&
+          !signupOtpStepActive &&
           submitAttempted &&
           !loading &&
           (!consentChecked || !agreementChecked) ? (
@@ -960,56 +1082,7 @@ export default function AuthPage() {
             </p>
           ) : null}
 
-          {(mode === "signin" || mode === "signup") &&
-            (showResendConfirmation || showEmailOtpEntry) && (
-            <div className="space-y-3">
-              {showResendConfirmation ? (
-                <div className="text-center">
-                  <button
-                    type="button"
-                    disabled={resendLoading}
-                    onClick={() => void handleResendConfirmation()}
-                    className="text-sm font-medium text-[#009966] hover:text-[#008855] hover:underline disabled:opacity-60"
-                  >
-                    {resendLoading
-                      ? "Отправляем…"
-                      : "Отправить код ещё раз"}
-                  </button>
-                </div>
-              ) : null}
-              {showEmailOtpEntry ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="mb-2 text-center text-xs text-slate-600">
-                    Введите 6-значный код из письма. Код действует 10 минут.
-                  </p>
-                  <form
-                    onSubmit={(e) => void handleSignupOtpSubmit(e)}
-                    className="flex flex-col gap-2"
-                  >
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      placeholder="Код из письма"
-                      value={signupOtpCode}
-                      onChange={(e) =>
-                        setSignupOtpCode(e.target.value.replace(/\D/g, ""))
-                      }
-                      className={inputClassName}
-                    />
-                    <button
-                      type="submit"
-                      disabled={signupOtpLoading}
-                      className="flex h-10 w-full items-center justify-center rounded-xl border border-[#009966] bg-white px-4 text-sm font-semibold text-[#009966] transition hover:bg-emerald-50 disabled:opacity-60"
-                    >
-                      {signupOtpLoading ? "Проверяем…" : "Подтвердить кодом"}
-                    </button>
-                  </form>
-                </div>
-              ) : null}
-            </div>
-          )}
+          {mode === "signin" && emailOtpUiActive ? emailOtpBlock : null}
 
           {mode === "signin" && (
             <div className="text-center">

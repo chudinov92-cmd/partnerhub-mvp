@@ -33,7 +33,17 @@ import {
   ABOUT_ME_PLACEHOLDER,
   RESOURCES_PLACEHOLDER,
 } from "@/lib/profileFieldPlaceholders";
-import { isActiveProProfile } from "@/services/subscriptionService";
+import {
+  AGE_MAX,
+  AGE_MIN,
+  formatAgeInputValue,
+  parseAgeInput,
+} from "@/lib/ageInput";
+import {
+  getEffectiveSubscriptionPlan,
+  isActiveProProfile,
+} from "@/services/subscriptionService";
+import { getPlanLabel, getPlanTextColor } from "@/lib/subscriptionPlans";
 import { isPaidGateMode } from "@/lib/accessMode";
 import {
   ProfileSaveFeedbackBar,
@@ -270,6 +280,7 @@ type Profile = {
   seeking: string[];
   is_pro?: boolean | null;
   pro_expires_at?: string | null;
+  subscription_plan?: "free" | "pro" | "pro_plus" | null;
 };
 
 type WorkBlock = {
@@ -518,7 +529,7 @@ export default function ProfilePage() {
 
         let { data: profData, error: pErr } = await profileTable("profiles")
           .select(
-            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at",
+            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at, subscription_plan",
           )
           .eq("auth_user_id", user.id)
           .maybeSingle();
@@ -537,7 +548,7 @@ export default function ProfilePage() {
               country: DEFAULT_COUNTRY,
             })
             .select(
-              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at",
+              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at, subscription_plan",
             )
             .single();
 
@@ -882,18 +893,18 @@ export default function ProfilePage() {
       }
 
       const subscriptionActive = isActiveProProfile(profile);
-      const needsSubscriptionForMap =
+      const needsSubscriptionForDm =
         isPaidGateMode() && !subscriptionActive && Boolean(coords);
       const skillsEmpty =
         !profile.skills?.trim() && !profile.resources?.trim();
 
       showSaveFeedback({
         successMessage: "Профиль успешно сохранён",
-        subscriptionHint: needsSubscriptionForMap
-          ? "Чтобы ваш профиль отображался на карте, оформите подписку."
+        subscriptionHint: needsSubscriptionForDm
+          ? "Ваш пин уже на карте. Чтобы писать другим участникам, оформите подписку."
           : null,
         nextStepHint:
-          !needsSubscriptionForMap && skillsEmpty
+          !needsSubscriptionForDm && skillsEmpty
             ? "Расскажите о своих навыках — так вас заметят другие участники."
             : null,
       });
@@ -957,6 +968,8 @@ export default function ProfilePage() {
       ? "Профиль сохранен"
       : "Сохранить профиль";
 
+  const effectivePlan = getEffectiveSubscriptionPlan(profile);
+
   const saveButtonClassName = `inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
     saving
       ? "bg-[#009966]/80 hover:bg-[#009966]/80"
@@ -994,6 +1007,12 @@ export default function ProfilePage() {
             <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
               Мой профиль
             </h1>
+            <span
+              className="text-2xl font-bold sm:text-3xl"
+              style={{ color: getPlanTextColor(effectivePlan) }}
+            >
+              {getPlanLabel(effectivePlan)}
+            </span>
           </div>
           <p className="mt-1 text-sm text-slate-600">
             Заполните информацию о себе, чтобы другие пользователи могли вас
@@ -1013,8 +1032,8 @@ export default function ProfilePage() {
           ) : isPaidGateMode() ? (
             <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
               <p className="text-sm text-amber-900">
-                Без подписки профиль можно заполнить, но пин на карте и переписка
-                будут доступны после оплаты.{" "}
+                Ваш пин на карте уже виден другим участникам. Личные сообщения —
+                после оплаты.{" "}
                 <Link href="/subscription" className="font-medium underline">
                   Оформить подписку
                 </Link>
@@ -1116,17 +1135,17 @@ export default function ProfilePage() {
                   Возраст
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
-                  min={0}
-                  max={80}
-                  value={profile.age ?? ""}
+                  pattern="[1-9][0-9]?"
+                  min={AGE_MIN}
+                  max={AGE_MAX}
+                  maxLength={2}
+                  value={formatAgeInputValue(profile.age)}
                   onChange={(e) => {
-                    const raw = e.target.value;
-                    const n = raw === "" ? null : Number(raw);
                     setProfile({
                       ...profile,
-                      age: raw === "" ? null : Number.isFinite(n) ? n : null,
+                      age: parseAgeInput(e.target.value),
                     });
                   }}
                   className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"

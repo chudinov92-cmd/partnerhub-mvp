@@ -75,13 +75,13 @@ export function Hero({ assets }: HeroProps) {
       <div className="container hero__grid">
         <div className="hero__copy">
           <h1 className="hero__title">
-            <span className="hero__brand">ЗЕИП</span> — карта людей в твоём городе, готовых вместе делать проекты
+            <span className="hero__brand">ЗЕИП</span> — карта людей для бизнес-проектов
           </h1>
           <p className="hero__subtitle">
-            Один легко сдаётся. Найди тех, кто готов двигаться — и дело пойдёт.
+            Сделай первый шаг и появись на карте
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <ButtonLink
               href={cta.href}
               aria-label={cta.ariaLabel}

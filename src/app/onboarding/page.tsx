@@ -29,6 +29,13 @@ import {
   ABOUT_ME_PLACEHOLDER,
   RESOURCES_PLACEHOLDER,
 } from "@/lib/profileFieldPlaceholders";
+import {
+  AGE_MAX,
+  AGE_MIN,
+  formatAgeInputValue,
+  isValidAge,
+  parseAgeInput,
+} from "@/lib/ageInput";
 import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
@@ -408,8 +415,8 @@ export default function OnboardingPage() {
     if (step === 0) {
       if (!profile.full_name?.trim()) return "Укажите имя";
       if (!profile.city?.trim()) return "Выберите город";
-      if (profile.age == null || profile.age < 1 || profile.age > 80) {
-        return "Укажите возраст от 1 до 80";
+      if (!isValidAge(profile.age)) {
+        return "Укажите возраст от 1 до 99";
       }
     }
     if (step === 1) {
@@ -665,17 +672,17 @@ export default function OnboardingPage() {
               <div>
                 <FieldLabel required>Возраст</FieldLabel>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
-                  min={1}
-                  max={80}
-                  value={profile.age ?? ""}
+                  pattern="[1-9][0-9]?"
+                  min={AGE_MIN}
+                  max={AGE_MAX}
+                  maxLength={2}
+                  value={formatAgeInputValue(profile.age)}
                   onChange={(e) => {
-                    const raw = e.target.value;
-                    const n = raw === "" ? null : Number(raw);
                     setProfile({
                       ...profile,
-                      age: raw === "" ? null : Number.isFinite(n) ? n : null,
+                      age: parseAgeInput(e.target.value),
                     });
                   }}
                   className={FIELD_CLASS}
@@ -913,9 +920,10 @@ export default function OnboardingPage() {
           {step === 3 ? (
             <>
               <p className="text-sm leading-relaxed text-slate-600">
-                Кликните по карте, чтобы указать район. Ваши точные координаты
-                скрыты от других пользователей. Точка показывается произвольно в
-                радиусе 300 метров от указанной вами.
+                Кликните по карте, чтобы указать район.
+                <br />
+                Ваши точные координаты скрыты от других пользователей. Точка
+                показывается произвольно в радиусе 300 метров от указанной вами.
               </p>
               <LocationPicker
                 value={coords}

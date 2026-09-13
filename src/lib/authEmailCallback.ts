@@ -60,6 +60,46 @@ export function consumedOtpUserMessage(kind: "signup" | "recovery"): string {
   );
 }
 
+export const SIGNUP_OTP_VERIFY_ERROR =
+  "Код неверный или устарел. Запросите новый код кнопкой ниже и введите последний из письма.";
+
+export function extractAuthErrorTexts(err: unknown): string[] {
+  const out: string[] = [];
+  if (typeof err === "string") {
+    const trimmed = err.trim();
+    if (trimmed) out.push(trimmed);
+    return out;
+  }
+  if (!err || typeof err !== "object") return out;
+
+  const row = err as Record<string, unknown>;
+  for (const key of ["message", "msg", "error_description", "code", "error_code"]) {
+    const value = row[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) out.push(trimmed);
+    } else if (typeof value === "number") {
+      out.push(String(value));
+    }
+  }
+  return out;
+}
+
+export function isOtpVerifyError(err: unknown): boolean {
+  return extractAuthErrorTexts(err).some(
+    (text) => isConsumedOtpErrorText(text) || /^otp_expired$/i.test(text),
+  );
+}
+
+export function authOtpVerifyErrorMessage(
+  mode?: "signin" | "signup" | "forgot",
+): string {
+  if (mode === "signup" || mode === "signin") {
+    return SIGNUP_OTP_VERIFY_ERROR;
+  }
+  return consumedOtpUserMessage("signup");
+}
+
 /** Разбор query + hash после редиректа GoTrue (implicit hash только на клиенте). */
 export function parseAuthEmailCallbackParams(
   search: string,
