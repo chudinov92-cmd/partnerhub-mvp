@@ -17,6 +17,7 @@ services:
         NEXT_PUBLIC_ACCESS_MODE: ${NEXT_PUBLIC_ACCESS_MODE:-freemium}
         NEXT_PUBLIC_PIONEER_PROMO_ENABLED: ${NEXT_PUBLIC_PIONEER_PROMO_ENABLED:-false}
     container_name: app-web
+    hostname: mail.zeip.ru
     restart: unless-stopped
     env_file:
       - ./.env.app

@@ -152,6 +152,9 @@ else
   SMTP_USER="$(read_env GOTRUE_SMTP_USER SMTP_USER)"
   SMTP_PASS="$(read_env GOTRUE_SMTP_PASS SMTP_PASS)"
   FROM="$(read_env GOTRUE_SMTP_ADMIN_EMAIL SMTP_ADMIN_EMAIL)"
+  # shellcheck source=smtp-helo-common.sh
+  source "${APP_DIR}/scripts/vps/smtp-helo-common.sh"
+  SMTP_EHLO="$(resolve_smtp_helo "$ENV_FILE")"
 
   SWAKS_TLS_ARGS=(--tls-on-connect)
   if [[ "$SMTP_PORT" == "587" ]]; then
@@ -163,11 +166,12 @@ else
 
   nohup bash -c "timeout 90 swaks --to '${TEST_TO}' \
     --from '${FROM}' \
+    --ehlo '${SMTP_EHLO}' \
     --server '${SMTP_HOST}' --port '${SMTP_PORT}' \
     --auth LOGIN --auth-user '${SMTP_USER}' --auth-password '${SMTP_PASS}' \
     ${SWAKS_TLS_ARGS[*]} \
     --header 'Subject: Zeip SMTP test $(date +%H:%M)' \
-    --body 'Test from $(hostname)' \
+    --body 'Test HELO ${SMTP_EHLO} from Zeip diagnose' \
     > '${LOG}' 2>&1" </dev/null >/dev/null 2>&1 &
 
   echo "swaks pid $! — wait 20s, then on VPS: cat ${LOG}"

@@ -177,6 +177,17 @@ After DNS propagation:
 - Open `https://zeip.ru`.
 - Verify in browser network that API calls go to `https://supabase.zeip.ru`.
 
+### Email HELO при смене IP / нового VPS
+
+Auth-письма идут через `smtp.timeweb.ru`; HELO клиента должен быть **`mail.zeip.ru`** (не технический `twc1.net`).
+
+1. Timeweb DNS: **A** `mail.zeip.ru` → новый IP; **PTR** нового IP → `mail.zeip.ru`.
+2. Проверка: `bash scripts/vps/verify-mail-helo-dns.sh`
+3. На VPS: `bash scripts/vps/run-set-mail-helo-remote.sh`
+4. Один mail-tester + один recovery test.
+
+Полный чеклист: [`ai_docs/tasks/email-dmarc-and-vps-migration.md`](../../ai_docs/tasks/email-dmarc-and-vps-migration.md).
+
 ## 9) Rollback
 
 If incident occurs:

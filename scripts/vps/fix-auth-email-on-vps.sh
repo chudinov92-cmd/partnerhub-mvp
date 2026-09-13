@@ -155,10 +155,16 @@ subprocess.run(["docker", "compose", "config", "-q"], check=True)
 print("docker compose config OK")
 PY
 
-echo "=== Recreate templates-server + auth ==="
-docker compose config -q
-docker compose up -d --force-recreate --no-deps templates-server auth
-docker compose restart kong
+echo "=== Patch auth HELO hostname (mail.zeip.ru) ==="
+if [[ -f "${APP_DIR}/scripts/vps/patch-compose-auth-helo.sh" ]]; then
+  bash "${APP_DIR}/scripts/vps/patch-compose-auth-helo.sh"
+  docker compose up -d --force-recreate --no-deps templates-server
+else
+  echo "WARN: patch-compose-auth-helo.sh not found — skip auth hostname patch"
+  docker compose config -q
+  docker compose up -d --force-recreate --no-deps templates-server auth
+  docker compose restart kong
+fi
 
 echo "=== Verify templates from auth network ==="
 sleep 3

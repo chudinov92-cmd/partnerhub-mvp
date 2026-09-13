@@ -59,6 +59,37 @@ echo ""
 echo "=== MX ==="
 dig +short MX "$DOMAIN" 2>/dev/null || echo "MISSING"
 
+MAIL_HOST="mail.${DOMAIN}"
+VPS_IP="${VPS_IP:-186.246.2.104}"
+
+echo ""
+echo "=== A ${MAIL_HOST} (HELO) ==="
+A_MAIL="$(dig +short A "${MAIL_HOST}" 2>/dev/null | head -1 || true)"
+if [[ -z "$A_MAIL" ]]; then
+  echo "MISSING — Timeweb DNS: A mail → ${VPS_IP}"
+  fail=$((fail + 1))
+elif [[ "$A_MAIL" != "$VPS_IP" ]]; then
+  echo "MISMATCH: ${A_MAIL} (ожидалось ${VPS_IP})"
+  fail=$((fail + 1))
+else
+  echo "OK: ${A_MAIL}"
+  ok=$((ok + 1))
+fi
+
+echo ""
+echo "=== PTR ${VPS_IP} (HELO reverse) ==="
+PTR="$(dig +short -x "${VPS_IP}" 2>/dev/null | sed 's/\.$//' | head -1 || true)"
+if [[ -z "$PTR" ]]; then
+  echo "MISSING — Timeweb VPS: PTR ${VPS_IP} → ${MAIL_HOST}"
+  fail=$((fail + 1))
+elif [[ "$PTR" != "$MAIL_HOST" ]]; then
+  echo "MISMATCH: ${PTR} (ожидалось ${MAIL_HOST})"
+  fail=$((fail + 1))
+else
+  echo "OK: ${PTR}"
+  ok=$((ok + 1))
+fi
+
 echo ""
 echo "--- Summary ---"
 echo "OK checks: ${ok}, issues: ${fail}"

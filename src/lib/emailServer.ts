@@ -38,10 +38,14 @@ export async function sendTransactionalEmail(
     return { ok: false, error: "SMTP is not configured" };
   }
 
+  const heloName =
+    process.env.SMTP_HELO_NAME?.trim() || "mail.zeip.ru";
+
   const transport = nodemailer.createTransport({
     host: cfg.host,
     port: cfg.port,
     secure: cfg.port === 465,
+    name: heloName,
     auth: {
       user: cfg.user,
       pass: cfg.pass,

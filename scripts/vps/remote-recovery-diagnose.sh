@@ -44,6 +44,12 @@ fetch_template recovery.html
 
 echo ""
 echo "=== swaks → ${EMAIL} ==="
+SMTP_EHLO="${SMTP_HELO_NAME:-mail.zeip.ru}"
+if [[ -f "$ENV_FILE" ]]; then
+  _helo="$(grep "^SMTP_HELO_NAME=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  [[ -n "$_helo" ]] && SMTP_EHLO="$_helo"
+fi
+
 if ! command -v swaks >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y swaks
 fi
@@ -80,6 +86,7 @@ TLS=(--tls-on-connect)
 LOG="/tmp/zeip-swaks-latest.log"
 timeout 90 swaks --to "$EMAIL" \
   --from "$FROM" \
+  --ehlo "$SMTP_EHLO" \
   --server "$SMTP_HOST" --port "$SMTP_PORT" \
   --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
   "${TLS[@]}" \

@@ -110,6 +110,9 @@ ensure_env_kv "$APP_ENV" "SMTP_USER" "$USER"
 ensure_env_kv "$APP_ENV" "SMTP_PASS" "$PASS"
 ensure_env_kv "$APP_ENV" "SMTP_ADMIN_EMAIL" "$ADMIN"
 ensure_env_kv "$APP_ENV" "SMTP_SENDER_NAME" "$SENDER"
+HELO="$(grep "^SMTP_HELO_NAME=" "$APP_ENV" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+[[ -z "$HELO" || "$HELO" == REPLACE_* ]] && HELO="mail.zeip.ru"
+ensure_env_kv "$APP_ENV" "SMTP_HELO_NAME" "$HELO"
 sync_internal_secrets
 
 echo "=== SMTP synced ==="

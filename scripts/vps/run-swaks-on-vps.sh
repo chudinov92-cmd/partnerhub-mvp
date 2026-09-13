@@ -11,6 +11,10 @@ ENV_FILE="${ENV_FILE:-${STACK_DIR}/.env}"
 
 cd "$STACK_DIR"
 
+# shellcheck source=smtp-helo-common.sh
+source "$(dirname "$0")/smtp-helo-common.sh"
+SMTP_EHLO="$(resolve_smtp_helo "$ENV_FILE")"
+
 if ! command -v swaks >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y swaks
 fi
@@ -47,6 +51,7 @@ echo "swaks → ${TEST_TO}, log: ${LOG}"
 
 timeout 90 swaks --to "$TEST_TO" \
   --from "$FROM" \
+  --ehlo "$SMTP_EHLO" \
   --server "$SMTP_HOST" --port "$SMTP_PORT" \
   --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
   "${TLS[@]}" \

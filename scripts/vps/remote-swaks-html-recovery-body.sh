@@ -9,6 +9,11 @@ if [[ -z "$EMAIL" ]]; then
 fi
 
 STACK_ENV="${STACK_ENV:-/root/zeip/supabase-stack/.env}"
+SMTP_EHLO="${SMTP_HELO_NAME:-mail.zeip.ru}"
+if [[ -f "$STACK_ENV" ]]; then
+  _helo="$(grep "^SMTP_HELO_NAME=" "$STACK_ENV" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  [[ -n "$_helo" ]] && SMTP_EHLO="$_helo"
+fi
 
 read_env() {
   local primary="$1"
@@ -60,6 +65,7 @@ HTMLEOF
 echo "=== swaks HTML (recovery-like) → ${EMAIL} ==="
 timeout 90 swaks --to "$EMAIL" \
   --from "$FROM" \
+  --ehlo "$SMTP_EHLO" \
   --server "$SMTP_HOST" --port "$SMTP_PORT" \
   --auth LOGIN --auth-user "$SMTP_USER" --auth-password "$SMTP_PASS" \
   "${TLS[@]}" \
