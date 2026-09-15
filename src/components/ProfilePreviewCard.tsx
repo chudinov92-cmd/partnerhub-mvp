@@ -135,6 +135,16 @@ function IconShare({ className }: { className?: string }) {
   );
 }
 
+function IconShieldAlert({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="12" x2="12" y1="8" y2="12" strokeLinecap="round" />
+      <line x1="12" x2="12.01" y1="16" y2="16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconUserPlus({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -209,6 +219,8 @@ type ProfilePreviewCardProps = {
   guestLastViewHint?: boolean;
   /** Поделиться профилем в чате */
   onShare?: () => void;
+  /** Hard purge (super_admin) */
+  onModerate?: () => void;
 };
 
 export function ProfilePreviewCard({
@@ -233,6 +245,7 @@ export function ProfilePreviewCard({
   rootDataAttr,
   guestLastViewHint = false,
   onShare,
+  onModerate,
 }: ProfilePreviewCardProps) {
   const name = profile.full_name || "Пользователь";
   const initial = (name[0] || "?").toLocaleUpperCase("ru-RU");
@@ -362,6 +375,17 @@ export function ProfilePreviewCard({
           className={`relative w-full min-w-0 shrink-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 text-white ${headerPad}`}
         >
           <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
+            {onModerate ? (
+              <button
+                type="button"
+                onClick={onModerate}
+                className="rounded-full p-1 transition-colors hover:bg-rose-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/70"
+                aria-label="Модерация: удалить аккаунт"
+                title="Модерация"
+              >
+                <IconShieldAlert className="h-5 w-5 text-rose-200" />
+              </button>
+            ) : null}
             {onShare && !isOwnProfile ? (
               <button
                 type="button"

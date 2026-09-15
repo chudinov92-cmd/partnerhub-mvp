@@ -1,12 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { markWelcomeOnboardingShown } from "@/lib/welcomeOnboarding";
-import { DEFAULT_FEED_FILTERS } from "@/types";
 import { PaywallDrawer } from "@/components/PaywallDrawer";
 import { PinLimitModal } from "@/components/PinLimitModal";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
 import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
+import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import { useMapPageController } from "./hooks/useMapPageController";
 import { FeedColumn } from "./components/FeedColumn";
 import { MapColumn } from "./components/MapColumn";
@@ -26,6 +29,16 @@ const ProfilePreviewCard = dynamic(
 
 export default function Home() {
   const c = useMapPageController();
+  const router = useRouter();
+  const { isSuperAdmin } = useIsSuperAdmin();
+  const [moderationOpen, setModerationOpen] = useState(false);
+  const [moderationQuery, setModerationQuery] = useState("");
+
+  const canModerateOverlay =
+    isSuperAdmin &&
+    !!c.currentUser?.profileId &&
+    !!c.activeProfileOverlay &&
+    c.currentUser.profileId !== c.activeProfileOverlay.id;
 
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
@@ -100,6 +113,14 @@ export default function Home() {
                 ? () => void c.shareProfileLink(c.activeProfileOverlay!)
                 : undefined
             }
+            onModerate={
+              canModerateOverlay
+                ? () => {
+                    setModerationQuery(c.activeProfileOverlay!.id);
+                    setModerationOpen(true);
+                  }
+                : undefined
+            }
           />
         ) : null}
       </main>
@@ -126,6 +147,17 @@ export default function Home() {
           onDismiss={() => c.setPaymentToast(null)}
         />
       ) : null}
+
+      <ModerationPurgeDialog
+        open={moderationOpen}
+        initialQuery={moderationQuery}
+        onClose={() => setModerationOpen(false)}
+        onSuccess={() => {
+          c.setActiveProfileOverlay(null);
+          setModerationOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

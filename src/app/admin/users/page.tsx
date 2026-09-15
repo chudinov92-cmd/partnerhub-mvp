@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import { adminFrom } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 type AdminUserRow = {
   id: string;
@@ -23,6 +25,7 @@ function isOnline(lastSeenAt: string | null) {
 }
 
 export default function AdminUsersPage() {
+  const { isSuperAdmin } = useIsSuperAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<AdminUserRow[]>([]);
@@ -31,6 +34,8 @@ export default function AdminUsersPage() {
   const [blocked, setBlocked] = useState<"" | "blocked" | "active">("");
   const [online, setOnline] = useState<"" | "online" | "offline">("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeQuery, setPurgeQuery] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -115,9 +120,23 @@ export default function AdminUsersPage() {
             <h1 className="text-lg font-semibold text-slate-900">Пользователи</h1>
             <p className="text-sm text-slate-600">
               Поиск, просмотр и блокировка профилей.
+              {isSuperAdmin ? " Hard purge — для super_admin." : ""}
             </p>
           </div>
-          <button
+          <div className="flex flex-wrap gap-2">
+            {isSuperAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPurgeQuery("");
+                  setPurgeOpen(true);
+                }}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 hover:bg-rose-100"
+              >
+                Удалить нарушителя
+              </button>
+            ) : null}
+            <button
             type="button"
             onClick={() => load()}
             className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
@@ -125,6 +144,7 @@ export default function AdminUsersPage() {
           >
             Обновить
           </button>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -263,14 +283,28 @@ export default function AdminUsersPage() {
                           )}
                         </td>
                         <td className="px-4 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleBlock(u)}
-                            disabled={busyId === u.id}
-                            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            {u.is_blocked ? "Разблокировать" : "Заблокировать"}
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleBlock(u)}
+                              disabled={busyId === u.id}
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              {u.is_blocked ? "Разблокировать" : "Заблокировать"}
+                            </button>
+                            {isSuperAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPurgeQuery(u.id);
+                                  setPurgeOpen(true);
+                                }}
+                                className="inline-flex min-h-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                              >
+                                Удалить
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -281,6 +315,15 @@ export default function AdminUsersPage() {
           )}
         </div>
       </div>
+
+      <ModerationPurgeDialog
+        open={purgeOpen}
+        initialQuery={purgeQuery}
+        onClose={() => setPurgeOpen(false)}
+        onSuccess={() => {
+          void load();
+        }}
+      />
     </AdminShell>
   );
 }

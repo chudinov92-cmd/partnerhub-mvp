@@ -62,6 +62,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-07-exclude-support-from-email.sq
 run_sql_migration "${ROOT}/supabase/sql/2026-09-07-email-internal-urls.sql" "email-internal-urls"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-11-profiles-age-1-99.sql" "profiles-age-1-99"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-13-auth-otp-sends.sql" "auth-otp-sends"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-15-admin-moderation-purge.sql" "admin-moderation-purge"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

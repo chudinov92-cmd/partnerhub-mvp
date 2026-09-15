@@ -130,6 +130,21 @@ function isUserAlreadyRegistered(err: unknown): boolean {
   );
 }
 
+function isAccountBanned(err: unknown): boolean {
+  if (!err) return false;
+  if (typeof err === "string") {
+    return /account_banned/i.test(err);
+  }
+  if (typeof err !== "object") return false;
+  const row = err as { code?: unknown; message?: unknown };
+  const code = typeof row.code === "string" ? row.code : "";
+  const msg = typeof row.message === "string" ? row.message : "";
+  return /account_banned/i.test(`${code} ${msg}`);
+}
+
+const ACCOUNT_BANNED_MESSAGE =
+  "Регистрация с этого адреса электронной почты недоступна. Если вы считаете, что это ошибка, напишите на support@zeip.ru.";
+
 /** GoTrue anti-enumeration: 200 без письма, если email уже занят (часть сборок). */
 function isSilentDuplicateSignUp(data: {
   user?: { identities?: unknown[] | null } | null;
@@ -144,6 +159,9 @@ const GENERIC_AUTH_ERROR =
   "Не удалось отправить письмо. Попробуйте ещё раз или напишите в поддержку.";
 
 function sanitizeSupabaseMessage(m: string, mode?: Mode): string {
+  if (/account_banned/i.test(m)) {
+    return ACCOUNT_BANNED_MESSAGE;
+  }
   if (
     /неверный|invalid login|wrong password|invalid email or password/i.test(m)
   ) {
@@ -219,6 +237,10 @@ function getAuthErrorMessage(err: unknown, mode?: Mode) {
         ? "Этот email уже зарегистрирован. Перейдите на вкладку «Вход» или нажмите «Забыли пароль?». Если письмо не приходит более 5 минут — напишите в поддержку."
         : "Этот email уже зарегистрирован. Перейдите на вкладку «Вход».",
     );
+  }
+
+  if (isAccountBanned(err)) {
+    return authUserMessage(err, mode, ACCOUNT_BANNED_MESSAGE);
   }
 
   if (isOtpVerifyError(err)) {
