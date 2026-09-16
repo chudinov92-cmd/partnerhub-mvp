@@ -3,10 +3,10 @@
 import { useMemo, useState, type Ref } from "react";
 import {
   findSimilarProfessions,
-  getProfessionResolvePreview,
   normalizeProfessionKey,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
+import { getProfessionResolvePreview } from "@/lib/professionOtherResolve";
 
 type ProfessionOtherInputProps = {
   value: string;
