@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import {
+  adminDeleteIndustry,
+  adminDeleteProfession,
+  adminDeleteSubindustry,
+  adminFetchCatalogs,
+  adminGetAuthUser,
+  adminInsertAuditLog,
+  adminInsertIndustry,
+  adminInsertProfession,
+  adminInsertSubindustry,
+  adminSignOut,
+} from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type IndustryRow = { label: string; is_stock: boolean };
@@ -40,11 +51,8 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const [industriesRes, subindustriesRes, professionsRes] = await Promise.all([
-        adminFrom("industry_catalog").select("label,is_stock"),
-        adminFrom("subindustry_catalog").select("industry_label,label,is_stock"),
-        adminFrom("profession_catalog").select("label,is_stock"),
-      ]);
+      const [industriesRes, subindustriesRes, professionsRes] =
+        await adminFetchCatalogs();
       if (industriesRes.error) throw industriesRes.error;
       if (subindustriesRes.error) throw subindustriesRes.error;
       if (professionsRes.error) throw professionsRes.error;
@@ -108,13 +116,12 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await adminFrom("industry_catalog")
-        .insert({ label: v });
+      const { error: insErr } = await adminInsertIndustry(v);
       if (insErr) throw insErr;
       setNewIndustry("");
       await loadAll();
       setInfo("Отрасль добавлена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.industry.insert",
         target_type: "industry_catalog",
         target_id: v,
@@ -131,13 +138,12 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await adminFrom("subindustry_catalog")
-        .insert({ industry_label: ind, label: sub });
+      const { error: insErr } = await adminInsertSubindustry(ind, sub);
       if (insErr) throw insErr;
       setNewSubindustry("");
       await loadAll();
       setInfo("Подотрасль добавлена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.subindustry.insert",
         target_type: "subindustry_catalog",
         target_id: `${ind}::${sub}`,
@@ -153,13 +159,12 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: insErr } = await adminFrom("profession_catalog")
-        .insert({ label: v });
+      const { error: insErr } = await adminInsertProfession(v);
       if (insErr) throw insErr;
       setNewProfession("");
       await loadAll();
       setInfo("Профессия добавлена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.profession.insert",
         target_type: "profession_catalog",
         target_id: v,
@@ -173,14 +178,11 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      await adminFrom("subindustry_catalog").delete().eq("industry_label", label);
-      const { error: delErr } = await adminFrom("industry_catalog")
-        .delete()
-        .eq("label", label);
+      const { error: delErr } = await adminDeleteIndustry(label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Отрасль удалена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.industry.delete",
         target_type: "industry_catalog",
         target_id: label,
@@ -194,14 +196,11 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await adminFrom("subindustry_catalog")
-        .delete()
-        .eq("industry_label", industryLabel)
-        .eq("label", label);
+      const { error: delErr } = await adminDeleteSubindustry(industryLabel, label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Подотрасль удалена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.subindustry.delete",
         target_type: "subindustry_catalog",
         target_id: `${industryLabel}::${label}`,
@@ -215,13 +214,11 @@ export default function AdminCatalogsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await adminFrom("profession_catalog")
-        .delete()
-        .eq("label", label);
+      const { error: delErr } = await adminDeleteProfession(label);
       if (delErr) throw delErr;
       await loadAll();
       setInfo("Профессия удалена.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "catalogs.profession.delete",
         target_type: "profession_catalog",
         target_id: label,

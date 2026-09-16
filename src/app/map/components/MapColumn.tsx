@@ -60,7 +60,6 @@ export function MapColumn(props: Props) {
     openProfileOverlay,
     contactProfileIds,
     toggleContact,
-    markProfileViewed,
     effectiveViewedProfileIds,
     selectedCity,
     setSelectedCity,
@@ -69,6 +68,7 @@ export function MapColumn(props: Props) {
     mapConfig,
     subindustryOptionsForFilters,
     filteredProfilesForMap,
+    profilesForMapPins,
     showRecommendedEmptyBanner,
     showRecommendedEmptyRussiaPrompt,
     handleToggleRecommended,
@@ -334,7 +334,7 @@ export function MapColumn(props: Props) {
                                   setFeedFilters(next);
                                   persistFeedFilters(next);
                                 }}
-                                className="h-4 w-4 rounded border-slate-300 text-[#009966] focus:ring-[#009966]"
+                                className="h-4 w-4 shrink-0 rounded border-slate-300 accent-[#009966] focus:ring-[#009966]"
                               />
                               {label}
                             </label>
@@ -518,7 +518,7 @@ export function MapColumn(props: Props) {
                 </div>
               ) : (
                 <PartnerMap
-                  profiles={filteredProfilesForMap}
+                  profiles={profilesForMapPins}
                   professionFilter={feedFilters.profession}
                   contactProfileIds={contactProfileIds}
                   viewedProfileIds={effectiveViewedProfileIds}
@@ -529,14 +529,10 @@ export function MapColumn(props: Props) {
                   center={mapConfig.center}
                   zoom={mapConfig.zoom}
                   onOpenProfile={(p) => {
-                    const full = profiles.find((x) => x.id === p.id) ?? null;
+                    const full = profiles.find((x) => x.id === p.id);
                     if (!full) return;
                     openProfileOverlay(full);
                     setFocusedProfileId(null);
-                    void markProfileViewed(
-                      full.id,
-                      full.content_updated_at ?? new Date().toISOString(),
-                    );
                   }}
                   onOpenChat={(profileId) => {
                     if (profileId === currentUser?.profileId) return;
@@ -606,10 +602,6 @@ export function MapColumn(props: Props) {
                           onClick={() => {
                             openProfileOverlay(p);
                             setFocusedProfileId(null);
-                            void markProfileViewed(
-                      p.id,
-                      p.content_updated_at ?? new Date().toISOString(),
-                    );
                           }}
                           className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                         >

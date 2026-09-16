@@ -6,7 +6,7 @@ import {
   formatAgeInputValue,
   isValidAge,
   parseAgeInput,
-} from "./ageInput.ts";
+} from "./ageInput";
 
 describe("parseAgeInput", () => {
   it("пустая строка → null", () => {

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   isPasswordRecoverySession,
   recoveryTypeInUrl,
-} from "./authRecovery.ts";
+} from "./authRecovery";
 import type { Session } from "@supabase/supabase-js";
 
 describe("recoveryTypeInUrl", () => {

@@ -166,3 +166,14 @@ export const config = { matcher: ["/admin/:path*"] };
 - [x] `src/components/ProfilePreviewCard.tsx` -- вынос запросов
 - [x] `src/components/PartnerMap.tsx` -- точки локаций через сервис
 - [x] Admin-страницы — `admin/users/page.tsx`, `admin/posts/page.tsx`: мутации через API; остальные админ-страницы — клиентские запросы по-прежнему
+
+## Фаза 5 — Узкие срезы сервисного слоя (2026-09-16)
+
+- [x] **chatService** — разрез на `src/services/chat/*` + barrel; N+1 в `getUniqueChatPartnersToday` заменён одним запросом `chat_members`
+- [x] **profileService** — разрез на `src/services/profile/*` + barrel; удалены retry fallback'и `deleted_at`/`map_visible` (миграция `2026-07-21-account-settings.sql` в проде)
+- [x] **profile/editor** — именованные функции вместо `profileTable`; удалён `profileEditorService.ts`
+- [x] **adminService** — именованные функции вместо `adminFrom`; `AdminShell` / `useIsSuperAdmin` → `adminGetAdminRow`
+- [x] Мёртвый код: `fetchProfileMetaByAuthUserId`, `checkProfileContact`, `profileRpc`
+- [x] `countContactsForOwner` перенесён в `contactService.ts` (реэкспорт через barrel `profileService.ts`)
+
+Документация: [`ai_docs/devel/components/services-layer.md`](../../../ai_docs/devel/components/services-layer.md)

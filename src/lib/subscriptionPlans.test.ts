@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { comparePlanRank, planRank } from "./subscriptionPlans.ts";
+import { comparePlanRank, planRank } from "./subscriptionPlans";
 
 describe("planRank", () => {
   it("Pro+ выше Pro и Free", () => {

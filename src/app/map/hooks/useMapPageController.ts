@@ -299,7 +299,7 @@ export function useMapPageController() {
   });
 
   const openProfileOverlay = useCallback(
-    (profile: Profile) => {
+    (profile: Profile): boolean => {
       if (
         isPaidGateMode() &&
         currentUser &&
@@ -308,7 +308,7 @@ export function useMapPageController() {
       ) {
         if (!canUnpaidOpenPinPopup(currentUser.profileId)) {
           setPinLimitOpen(true);
-          return;
+          return false;
         }
         recordUnpaidPinPopupView(currentUser.profileId);
       }
@@ -325,13 +325,18 @@ export function useMapPageController() {
           todayOpenedProfileIds.length >= FREE_PROFILE_VIEWS_LIMIT
         ) {
           openPaywallDrawer({ intent: "view_limit" });
-          return;
+          return false;
         }
       }
 
       setActiveProfileOverlay(profile);
+      void markProfileViewed(
+        profile.id,
+        profile.content_updated_at ?? new Date().toISOString(),
+      );
+      return true;
     },
-    [currentUser, todayOpenedProfileIds, openPaywallDrawer],
+    [currentUser, todayOpenedProfileIds, openPaywallDrawer, markProfileViewed],
   );
 
   const shareProfileLink = useCallback(async (profile: Profile) => {
@@ -394,15 +399,11 @@ export function useMapPageController() {
 
       if (profile) {
         openProfileOverlay(profile);
-        void markProfileViewed(
-          profile.id,
-          profile.content_updated_at ?? new Date().toISOString(),
-        );
       } else {
         setPaymentToast({ message: "Профиль не найден или недоступен" });
       }
     },
-    [currentUser?.profileId, profiles, openProfileOverlay, markProfileViewed],
+    [currentUser?.profileId, profiles, openProfileOverlay],
   );
 
   const isSupportProfile = useCallback(
@@ -616,10 +617,6 @@ export function useMapPageController() {
       if (cancelled) return;
       if (profile) {
         openProfileOverlay(profile);
-        void markProfileViewed(
-          profile.id,
-          profile.content_updated_at ?? new Date().toISOString(),
-        );
       } else {
         setPaymentToast({ message: "Профиль не найден или недоступен" });
       }
@@ -788,8 +785,6 @@ export function useMapPageController() {
         : profiles;
 
     return source.filter((p) => {
-      if (blockedProfileIds.includes(p.id)) return false;
-
       if (feedFilters.recommendedContacts) {
         if (
           selectedCity !== RUSSIA_LABEL &&
@@ -839,15 +834,26 @@ export function useMapPageController() {
     contactsOnlyMode,
     contactProfileIds,
     selectedCity,
-    blockedProfileIds,
   ]);
+
+  const profilesForMapPins = useMemo(() => {
+    const ownProfileId = currentUser?.profileId;
+    if (!ownProfileId) return filteredProfilesForMap;
+
+    if (filteredProfilesForMap.some((p) => p.id === ownProfileId)) {
+      return filteredProfilesForMap;
+    }
+
+    const ownProfile = profiles.find((p) => p.id === ownProfileId);
+    if (!ownProfile) return filteredProfilesForMap;
+
+    return [...filteredProfilesForMap, ownProfile];
+  }, [filteredProfilesForMap, currentUser?.profileId, profiles]);
 
   const recommendedProfilesAll = useMemo(() => {
     if (!recommendedProfiles) return [];
-    return recommendedProfiles.filter(
-      (profile) => !blockedProfileIds.includes(profile.id),
-    );
-  }, [recommendedProfiles, blockedProfileIds]);
+    return recommendedProfiles;
+  }, [recommendedProfiles]);
 
   const showRecommendedEmptyRussiaPrompt =
     feedFilters.recommendedContacts &&
@@ -970,6 +976,9 @@ export function useMapPageController() {
         await deleteBlock(currentUser.profileId, profileId);
       } else {
         await insertBlock(currentUser.profileId, profileId);
+        setPaymentToast({
+          message: "Сообщения этого пользователя больше не будут вам приходить.",
+        });
       }
     } catch (e) {
       console.error("Failed to toggle block", e);
@@ -1768,7 +1777,7 @@ export function useMapPageController() {
     professionCatalog, industryCatalog, subindustryCatalog,
     isSupportChat, showSupportAppealForm, closeChatWindow,
     mapConfig, timeZone, visiblePosts, searchedVisiblePosts,
-    subindustryOptionsForFilters, filteredProfilesForMap,
+    subindustryOptionsForFilters, filteredProfilesForMap, profilesForMapPins,
     showRecommendedEmptyBanner, showRecommendedEmptyRussiaPrompt, showRecommendedEmptyAll,
     handleToggleRecommended, filteredChatList, unreadChatsTotal, toggleBlock,
     handleTogglePost, formatDateTime, canWriteGeneralChat,

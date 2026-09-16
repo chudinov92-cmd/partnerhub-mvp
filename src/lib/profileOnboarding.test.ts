@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   isProfileCityFilled,
   shouldShowProfileOnboarding,
-} from "./profileOnboarding.ts";
+} from "./profileOnboarding";
 
 describe("isProfileCityFilled", () => {
   it("пустой город — false", () => {

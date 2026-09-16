@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import FocusTrap from "focus-trap-react";
 import {
@@ -14,7 +15,6 @@ import {
   trackPaywallCtaBuy,
 } from "@/lib/paywallAnalytics";
 import { recordPaywallDismiss } from "@/lib/paywallFrequency";
-import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
 
 type PaywallDrawerProps = {
   open: boolean;
@@ -27,6 +27,20 @@ export function PaywallDrawer({
   onClose,
   context,
 }: PaywallDrawerProps) {
+  const handleDismiss = useCallback(() => {
+    recordPaywallDismiss(context.intent);
+    onClose();
+  }, [context.intent, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") handleDismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, handleDismiss]);
+
   if (!open) return null;
 
   const subscriptionHref = `/subscription?reason=${encodeURIComponent(context.intent)}`;
@@ -46,19 +60,9 @@ export function PaywallDrawer({
     }, 300);
   };
 
-  const handleDismiss = () => {
-    recordPaywallDismiss(context.intent);
-    onClose();
-  };
-
-  const handleSupport = () => {
-    onClose();
-    window.dispatchEvent(new CustomEvent(OPEN_SUPPORT_CHAT_EVENT));
-  };
-
   return (
     <div
-      className="fixed inset-0 z-[2000] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[2100] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="paywall-drawer-title"
@@ -67,18 +71,23 @@ export function PaywallDrawer({
       <FocusTrap
         active={open}
         focusTrapOptions={{
+          initialFocus: "#paywall-drawer-title",
+          fallbackFocus: "#paywall-drawer-title",
+          allowOutsideClick: true,
+          clickOutsideDeactivates: false,
+          escapeDeactivates: false,
           returnFocusOnDeactivate: true,
-          escapeDeactivates: true,
-          onDeactivate: handleDismiss,
         }}
       >
         <div
           className="w-full max-w-md rounded-t-2xl border border-emerald-100 bg-white p-6 shadow-xl sm:rounded-2xl"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
           <h2
             id="paywall-drawer-title"
-            className="text-lg font-semibold text-slate-900"
+            tabIndex={-1}
+            className="text-lg font-semibold text-slate-900 outline-none"
           >
             {paywallIntentTitle(context)}
           </h2>
@@ -137,13 +146,6 @@ export function PaywallDrawer({
               className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-gray-50"
             >
               Не сейчас
-            </button>
-            <button
-              type="button"
-              onClick={handleSupport}
-              className="text-sm font-medium text-slate-500 hover:text-slate-700"
-            >
-              Написать в поддержку
             </button>
           </div>
         </div>

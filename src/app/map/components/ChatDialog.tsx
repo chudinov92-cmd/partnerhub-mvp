@@ -41,7 +41,6 @@ export function ChatDialog(props: Props) {
     currentUser,
     openProfileOverlay,
     openProfileFromChatLink,
-    markProfileViewed,
     profileReadyForMessaging,
     isSupportChat,
     showSupportAppealForm,
@@ -100,11 +99,6 @@ export function ChatDialog(props: Props) {
                         profiles.find((p) => p.id === activeChatUser.id) ??
                         activeChatUser;
                       openProfileOverlay(fullProfile);
-                      void markProfileViewed(
-                        fullProfile.id,
-                        fullProfile.content_updated_at ??
-                          new Date().toISOString(),
-                      );
                     }}
                     title={
                       isOnline(activeChatUser.last_seen_at ?? null)

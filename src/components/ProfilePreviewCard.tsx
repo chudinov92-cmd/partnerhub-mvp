@@ -194,7 +194,6 @@ type ProfilePreviewCardProps = {
   profile: ProfilePreviewData;
   online: boolean;
   onWrite: () => void;
-  profileHref: string;
   onClose?: () => void;
   /** При клике по городу показать пин на карте */
   onShowOnMap?: () => void;
@@ -227,7 +226,6 @@ export function ProfilePreviewCard({
   profile,
   online,
   onWrite,
-  profileHref,
   onClose,
   onShowOnMap,
   onFilterProfession,
@@ -386,7 +384,7 @@ export function ProfilePreviewCard({
                 <IconShieldAlert className="h-5 w-5 text-rose-200" />
               </button>
             ) : null}
-            {onShare && !isOwnProfile ? (
+            {onShare ? (
               <button
                 type="button"
                 onClick={onShare}
@@ -679,7 +677,7 @@ export function ProfilePreviewCard({
           <div className="flex gap-2 sm:gap-3">
             {isOwnProfile ? (
               <Link
-                href={profileHref}
+                href="/profile"
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
                   isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
                 }`}
@@ -711,17 +709,7 @@ export function ProfilePreviewCard({
                       </>
                     )}
                   </button>
-                ) : (
-                  <Link
-                    href={profileHref}
-                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white font-medium text-slate-900 transition-colors hover:bg-gray-50 ${
-                      isEmbedded ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
-                    }`}
-                  >
-                    <IconExternalLink className="h-4 w-4 shrink-0" />
-                    Профиль
-                  </Link>
-                )}
+                ) : null}
                 <button
                   type="button"
                   onClick={onWrite}

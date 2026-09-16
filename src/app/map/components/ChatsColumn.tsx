@@ -17,7 +17,6 @@ export function ChatsColumn(props: Props) {
     currentUser,
     loading,
     openProfileOverlay,
-    markProfileViewed,
     filteredChatList,
     openChatFromList,
     showChatsColumn
@@ -114,11 +113,6 @@ export function ChatsColumn(props: Props) {
                           onClick={(e) => {
                             e.stopPropagation();
                             openProfileOverlay(item.profile);
-                            void markProfileViewed(
-                              item.profile.id,
-                              item.profile.content_updated_at ??
-                                new Date().toISOString(),
-                            );
                           }}
                           className="truncate text-left font-medium text-slate-900 hover:text-emerald-600"
                         >

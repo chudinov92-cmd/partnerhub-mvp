@@ -73,7 +73,6 @@ export default function Home() {
             guestLastViewHint={false}
             viewerProfileId={c.currentUser?.profileId ?? null}
             onClose={() => c.setActiveProfileOverlay(null)}
-            profileHref={`/profiles/${c.activeProfileOverlay.id}`}
             onShowOnMap={() => {
               c.setFocusedProfileId(c.activeProfileOverlay!.id);
               c.setActiveProfileOverlay(null);
@@ -108,8 +107,7 @@ export default function Home() {
             }
             onToggleBlock={() => c.toggleBlock(c.activeProfileOverlay!.id)}
             onShare={
-              c.currentUser?.profileId &&
-              c.currentUser.profileId !== c.activeProfileOverlay.id
+              c.currentUser?.profileId
                 ? () => void c.shareProfileLink(c.activeProfileOverlay!)
                 : undefined
             }

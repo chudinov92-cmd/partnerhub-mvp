@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import { adminFetchDashboardCounts } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 import { ProfessionDemandAnalytics } from "@/components/admin/ProfessionDemandAnalytics";
 import { PaywallFunnelAnalytics } from "@/components/admin/PaywallFunnelAnalytics";
@@ -71,28 +71,13 @@ export default function AdminAnalyticsPage() {
         messagesRes,
         reportsNewRes,
         reportsResolvedRes,
-        activityKpisRes,
-      ] = await Promise.all([
-        adminFrom("profiles").select("id", { count: "exact", head: true }),
-        adminFrom("profiles")
-          .select("id", { count: "exact", head: true })
-          .gte("last_seen_at", activeCutoff),
-        adminFrom("posts")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", fromIso)
-          .lte("created_at", toIso),
-        adminFrom("messages")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", fromIso)
-          .lte("created_at", toIso),
-        adminFrom("abuse_reports")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "new"),
-        adminFrom("abuse_reports")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "resolved"),
-        fetch("/api/admin/analytics/activity-kpis"),
-      ]);
+      ] = await adminFetchDashboardCounts({
+        fromIso,
+        toIso,
+        activeCutoff,
+      });
+
+      const activityKpisRes = await fetch("/api/admin/analytics/activity-kpis");
 
       const anyErr =
         profilesTotalRes.error ||

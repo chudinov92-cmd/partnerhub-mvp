@@ -109,7 +109,7 @@ export function paywallIntentTitle(ctx: PaywallIntentContext): string {
     return "Доступ ко всем функциям Zeip";
   }
   if (ctx.intent === "view_limit") {
-    return "Лимит просмотров профилей";
+    return "Лимит просмотров на сегодня";
   }
   if (ctx.intent === "favorites_limit") {
     return "Лимит избранных контактов";

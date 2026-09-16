@@ -13,7 +13,7 @@ import {
   isRecoveryEmailCallback,
   parseAuthEmailCallbackParams,
   SIGNUP_OTP_VERIFY_ERROR,
-} from "./authEmailCallback.ts";
+} from "./authEmailCallback";
 
 describe("parseAuthEmailCallbackParams", () => {
   it("implicit signup hash", () => {

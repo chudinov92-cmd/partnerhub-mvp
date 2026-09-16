@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import {
+  adminFetchAbuseReportsList,
+  adminGetAuthUser,
+  adminInsertAbuseReportEvent,
+  adminInsertAuditLog,
+  adminSignOut,
+  adminUpdateAbuseReport,
+} from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type ReportStatus = "new" | "in_review" | "resolved" | "rejected";
@@ -33,12 +40,7 @@ export default function AdminReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminFrom("abuse_reports")
-        .select(
-          "id, created_at, reporter_profile_id, target_type, target_id, category, comment, status, resolution, assigned_to, resolved_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(300);
+      const res = await adminFetchAbuseReportsList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AbuseReportRow[]);
     } catch (e: any) {
@@ -85,18 +87,16 @@ export default function AdminReportsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const { error: updErr } = await adminFrom("abuse_reports")
-        .update(patch)
-        .eq("id", id);
+      const { error: updErr } = await adminUpdateAbuseReport(id, patch);
       if (updErr) throw updErr;
 
       setRows((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } as any : x)));
-      await adminFrom("abuse_report_events").insert({
+      await adminInsertAbuseReportEvent({
         report_id: id,
         action: eventAction,
         payload,
       });
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: `reports.${eventAction}`,
         target_type: "abuse_report",
         target_id: id,

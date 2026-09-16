@@ -10,9 +10,18 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LandingFooter } from "@/app/landing/components/LandingFooter";
 import { authGetUser, authLocalSignOut } from "@/services/authService";
-import { profileTable, profileRpc } from "@/services/profileEditorService";
-import { upsertProfilePrivate, insertLocation, completeOnboarding, claimPioneerSlot } from "@/services/profileService";
+import {
+  upsertProfilePrivate,
+  completeOnboarding,
+  claimPioneerSlot,
+  fetchOrCreateOnboardingProfile,
+  fetchProfileLastName,
+  fetchLocationCoordsForProfile,
+  updateProfileById,
+  upsertActiveLocation,
+} from "@/services/profileService";
 import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import {
   AUTH_OPERATION_TIMEOUT_MS,
@@ -168,8 +177,11 @@ function ChoiceChip({
 
 function OnboardingShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-[#f6f8f7] bg-[radial-gradient(ellipse_80%_40%_at_50%_-10%,rgba(0,153,102,0.14),transparent)] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
-      {children}
+    <div className="flex min-h-dvh flex-col bg-[#f6f8f7] bg-[radial-gradient(ellipse_80%_40%_at_50%_-10%,rgba(0,153,102,0.14),transparent)]">
+      <div className="flex flex-1 flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+        {children}
+      </div>
+      <LandingFooter />
     </div>
   );
 }
@@ -213,10 +225,16 @@ function clampStep(value: number): number {
   return Math.min(Math.max(0, Math.floor(value)), TOTAL_STEPS - 1);
 }
 
+function syncStepInUrl(nextStep: number) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(null, "", `/onboarding?step=${nextStep}`);
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const stepQuery = searchParams.get("step");
+  const initialStepQueryRef = useRef(stepQuery);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -284,33 +302,25 @@ export default function OnboardingPage() {
           return;
         }
 
-        let { data: prof, error: profErr } = await profileTable("profiles")
-          .select(
-            "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, onboarding_step, onboarding_completed",
-          )
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
+        const { data: prof, error: profErr } = await fetchOrCreateOnboardingProfile(
+          user.id,
+        );
 
-        if (profErr) throw profErr;
-
-        if (!prof) {
-          const { data: created, error: createErr } = await profileTable("profiles")
-            .insert({
-              auth_user_id: user.id,
-              country: DEFAULT_COUNTRY,
-              seeking: [],
-            })
-            .select(
-              "id, full_name, age, city, industry, industry_other, subindustry, role_title, current_status, skills, resources, interested_in, seeking, onboarding_step, onboarding_completed",
-            )
-            .single();
-          if (createErr) {
+        if (profErr) {
+          if (!prof) {
             await authLocalSignOut().catch(() => undefined);
             throw new Error(
               "Не удалось создать профиль. Сессия после удаления аккаунта недействительна — зарегистрируйтесь заново.",
             );
           }
-          prof = created;
+          throw profErr;
+        }
+
+        if (!prof) {
+          await authLocalSignOut().catch(() => undefined);
+          throw new Error(
+            "Не удалось создать профиль. Сессия после удаления аккаунта недействительна — зарегистрируйтесь заново.",
+          );
         }
 
         if (cancelled) return;
@@ -321,7 +331,7 @@ export default function OnboardingPage() {
           return;
         }
 
-        const urlStep = stepQuery;
+        const urlStep = initialStepQueryRef.current;
         const initialStep =
           urlStep != null ? clampStep(Number(urlStep)) : clampStep(row.onboarding_step ?? 0);
 
@@ -331,18 +341,12 @@ export default function OnboardingPage() {
         });
         setStep(initialStep);
 
-        const { data: privateRow } = await profileTable("profile_private")
-          .select("last_name")
-          .eq("profile_id", row.id)
-          .maybeSingle();
-        if (!cancelled && privateRow?.last_name) {
-          setLastName(privateRow.last_name);
+        const loadedLastName = await fetchProfileLastName(row.id);
+        if (!cancelled && loadedLastName) {
+          setLastName(loadedLastName);
         }
 
-        const { data: loc } = await profileTable("locations")
-          .select("lat, lng")
-          .eq("user_id", row.id)
-          .maybeSingle();
+        const loc = await fetchLocationCoordsForProfile(row.id);
 
         if (!cancelled && loc) {
           setCoords({ lat: loc.lat, lng: loc.lng });
@@ -382,7 +386,13 @@ export default function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, stepQuery]);
+  }, [router]);
+
+  useEffect(() => {
+    if (step >= 2) {
+      void import("@/components/ProfileLocationPicker");
+    }
+  }, [step]);
 
   useEffect(() => {
     if (!isPioneerPromoEnabled() || !profile?.city) {
@@ -395,12 +405,10 @@ export default function OnboardingPage() {
   const persistStep = useCallback(
     async (nextStep: number, patch: Record<string, unknown>) => {
       if (!profile) return;
-      const { error: updateErr } = await profileTable("profiles")
-        .update({
-          ...patch,
-          onboarding_step: nextStep,
-        })
-        .eq("id", profile.id);
+      const { error: updateErr } = await updateProfileById(profile.id, {
+        ...patch,
+        onboarding_step: nextStep,
+      });
       if (updateErr) throw updateErr;
       setProfile((prev) =>
         prev
@@ -434,17 +442,20 @@ export default function OnboardingPage() {
     return null;
   };
 
-  const saveCurrentStepData = async () => {
+  const saveCurrentStepData = async (
+    currentStep: number,
+    options?: { resolvedRoleTitle?: string | null },
+  ) => {
     if (!profile) return;
 
-    if (step === 0) {
+    if (currentStep === 0) {
       const trimmedLastName = (lastName ?? "").trim().slice(0, 25);
       await upsertProfilePrivate({
         profile_id: profile.id,
         last_name: maskProfanity(trimmedLastName) || null,
         updated_at: new Date().toISOString(),
       });
-      await persistStep(step + 1, {
+      await persistStep(currentStep + 1, {
         full_name: maskProfanity(profile.full_name),
         age: profile.age,
         city: profile.city,
@@ -454,29 +465,9 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (step === 1) {
-      let roleTitle = profile.role_title;
-      if (professionIsOther && roleTitle?.trim()) {
-        const resolved = await professionResolver.resolveForSave(roleTitle);
-        if (resolved.action === "canonical") {
-          setProfessionIsOther(false);
-          roleTitle = resolved.label;
-          setProfile((prev) =>
-            prev ? { ...prev, role_title: resolved.label } : prev,
-          );
-        } else {
-          roleTitle = resolved.label;
-          const nextCatalog = await syncCustomProfessionToCatalog(
-            professionCatalog,
-            resolved.label,
-          );
-          setProfessionCatalog(nextCatalog);
-          setProfile((prev) =>
-            prev ? { ...prev, role_title: resolved.label } : prev,
-          );
-        }
-      }
-      await persistStep(step + 1, {
+    if (currentStep === 1) {
+      const roleTitle = options?.resolvedRoleTitle ?? profile.role_title;
+      await persistStep(currentStep + 1, {
         role_title: maskProfanity(roleTitle),
         industry: profile.industry,
         industry_other:
@@ -492,8 +483,8 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (step === 2) {
-      await persistStep(step + 1, {
+    if (currentStep === 2) {
+      await persistStep(currentStep + 1, {
         skills: maskProfanity(profile.skills),
         resources: maskProfanity(profile.resources),
         interested_in: profile.interested_in,
@@ -503,32 +494,15 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (step === 3) {
-      const { data: existingLoc } = await profileTable("locations")
-        .select("id")
-        .eq("user_id", profile.id)
-        .maybeSingle();
-
-      if (existingLoc?.id) {
-        const { error: locErr } = await profileTable("locations")
-          .update({
-            lat: coords!.lat,
-            lng: coords!.lng,
-            city: profile.city,
-            is_active: true,
-          })
-          .eq("id", existingLoc.id);
-        if (locErr) throw locErr;
-      } else {
-        const { error: insertErr } = await insertLocation({
-          user_id: profile.id,
-          lat: coords!.lat,
-          lng: coords!.lng,
-          city: profile.city,
-          is_active: true,
-        });
-        if (insertErr) throw insertErr;
-      }
+    if (currentStep === 3) {
+      const { error: locErr } = await upsertActiveLocation({
+        profileId: profile.id,
+        lat: coords!.lat,
+        lng: coords!.lng,
+        city: profile.city,
+        isActive: true,
+      });
+      if (locErr) throw locErr;
 
       const { error: completeErr } = await completeOnboarding(profile.id);
       if (completeErr) throw completeErr;
@@ -563,15 +537,50 @@ export default function OnboardingPage() {
       setError(validationError);
       return;
     }
+
+    const from = step;
     setSaving(true);
     setError(null);
+
+    let resolvedRoleTitle: string | null = null;
+
     try {
-      await saveCurrentStepData();
-      if (step < TOTAL_STEPS - 1) {
-        setStep((s) => s + 1);
-        router.replace(`/onboarding?step=${step + 1}`);
+      if (from === 1 && profile) {
+        let roleTitle = profile.role_title ?? "";
+        if (professionIsOther && roleTitle.trim()) {
+          const resolved = await professionResolver.resolveForSave(roleTitle);
+          if (resolved.action === "canonical") {
+            setProfessionIsOther(false);
+            roleTitle = resolved.label;
+            setProfile((prev) =>
+              prev ? { ...prev, role_title: resolved.label } : prev,
+            );
+          } else {
+            roleTitle = resolved.label;
+            const nextCatalog = await syncCustomProfessionToCatalog(
+              professionCatalog,
+              resolved.label,
+            );
+            setProfessionCatalog(nextCatalog);
+            setProfile((prev) =>
+              prev ? { ...prev, role_title: resolved.label } : prev,
+            );
+          }
+        }
+        resolvedRoleTitle = roleTitle;
       }
+
+      if (from < TOTAL_STEPS - 1) {
+        setStep(from + 1);
+        syncStepInUrl(from + 1);
+      }
+
+      await saveCurrentStepData(from, { resolvedRoleTitle });
     } catch (err) {
+      if (from < TOTAL_STEPS - 1) {
+        setStep(from);
+        syncStepInUrl(from);
+      }
       setError(err instanceof Error ? err.message : "Не удалось сохранить");
     } finally {
       setSaving(false);
@@ -583,7 +592,7 @@ export default function OnboardingPage() {
     const prev = step - 1;
     setStep(prev);
     setError(null);
-    router.replace(`/onboarding?step=${prev}`);
+    syncStepInUrl(prev);
   };
 
   const handleCityChange = (city: string) => {
@@ -595,7 +604,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <OnboardingShell>
         <p className="flex min-h-[70dvh] items-center justify-center text-sm text-slate-500">

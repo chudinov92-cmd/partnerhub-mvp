@@ -9,7 +9,7 @@ import {
   formatOtpRetryAfter,
   nextRetryAfterAfterSuccessfulSend,
   otpSendLimitMessage,
-} from "./authOtpRateLimit.ts";
+} from "./authOtpRateLimit";
 
 const now = Date.UTC(2026, 8, 13, 12, 0, 0);
 

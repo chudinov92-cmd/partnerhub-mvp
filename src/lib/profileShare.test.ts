@@ -1,12 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { splitMessageWithLinks } from "./linkifyMessage.ts";
+import { splitMessageWithLinks } from "./linkifyMessage";
 import {
   buildProfileShortPath,
   buildProfileShortUrl,
   parseZeipProfileLink,
   PROFILE_SHARE_CODE_REGEX,
-} from "./profileShare.ts";
+} from "./profileShare";
 
 describe("profileShare short links", () => {
   it("buildProfileShortPath encodes code", () => {

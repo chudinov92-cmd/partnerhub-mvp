@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { FeatureSplit } from "@/app/landing/components/FeatureSplit";
+import { LandingFooter } from "@/app/landing/components/LandingFooter";
 import { FinalCta } from "@/app/landing/components/FinalCta";
 import { Hero } from "@/app/landing/components/Hero";
 import { LandingPricing } from "@/app/landing/components/LandingPricing";
@@ -132,14 +132,7 @@ export function HomeLanding({ stats = null }: HomeLandingProps) {
         <FinalCta flatImage assets={{ btnNoise: assets.btnNoise, image: asset("lp-cta.png") }} />
       </main>
 
-      <footer className="footer">
-        <div className="container footer__links">
-          <Link href="/terms">Условия</Link>
-          <Link href="/terms/privacy">Политика обработки персональных данных</Link>
-          <Link href="/terms/consent">Согласие на обработку персональных данных</Link>
-          <span>ООО «ЗЕИП» · ИНН 5906189643</span>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }

@@ -9,6 +9,15 @@ import {
 import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
 import type { Profile } from "@/types";
 
+export async function countContactsForOwner(profileId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("profile_contacts")
+    .select("contact_profile_id", { count: "exact", head: true })
+    .eq("owner_id", profileId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function fetchContactProfileIds(ownerId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("profile_contacts")

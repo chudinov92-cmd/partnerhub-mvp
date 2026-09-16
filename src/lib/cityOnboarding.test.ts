@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   isSpecificCity,
   shouldShowCityOnboarding,
-} from "./cityOnboarding.ts";
+} from "./cityOnboarding";
 
 describe("isSpecificCity", () => {
   it("Россия — не конкретный город", () => {

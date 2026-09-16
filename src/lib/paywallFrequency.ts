@@ -3,6 +3,12 @@ import type { PaywallIntent } from "@/lib/paywallIntent";
 const DISMISS_PREFIX = "zeip_paywall_dismiss_";
 const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Жёсткие лимиты: без UI пользователь не может продолжить, 24ч-кап не применяем. */
+const HARD_GATE_INTENTS: ReadonlySet<PaywallIntent> = new Set([
+  "view_limit",
+  "favorites_limit",
+]);
+
 function readDismissAt(intent: PaywallIntent): number | null {
   if (typeof window === "undefined") return null;
   try {
@@ -16,6 +22,7 @@ function readDismissAt(intent: PaywallIntent): number | null {
 }
 
 export function canShowPaywallDrawer(intent: PaywallIntent): boolean {
+  if (HARD_GATE_INTENTS.has(intent)) return true;
   const dismissedAt = readDismissAt(intent);
   if (!dismissedAt) return true;
   return Date.now() - dismissedAt >= DISMISS_TTL_MS;

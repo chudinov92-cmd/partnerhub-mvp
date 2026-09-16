@@ -46,9 +46,12 @@ describeWithUser("Фаза 2: Профиль", () => {
     ).toBeVisible({ timeout: 20_000 });
   });
 
-  test("TC-2.4b Публичный профиль (авторизованный)", async ({ page }) => {
+  test("TC-2.4b Профиль на карте (авторизованный)", async ({ page }) => {
     test.skip(!e2eOtherProfileId, "Задайте E2E_OTHER_PROFILE_ID в .env.e2e");
-    await page.goto(`/profiles/${e2eOtherProfileId}`);
+    await page.goto(`/map?profile=${e2eOtherProfileId}`);
+    await expect(page.locator(".zeip-profile-preview-floating")).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(page.locator("body")).not.toContainText("Application error");
   });
 
@@ -63,11 +66,8 @@ describeWithUser("Фаза 2: Профиль", () => {
   });
 });
 
-test("TC-2.4 Публичный профиль (гость)", async ({ page }) => {
+test("TC-2.4 Профиль на карте (гость)", async ({ page }) => {
   test.skip(!e2eOtherProfileId, "Задайте E2E_OTHER_PROFILE_ID в .env.e2e");
-  await page.goto(`/profiles/${e2eOtherProfileId}`);
-  await expect(page.locator("body")).not.toContainText("Application error");
-  await expect(
-    page.getByRole("button", { name: /добавить в контакты/i }),
-  ).toHaveCount(0);
+  await page.goto(`/map?profile=${e2eOtherProfileId}`);
+  await expect(page).toHaveURL(/\/auth/);
 });

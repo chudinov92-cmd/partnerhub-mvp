@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { ProfessionCatalogRow } from "@/lib/professionCatalog.types";
 import {
   findProfessionByKey,
   findSimilarProfessions,
   normalizeProfessionKey,
   resolveProfessionInput,
   shouldUpsertProfession,
-  type ProfessionCatalogRow,
 } from "./professionCatalogMatch";
 
 const catalog: ProfessionCatalogRow[] = [

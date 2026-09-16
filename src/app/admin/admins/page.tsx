@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import {
+  adminDeleteAdminUser,
+  adminFetchAdminUsersList,
+  adminGetAuthUser,
+  adminInsertAdminUser,
+  adminInsertAuditLog,
+  adminSignOut,
+  adminUpdateAdminUserRole,
+} from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 
 type AdminRole = "super_admin" | "moderator" | "support";
@@ -27,10 +35,7 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const res = await adminFrom("admin_users")
-        .select("auth_user_id, role, created_at, created_by")
-        .order("created_at", { ascending: false })
-        .limit(200);
+      const res = await adminFetchAdminUsersList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AdminUserRow[]);
     } catch (e: any) {
@@ -55,7 +60,7 @@ export default function AdminAdminsPage() {
       const {
         data: { user },
       } = await adminGetAuthUser();
-      const { error: insErr } = await adminFrom("admin_users").insert({
+      const { error: insErr } = await adminInsertAdminUser({
         auth_user_id: v,
         role: newRole,
         created_by: user?.id ?? null,
@@ -64,7 +69,7 @@ export default function AdminAdminsPage() {
       setNewAuthUserId("");
       await load();
       setInfo("Админ добавлен.");
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "admin_users.insert",
         target_type: "admin_users",
         target_id: v,
@@ -82,12 +87,10 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: updErr } = await adminFrom("admin_users")
-        .update({ role })
-        .eq("auth_user_id", id);
+      const { error: updErr } = await adminUpdateAdminUserRole(id, role);
       if (updErr) throw updErr;
       setRows((prev) => prev.map((x) => (x.auth_user_id === id ? { ...x, role } : x)));
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "admin_users.update_role",
         target_type: "admin_users",
         target_id: id,
@@ -106,12 +109,10 @@ export default function AdminAdminsPage() {
     setError(null);
     setInfo(null);
     try {
-      const { error: delErr } = await adminFrom("admin_users")
-        .delete()
-        .eq("auth_user_id", id);
+      const { error: delErr } = await adminDeleteAdminUser(id);
       if (delErr) throw delErr;
       setRows((prev) => prev.filter((x) => x.auth_user_id !== id));
-      await adminFrom("admin_audit_log").insert({
+      await adminInsertAuditLog({
         action: "admin_users.delete",
         target_type: "admin_users",
         target_id: id,

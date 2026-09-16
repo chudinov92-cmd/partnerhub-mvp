@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminFrom, adminGetAuthUser } from "@/services/adminService";
+import { adminGetAdminRow, adminGetAuthUser } from "@/services/adminService";
 
 export function useIsSuperAdmin(): {
   loading: boolean;
@@ -22,10 +22,7 @@ export function useIsSuperAdmin(): {
           if (alive) setIsSuperAdmin(false);
           return;
         }
-        const { data } = await adminFrom("admin_users")
-          .select("role")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
+        const { data } = await adminGetAdminRow(user.id);
         if (!alive) return;
         setIsSuperAdmin((data as { role?: string } | null)?.role === "super_admin");
       } catch {

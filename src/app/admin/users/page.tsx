@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { adminFrom } from "@/services/adminService";
+import { buildProfileMapSharePath } from "@/lib/profileShare";
+import { adminFetchProfilesList } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
@@ -41,10 +42,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminFrom("profiles")
-        .select("id, full_name, city, role_title, rating_count, last_seen_at, is_blocked")
-        .order("full_name", { ascending: true })
-        .limit(500);
+      const res = await adminFetchProfilesList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AdminUserRow[]);
     } catch (e: any) {
@@ -247,10 +245,10 @@ export default function AdminUsersPage() {
                               {u.id}
                             </span>
                             <Link
-                              href={`/profiles/${u.id}`}
+                              href={buildProfileMapSharePath(u.id)}
                               className="mt-1 text-xs font-semibold text-emerald-600 hover:underline"
                             >
-                              Открыть публичный профиль
+                              Открыть профиль на карте
                             </Link>
                           </div>
                         </td>

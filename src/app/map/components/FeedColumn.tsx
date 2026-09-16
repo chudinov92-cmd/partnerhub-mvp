@@ -30,7 +30,6 @@ export function FeedColumn(props: Props) {
     error,
     openPaywallDrawer,
     openProfileOverlay,
-    markProfileViewed,
     selectedCity,
     isRussiaChat,
     posts,
@@ -154,10 +153,6 @@ export function FeedColumn(props: Props) {
                   const p = profiles.find((pr) => pr.id === post.author_id);
                   if (p) {
                     openProfileOverlay(p);
-                    void markProfileViewed(
-                      p.id,
-                      p.content_updated_at ?? new Date().toISOString(),
-                    );
                   }
                 };
 

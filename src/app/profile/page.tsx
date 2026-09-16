@@ -3,8 +3,18 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { profileTable } from "@/services/profileEditorService";
-import { upsertProfilePrivate, insertLocation, deleteProfileWork, insertProfileWork } from "@/services/profileService";
+import {
+  upsertProfilePrivate,
+  deleteProfileWork,
+  insertProfileWork,
+  fetchOrCreateEditorProfile,
+  fetchProfileLastName,
+  fetchProfileWorkBlocks,
+  fetchLocationForProfile,
+  updateProfileById,
+  fetchMapVisible,
+  upsertActiveLocation,
+} from "@/services/profileService";
 import { authGetUser } from "@/services/authService";
 import {
   OTHER_PROFESSION_LABEL,
@@ -534,12 +544,9 @@ export default function ProfilePage() {
           return;
         }
 
-        let { data: profData, error: pErr } = await profileTable("profiles")
-          .select(
-            "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at, subscription_plan",
-          )
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
+        const { data: profData, error: pErr } = await fetchOrCreateEditorProfile(
+          user.id,
+        );
 
         if (cancelled) return;
 
@@ -549,24 +556,8 @@ export default function ProfilePage() {
         }
 
         if (!profData) {
-          const { data: created, error: cErr } = await profileTable("profiles")
-            .insert({
-              auth_user_id: user.id,
-              country: DEFAULT_COUNTRY,
-            })
-            .select(
-              "id, full_name, age, country, city, industry, industry_other, subindustry, role_title, experience_years, current_status, skills, looking_for, resources, can_help_with, interested_in, seeking, is_pro, pro_expires_at, subscription_plan",
-            )
-            .single();
-
-          if (cancelled) return;
-
-          if (cErr) {
-            setError(cErr.message);
-            return;
-          }
-
-          profData = created;
+          setError("Не удалось загрузить профиль");
+          return;
         }
 
         const prof = {
@@ -576,14 +567,12 @@ export default function ProfilePage() {
         };
         setProfile(prof);
 
-        const { data: privateRow, error: privateLoadError } = await profileTable("profile_private")
-          .select("last_name")
-          .eq("profile_id", prof.id)
-          .maybeSingle();
-        const loadedLastName =
-          !privateLoadError && typeof privateRow?.last_name === "string"
-            ? privateRow.last_name
-            : "";
+        let loadedLastName = "";
+        try {
+          loadedLastName = (await fetchProfileLastName(prof.id)) ?? "";
+        } catch {
+          loadedLastName = "";
+        }
         setLastName(loadedLastName);
 
         const [
@@ -594,17 +583,8 @@ export default function ProfilePage() {
           subindustryRows,
         ] = await Promise.all([
           loadProfessionCatalog().catch(() => [] as ProfessionCatalogRow[]),
-          profileTable("profile_work")
-            .select(
-              "id, role_title, industry, industry_other, subindustry, experience_years, sort_order",
-            )
-            .eq("profile_id", prof.id)
-            .order("sort_order", { ascending: true })
-            .order("created_at", { ascending: true }),
-          profileTable("locations")
-            .select("id, user_id, lat, lng, city")
-            .eq("user_id", prof.id)
-            .maybeSingle(),
+          fetchProfileWorkBlocks(prof.id),
+          fetchLocationForProfile(prof.id),
           loadIndustryCatalog().catch((e) => {
             console.error("Failed to load industry_catalog", e);
             return [] as IndustryCatalogRow[];
@@ -625,12 +605,12 @@ export default function ProfilePage() {
 
         const loadedWorkBlocks = workResult.error
           ? []
-          : mapWorkBlocks(workResult.data ?? []);
+          : mapWorkBlocks(workResult.data);
         setWorkBlocks(loadedWorkBlocks);
 
         let loadedCoords: { lat: number; lng: number } | null = null;
-        if (!locationResult.error && locationResult.data) {
-          const loc = locationResult.data as LocationRow;
+        if (locationResult) {
+          const loc = locationResult;
           setLocation(loc);
           loadedCoords = { lat: loc.lat, lng: loc.lng };
           setCoords(loadedCoords);
@@ -807,30 +787,28 @@ export default function ProfilePage() {
       setProfessionCatalog(nextProfessionCatalog);
 
       // обновляем профиль
-      const { error: updateError } = await profileTable("profiles")
-        .update({
-          full_name: maskProfanity(profile.full_name),
-          age: profile.age,
-          country: DEFAULT_COUNTRY,
-          city: profile.city,
-          industry: profile.industry,
-          industry_other:
-            profile.industry === "Другое"
-              ? maskProfanity(profile.industry_other)
-              : null,
-          subindustry: profile.subindustry,
-          role_title: maskProfanity(resolvedRoleTitle),
-          experience_years: profile.experience_years,
-          current_status: profile.current_status
-            ? maskProfanity(profile.current_status)
+      const { error: updateError } = await updateProfileById(profile.id, {
+        full_name: maskProfanity(profile.full_name),
+        age: profile.age,
+        country: DEFAULT_COUNTRY,
+        city: profile.city,
+        industry: profile.industry,
+        industry_other:
+          profile.industry === "Другое"
+            ? maskProfanity(profile.industry_other)
             : null,
-          skills: maskProfanity(profile.skills),
-          looking_for: maskProfanity(profile.looking_for),
-          resources: maskProfanity(profile.resources),
-          interested_in: serializeInterestedProfessions(interestedProfessionValues),
-          seeking: profile.seeking ?? [],
-        })
-        .eq("id", profile.id);
+        subindustry: profile.subindustry,
+        role_title: maskProfanity(resolvedRoleTitle),
+        experience_years: profile.experience_years,
+        current_status: profile.current_status
+          ? maskProfanity(profile.current_status)
+          : null,
+        skills: maskProfanity(profile.skills),
+        looking_for: maskProfanity(profile.looking_for),
+        resources: maskProfanity(profile.resources),
+        interested_in: serializeInterestedProfessions(interestedProfessionValues),
+        seeking: profile.seeking ?? [],
+      });
 
       if (updateError) throw updateError;
 
@@ -873,37 +851,18 @@ export default function ProfilePage() {
 
       // обновляем / создаём локацию (is_active следует за map_visible)
       if (coords) {
-        const { data: visibilityRow } = await profileTable("profiles")
-          .select("map_visible")
-          .eq("id", profile.id)
-          .maybeSingle();
-        const mapVisibleSetting =
-          (visibilityRow as { map_visible?: boolean | null } | null)
-            ?.map_visible !== false;
-        const mapVisible = mapVisibleSetting;
+        const mapVisible = await fetchMapVisible(profile.id);
 
-        if (location) {
-          const { error: locErr } = await profileTable("locations")
-            .update({
-              lat: coords.lat,
-              lng: coords.lng,
-              city: profile.city,
-              is_active: mapVisible,
-            })
-            .eq("id", location.id);
+        const { error: locErr } = await upsertActiveLocation({
+          profileId: profile.id,
+          lat: coords.lat,
+          lng: coords.lng,
+          city: profile.city,
+          isActive: mapVisible,
+          existingLocationId: location?.id ?? null,
+        });
 
-          if (locErr) throw locErr;
-        } else {
-          const { error: insertErr } = await insertLocation({
-            user_id: profile.id, // profiles.id
-            lat: coords.lat,
-            lng: coords.lng,
-            city: profile.city,
-            is_active: mapVisible,
-          });
-
-          if (insertErr) throw insertErr;
-        }
+        if (locErr) throw locErr;
       }
 
       const subscriptionActive = isActiveProProfile(profile);

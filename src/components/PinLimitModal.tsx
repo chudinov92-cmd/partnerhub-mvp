@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import FocusTrap from "focus-trap-react";
 
@@ -10,6 +11,15 @@ type PinLimitModalProps = {
 
 export function PinLimitModal({ open, onClose }: PinLimitModalProps) {
   const router = useRouter();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -24,18 +34,23 @@ export function PinLimitModal({ open, onClose }: PinLimitModalProps) {
       <FocusTrap
         active={open}
         focusTrapOptions={{
+          initialFocus: "#pin-limit-title",
+          fallbackFocus: "#pin-limit-title",
+          allowOutsideClick: true,
+          clickOutsideDeactivates: false,
+          escapeDeactivates: false,
           returnFocusOnDeactivate: true,
-          escapeDeactivates: true,
-          onDeactivate: onClose,
         }}
       >
         <div
           className="w-full max-w-sm rounded-2xl border border-emerald-100 bg-white p-6 shadow-xl"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
           <h2
             id="pin-limit-title"
-            className="text-lg font-semibold text-slate-900"
+            tabIndex={-1}
+            className="text-lg font-semibold text-slate-900 outline-none"
           >
             Лимит просмотров на сегодня
           </h2>

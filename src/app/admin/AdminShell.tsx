@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { adminFrom, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import { adminGetAdminRow, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
 
 type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -60,10 +60,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { data, error: adminErr } = await adminFrom("admin_users")
-          .select("auth_user_id, role")
-          .eq("auth_user_id", user.id)
-          .maybeSingle();
+        const { data, error: adminErr } = await adminGetAdminRow(user.id);
         if (adminErr) throw adminErr;
         if (!data) {
           setError("Доступ запрещён: у вас нет прав администратора.");
