@@ -94,9 +94,20 @@ export function useMapEffects(deps: MapEffectsDeps) {
     const chatProfileId = params.get("chat");
     if (!chatProfileId) return;
     if (chatProfileId === currentUser.profileId) return;
+
+    const clearChatQueryParam = () => {
+      const next = new URLSearchParams(window.location.search);
+      if (!next.has("chat")) return;
+      next.delete("chat");
+      const qs = next.toString();
+      router.replace(qs ? `/map?${qs}` : "/map");
+    };
+
     const p = profiles.find((pr) => pr.id === chatProfileId);
     if (p) {
-      void openChatWithProfile(p);
+      void openChatWithProfile(p).finally(clearChatQueryParam);
+    } else {
+      clearChatQueryParam();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce-driven deeplink
   }, [currentUser, profiles, chatDeepLinkNonce]);

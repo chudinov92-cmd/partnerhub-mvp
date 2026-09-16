@@ -34,20 +34,43 @@ async function resolvePrivateChatBetween(
       .from("chat_members")
       .select("chat_id")
       .eq("user_id", peerProfileId)
-      .in("chat_id", candidateChatIds)
-      .limit(1);
+      .in("chat_id", candidateChatIds);
     if (sharedErr) throw sharedErr;
-    const candidate = (sharedRows?.[0] as { chat_id?: string })?.chat_id;
-    if (candidate) {
-      const { data: oneChat, error: oneChatErr } = await supabase
+
+    const sharedChatIds = Array.from(
+      new Set(
+        (sharedRows ?? []).map((r: { chat_id: string }) => r.chat_id),
+      ),
+    );
+
+    if (sharedChatIds.length > 0) {
+      const { data: privateChats, error: privateErr } = await supabase
         .from("chats")
         .select("id")
-        .eq("id", candidate)
-        .eq("is_group", false)
-        .maybeSingle();
-      if (oneChatErr) throw oneChatErr;
-      const id = (oneChat as { id: string } | null)?.id;
-      if (id) return id;
+        .in("id", sharedChatIds)
+        .eq("is_group", false);
+      if (privateErr) throw privateErr;
+
+      const privateIds = (privateChats ?? []).map(
+        (c: { id: string }) => c.id,
+      );
+      if (privateIds.length === 1) return privateIds[0];
+
+      if (privateIds.length > 1) {
+        const { data: lastRows, error: lastErr } = await supabase.rpc(
+          "get_chat_last_messages",
+          { p_chat_ids: privateIds },
+        );
+        if (!lastErr && lastRows?.length) {
+          const sorted = [...(lastRows as { chat_id: string; created_at: string | null }[])].sort(
+            (a, b) =>
+              (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+          );
+          const withMessages = sorted[0]?.chat_id;
+          if (withMessages) return withMessages;
+        }
+        return [...privateIds].sort()[0];
+      }
     }
   }
 

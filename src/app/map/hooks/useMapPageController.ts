@@ -929,6 +929,7 @@ export function useMapPageController() {
     setSupportProfileId,
     blockedProfileIds,
     activeChatId,
+    chatList,
     activeChatUser,
     chatInput,
     setChatInput,

@@ -4,6 +4,20 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import type { ChatMessage } from "@/types";
 
+/** Объединяет fetch и локальный state (optimistic send) без потери сообщений. */
+export function mergeChatMessages(
+  prev: ChatMessage[],
+  fetched: ChatMessage[],
+): ChatMessage[] {
+  const byId = new Map<string, ChatMessage>();
+  for (const m of prev) byId.set(m.id, m);
+  for (const m of fetched) byId.set(m.id, m);
+  return [...byId.values()].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+}
+
 export async function fetchRecentMessages(
   chatId: string,
   options: { excludeSenderIds?: string[] } = {},

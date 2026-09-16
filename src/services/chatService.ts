@@ -21,6 +21,7 @@ export {
 
 export {
   fetchRecentMessages,
+  mergeChatMessages,
   updateMessageContent,
   deleteMessage,
   fetchLatestMessageMeta,

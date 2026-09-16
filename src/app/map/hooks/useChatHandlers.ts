@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { isPaidGateMode } from "@/lib/accessMode";
 import type { PaywallIntentContext } from "@/lib/paywallIntent";
@@ -15,6 +16,7 @@ import {
   formatChatListPreview,
   openOrEnsurePrivateChat,
   fetchRecentMessages,
+  mergeChatMessages,
   updateMessageContent,
   deleteMessage,
   fetchLatestMessageMeta,
@@ -39,6 +41,7 @@ export type ChatHandlerDeps = {
   setSupportProfileId: React.Dispatch<React.SetStateAction<string | null>>;
   blockedProfileIds: string[];
   activeChatId: string | null;
+  chatList: ChatListItem[];
   activeChatUser: Profile | null;
   chatInput: string;
   setChatInput: React.Dispatch<React.SetStateAction<string>>;
@@ -83,6 +86,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     setSupportProfileId,
     blockedProfileIds,
     activeChatId,
+    chatList,
     chatInput,
     setChatInput,
     editingMessageId,
@@ -113,6 +117,27 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     profileReadyForMessaging,
   } = deps;
 
+  const chatLoadGenRef = useRef(0);
+  const activePeerIdRef = useRef<string | null>(null);
+  const chatListRef = useRef(chatList);
+  chatListRef.current = chatList;
+
+  const resolveChatIdForPeer = (
+    profileId: string,
+    opts?: { knownChatId?: string },
+  ): string | null => {
+    if (opts?.knownChatId) return opts.knownChatId;
+    const fromList = chatListRef.current.find((x) => x.profile.id === profileId);
+    return fromList?.chatId ?? null;
+  };
+
+  const beginChatLoad = () => {
+    chatLoadGenRef.current += 1;
+    return chatLoadGenRef.current;
+  };
+
+  const isChatLoadStale = (gen: number) => chatLoadGenRef.current !== gen;
+
   const openSupportChat = async () => {
     resetSupportComposer();
     setChatError(null);
@@ -132,6 +157,13 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     setActiveChatUser(supportStub);
     if (envId) setSupportProfileId(envId);
 
+    const gen = beginChatLoad();
+    const switchingPeer = activePeerIdRef.current !== supportStub.id;
+    if (switchingPeer) {
+      setChatMessages([]);
+    }
+    activePeerIdRef.current = supportStub.id;
+
     try {
       if (!currentUser) {
         setActiveChatId(null);
@@ -150,13 +182,18 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
             rating_count: null,
           }
         : await fetchSupportProfile();
+      if (isChatLoadStale(gen)) return;
+
       setSupportProfileId(profile.id);
       setActiveChatUser(profile);
+      activePeerIdRef.current = profile.id;
 
       const chatId = await openOrEnsurePrivateChat(
         currentUser.profileId,
         profile.id,
       );
+      if (isChatLoadStale(gen)) return;
+
       setActiveChatId(chatId);
       chatMembershipRef.current.add(chatId);
 
@@ -180,20 +217,30 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       } catch {
         closed = false;
       }
+      if (isChatLoadStale(gen)) return;
       setActiveChatIsClosed(closed);
 
       const normalized = await fetchRecentMessages(chatId);
-      setChatMessages(normalized);
+      if (isChatLoadStale(gen)) return;
+
+      setChatMessages((prev) => mergeChatMessages(prev, normalized));
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
       void markChatAsRead(chatId, currentUser.profileId);
     } catch (err: unknown) {
-      setChatError(getErrorMessage(err, "Не удалось открыть поддержку."));
+      if (!isChatLoadStale(gen)) {
+        setChatError(getErrorMessage(err, "Не удалось открыть поддержку."));
+      }
     } finally {
-      setChatLoading(false);
+      if (!isChatLoadStale(gen)) {
+        setChatLoading(false);
+      }
     }
   };
 
-  const openChatWithProfile = async (profile: Profile) => {
+  const openChatWithProfile = async (
+    profile: Profile,
+    opts?: { knownChatId?: string },
+  ) => {
     if (!currentUser) {
       setChatError("Нужно войти, чтобы отправлять сообщения.");
       return;
@@ -203,6 +250,13 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       setChatError("Нельзя написать самому себе.");
       return;
     }
+
+    const gen = beginChatLoad();
+    const switchingPeer = activePeerIdRef.current !== profile.id;
+    if (switchingPeer) {
+      setChatMessages([]);
+    }
+    activePeerIdRef.current = profile.id;
 
     setActiveChatUser(profile);
     setChatError(null);
@@ -245,6 +299,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
         const partnersToday = await getUniqueChatPartnersToday(
           currentUser.profileId,
         );
+        if (isChatLoadStale(gen)) return;
         if (
           !partnersToday.has(profile.id) &&
           partnersToday.size >= limit
@@ -261,10 +316,22 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
         }
       }
 
-      const chatId = await openOrEnsurePrivateChat(
-        currentUser.profileId,
-        profile.id,
+      let chatId =
+        resolveChatIdForPeer(profile.id, opts) ??
+        (await openOrEnsurePrivateChat(currentUser.profileId, profile.id));
+
+      const listItem = chatListRef.current.find(
+        (x) => x.profile.id === profile.id,
       );
+      if (
+        listItem &&
+        listItem.chatId !== chatId &&
+        (listItem.lastMessagePreview || listItem.lastMessageAt)
+      ) {
+        chatId = listItem.chatId;
+      }
+
+      if (isChatLoadStale(gen)) return;
 
       setActiveChatId(chatId);
       chatMembershipRef.current.add(chatId);
@@ -274,6 +341,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       } else {
         setActiveChatIsClosed(false);
       }
+      if (isChatLoadStale(gen)) return;
 
       setChatList((prev) => {
         const exists = prev.some((x) => x.chatId === chatId);
@@ -290,19 +358,35 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       const excludeSenderIds = blockedProfileIds.includes(profile.id)
         ? [profile.id]
         : undefined;
-      const normalized = await fetchRecentMessages(chatId, {
+      let normalized = await fetchRecentMessages(chatId, {
         excludeSenderIds,
       });
+      if (
+        normalized.length === 0 &&
+        listItem &&
+        listItem.chatId !== chatId &&
+        listItem.lastMessagePreview
+      ) {
+        chatId = listItem.chatId;
+        setActiveChatId(chatId);
+        chatMembershipRef.current.add(chatId);
+        normalized = await fetchRecentMessages(chatId, { excludeSenderIds });
+      }
+      if (isChatLoadStale(gen)) return;
 
-      setChatMessages(normalized);
+      setChatMessages((prev) => mergeChatMessages(prev, normalized));
       setEditingMessageId(null);
       setChatInput("");
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
       void markChatAsRead(chatId, currentUser.profileId);
     } catch (err: unknown) {
-      setChatError(getChatErrorMessage(err, "Не удалось открыть диалог."));
+      if (!isChatLoadStale(gen)) {
+        setChatError(getChatErrorMessage(err, "Не удалось открыть диалог."));
+      }
     } finally {
-      setChatLoading(false);
+      if (!isChatLoadStale(gen)) {
+        setChatLoading(false);
+      }
     }
   };
 
@@ -346,7 +430,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
   };
 
   const openChatFromList = async (item: ChatListItem) => {
-    await openChatWithProfile(item.profile);
+    await openChatWithProfile(item.profile, { knownChatId: item.chatId });
     setUnreadByUser((prev) => ({ ...prev, [item.profile.id]: 0 }));
     setChatList((prev) => {
       const idx = prev.findIndex((x) => x.chatId === item.chatId);
@@ -421,7 +505,11 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (showSupportAppealForm) return;
-    if (!currentUser || !activeChatId || !chatInput.trim()) return;
+    if (!currentUser || !chatInput.trim()) return;
+    if (!activeChatId) {
+      setChatError("Чат ещё не готов. Закройте окно и откройте диалог снова.");
+      return;
+    }
     if (currentUser.isBlocked) {
       setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
       return;

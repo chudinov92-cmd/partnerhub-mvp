@@ -52,7 +52,10 @@ export async function loadPrivateChatSidebar(
   if (otherErr) throw otherErr;
   if (!otherRows?.length) return { chatMembership, items: [] };
 
-  const map = new Map<string, { chatId: string; profile: Profile }>();
+  type PeerChatRow = { chatId: string; profile: Profile };
+  const peerChats: PeerChatRow[] = [];
+  const otherProfileIdByChatId = new Map<string, string>();
+
   (otherRows as unknown[]).forEach((row) => {
     const r = row as {
       chat_id: string;
@@ -61,39 +64,28 @@ export async function loadPrivateChatSidebar(
     const profRaw = r.profiles;
     const prof = Array.isArray(profRaw) ? profRaw[0] : profRaw;
     if (!prof) return;
-    map.set(prof.id as string, {
-      chatId: r.chat_id,
-      profile: {
-        id: prof.id,
-        full_name: prof.full_name,
-        city: prof.city,
-        industry: prof.industry,
-        subindustry: prof.subindustry,
-        role_title: prof.role_title,
-        last_seen_at: prof.last_seen_at ?? null,
-        skills: prof.skills ?? null,
-        resources: prof.resources ?? null,
-        interested_in: prof.interested_in ?? null,
-        rating_avg: prof.rating_avg,
-        rating_count: prof.rating_count,
-      },
-    });
+
+    const profile: Profile = {
+      id: prof.id,
+      full_name: prof.full_name,
+      city: prof.city,
+      industry: prof.industry,
+      subindustry: prof.subindustry,
+      role_title: prof.role_title,
+      last_seen_at: prof.last_seen_at ?? null,
+      skills: prof.skills ?? null,
+      resources: prof.resources ?? null,
+      interested_in: prof.interested_in ?? null,
+      rating_avg: prof.rating_avg,
+      rating_count: prof.rating_count,
+    };
+
+    peerChats.push({ chatId: r.chat_id, profile });
+    otherProfileIdByChatId.set(r.chat_id, profile.id);
   });
 
-  const baseItems: ChatListItem[] = Array.from(map.values()).map((v) => ({
-    chatId: v.chatId,
-    profile: v.profile,
-    lastMessageAt: null,
-    lastMessagePreview: null,
-  }));
-
-  const otherProfileIdByChatId = new Map<string, string>();
-  baseItems.forEach((i) =>
-    otherProfileIdByChatId.set(i.chatId, i.profile.id),
-  );
-
   const lastByChat = new Map<string, { at: string; preview: string }>();
-  const uniqueChatIds = Array.from(new Set(baseItems.map((i) => i.chatId)));
+  const uniqueChatIds = chatIds;
   const { data: lastRows, error: lastErr } = await supabase.rpc(
     "get_chat_last_messages",
     { p_chat_ids: uniqueChatIds },
@@ -167,20 +159,45 @@ export async function loadPrivateChatSidebar(
     }
   }
 
-  const withLast = baseItems
-    .map((i) => {
-      const last = lastByChat.get(i.chatId);
-      return {
-        ...i,
-        lastMessageAt: last?.at ?? null,
-        lastMessagePreview: last?.preview ? last.preview : null,
-      };
-    })
-    .sort((a, b) => {
-      const at = a.lastMessageAt ?? "";
-      const bt = b.lastMessageAt ?? "";
-      return bt.localeCompare(at);
-    });
+  const bestByProfile = new Map<string, ChatListItem>();
+
+  for (const { chatId, profile } of peerChats) {
+    const last = lastByChat.get(chatId);
+    const lastMessageAt = last?.at ?? null;
+    const lastMessagePreview = last?.preview ? last.preview : null;
+    const candidate: ChatListItem = {
+      chatId,
+      profile,
+      lastMessageAt,
+      lastMessagePreview,
+    };
+
+    const existing = bestByProfile.get(profile.id);
+    if (!existing) {
+      bestByProfile.set(profile.id, candidate);
+      continue;
+    }
+
+    const existingAt = existing.lastMessageAt ?? "";
+    const candidateAt = candidate.lastMessageAt ?? "";
+    if (candidateAt.localeCompare(existingAt) > 0) {
+      bestByProfile.set(profile.id, candidate);
+      continue;
+    }
+    if (
+      candidateAt === existingAt &&
+      !existing.lastMessagePreview &&
+      candidate.lastMessagePreview
+    ) {
+      bestByProfile.set(profile.id, candidate);
+    }
+  }
+
+  const withLast = Array.from(bestByProfile.values()).sort((a, b) => {
+    const at = a.lastMessageAt ?? "";
+    const bt = b.lastMessageAt ?? "";
+    return bt.localeCompare(at);
+  });
 
   return { chatMembership, items: withLast };
 }
