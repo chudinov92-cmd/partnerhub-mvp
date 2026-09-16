@@ -58,7 +58,7 @@ function ChatDialogInner(props: Props) {
           <div
             ref={chatWindowRef}
             data-chat-window
-            className="pointer-events-auto fixed inset-x-0 top-0 z-[1600] flex flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,3.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
+            className="pointer-events-auto fixed inset-x-0 top-0 bottom-0 z-[1600] flex h-dvh flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,3.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
             style={
               isMobileLayout
                 ? {

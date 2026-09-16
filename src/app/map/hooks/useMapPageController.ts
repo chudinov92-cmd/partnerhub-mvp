@@ -207,6 +207,14 @@ export function useMapPageController() {
     setSupportDeepLinkNonce,
   } = useMapPageState();
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const apply = () => setIsMobileLayout(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [setIsMobileLayout]);
+
   useAutoResizeTextarea(newPostBodyRef, newPostBody);
   useAutoResizeTextarea(chatInputRef, chatInput);
   useAutoResizeTextarea(supportDescriptionRef, supportDescription);
@@ -1087,7 +1095,7 @@ export function useMapPageController() {
 
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
-  const hideMobileMainStack = isMobileLayout && !!activeChatUser;
+  const hideMobileMainStack = !!activeChatUser;
   return {
     isMobileLayout, mobileTab, hideMobileMainStack,
     welcomeBannerVisible, setWelcomeBannerVisible,
