@@ -45,15 +45,9 @@ export function appealPreviewText(content: string): string {
 /** Событие для открытия чата поддержки с главной (без перезагрузки). */
 export const OPEN_SUPPORT_CHAT_EVENT = "zeip:open-support";
 
-/** Текст ошибки из Supabase / fetch (не всегда instanceof Error). */
-export function getErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message.trim()) return err.message;
-  if (err && typeof err === "object" && "message" in err) {
-    const m = (err as { message: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return fallback;
-}
+import { getErrorMessage } from "@/lib/errors";
+
+export { getErrorMessage } from "@/lib/errors";
 
 const CHAT_ERROR_MESSAGES: Record<string, string> = {
   invalid_peer: "Нельзя написать самому себе.",

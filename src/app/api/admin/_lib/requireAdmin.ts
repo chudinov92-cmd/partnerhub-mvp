@@ -1,4 +1,6 @@
-import { createSupabaseAdminClient } from "@/lib/supabaseServer";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { createSupabaseAdminClient, createSupabaseRouteClient } from "@/lib/supabaseServer";
 
 export type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -29,4 +31,43 @@ export function hasMinRole(
 ): boolean {
   if (!role) return false;
   return ROLE_RANK[role] >= ROLE_RANK[min];
+}
+
+export async function requireMinRole(
+  min: AdminRole,
+): Promise<
+  | { ok: true; authUserId: string; role: AdminRole }
+  | { ok: false; response: NextResponse }
+> {
+  const cookieStore = await cookies();
+  const sb = createSupabaseRouteClient(cookieStore);
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  const role = await fetchAdminRoleForAuthUser(user.id);
+  if (!hasMinRole(role, min)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
+  }
+
+  return { ok: true, authUserId: user.id, role: role! };
+}
+
+export async function requireSuperAdmin(): Promise<
+  | { ok: true; authUserId: string }
+  | { ok: false; response: NextResponse }
+> {
+  const auth = await requireMinRole("super_admin");
+  if (!auth.ok) return auth;
+  return { ok: true, authUserId: auth.authUserId };
 }

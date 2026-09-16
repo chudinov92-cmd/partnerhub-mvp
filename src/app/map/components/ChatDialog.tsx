@@ -1,6 +1,8 @@
 "use client";
 
+import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
+import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
 import Link from "next/link";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import { ProfileShareCard } from "@/components/ProfileShareCard";
@@ -11,10 +13,9 @@ import { scrollComposerIntoView, isOnline } from "../utils";
 
 type Props = MapPageController;
 
-export function ChatDialog(props: Props) {
+function ChatDialogInner(props: Props) {
+  const { offsetTop: vvTop, height: vvHeight } = useVisualViewportLayout();
   const {
-    vvTop,
-    vvHeight,
     isMobileLayout,
     activeChatUser,
     chatMessages,
@@ -406,3 +407,5 @@ export function ChatDialog(props: Props) {
 </>
   );
 }
+
+export const ChatDialog = memo(ChatDialogInner);

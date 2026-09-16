@@ -155,27 +155,44 @@ export type MessagesRealtimeCallbacks = {
   onDelete?: (payload: NonNullable<MessageRealtimePayload>) => void | Promise<void>;
 };
 
+function buildMessagesChatFilter(chatIds: string[]): string | undefined {
+  if (chatIds.length === 0) return undefined;
+  return `chat_id=in.(${chatIds.join(",")})`;
+}
+
 /** Подписка на realtime messages (личные чаты). */
 export function subscribeToMessagesRealtime(
   callbacks: MessagesRealtimeCallbacks,
+  options?: { chatIds?: string[] },
 ): RealtimeChannel {
+  const chatIds = options?.chatIds ?? [];
+  const filter = buildMessagesChatFilter(chatIds);
+  const channelName = `messages-realtime-${chatIds.length}`;
+
+  const changeConfig = (event: "INSERT" | "UPDATE" | "DELETE") => ({
+    event,
+    schema: "public" as const,
+    table: "messages" as const,
+    ...(filter ? { filter } : {}),
+  });
+
   const channel = supabase
-    .channel("messages-realtime")
+    .channel(channelName)
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "messages" },
+      changeConfig("INSERT"),
       (evt) =>
         callbacks.onInsert?.(evt.new as ChatMessage & { chat_id?: string }),
     )
     .on(
       "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "messages" },
+      changeConfig("UPDATE"),
       (evt) =>
         callbacks.onUpdate?.(evt.new as ChatMessage & { chat_id?: string }),
     )
     .on(
       "postgres_changes",
-      { event: "DELETE", schema: "public", table: "messages" },
+      changeConfig("DELETE"),
       (evt) =>
         callbacks.onDelete?.(evt.old as ChatMessage & { chat_id?: string }),
     );

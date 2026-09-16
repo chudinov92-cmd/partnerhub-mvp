@@ -93,15 +93,11 @@ export async function loadPrivateChatSidebar(
   );
 
   const lastByChat = new Map<string, { at: string; preview: string }>();
-  const { data: lastRows, error: lastErr } = await supabase
-    .from("messages")
-    .select("chat_id, sender_id, created_at, content")
-    .in(
-      "chat_id",
-      Array.from(new Set(baseItems.map((i) => i.chatId))),
-    )
-    .order("created_at", { ascending: false })
-    .limit(Math.max(baseItems.length * 5, 100));
+  const uniqueChatIds = Array.from(new Set(baseItems.map((i) => i.chatId)));
+  const { data: lastRows, error: lastErr } = await supabase.rpc(
+    "get_chat_last_messages",
+    { p_chat_ids: uniqueChatIds },
+  );
 
   if (!lastErr && lastRows) {
     for (const row of lastRows as {
@@ -111,7 +107,6 @@ export async function loadPrivateChatSidebar(
       content: unknown;
     }[]) {
       const chatId = row.chat_id as string;
-      if (lastByChat.has(chatId)) continue;
       const otherId = otherProfileIdByChatId.get(chatId);
       if (
         otherId &&
@@ -125,6 +120,49 @@ export async function loadPrivateChatSidebar(
           at: row.created_at as string,
           preview: String(row.content ?? "").trim(),
         });
+      }
+    }
+  } else if (lastErr) {
+    const code = String((lastErr as { code?: string }).code ?? "");
+    const msg = String(lastErr.message ?? "");
+    if (
+      code !== "PGRST202" &&
+      !msg.includes("get_chat_last_messages") &&
+      !msg.includes("Could not find the function")
+    ) {
+      throw lastErr;
+    }
+
+    const { data: fallbackRows, error: fallbackErr } = await supabase
+      .from("messages")
+      .select("chat_id, sender_id, created_at, content")
+      .in("chat_id", uniqueChatIds)
+      .order("created_at", { ascending: false })
+      .limit(Math.max(uniqueChatIds.length * 5, 100));
+
+    if (!fallbackErr && fallbackRows) {
+      for (const row of fallbackRows as {
+        chat_id: string;
+        sender_id: string;
+        created_at: string | null;
+        content: unknown;
+      }[]) {
+        const chatId = row.chat_id as string;
+        if (lastByChat.has(chatId)) continue;
+        const otherId = otherProfileIdByChatId.get(chatId);
+        if (
+          otherId &&
+          blockedProfileIds.includes(otherId) &&
+          row.sender_id === otherId
+        ) {
+          continue;
+        }
+        if (row.created_at) {
+          lastByChat.set(chatId, {
+            at: row.created_at as string,
+            preview: String(row.content ?? "").trim(),
+          });
+        }
       }
     }
   }

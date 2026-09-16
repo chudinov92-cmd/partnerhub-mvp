@@ -18,11 +18,11 @@ import {
 import { authGetUser } from "@/services/authService";
 import {
   OTHER_PROFESSION_LABEL,
-  loadProfessionCatalog,
   shouldUpsertProfession,
   syncCustomProfessionToCatalog,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
+import { useProfiles } from "@/hooks/useProfiles";
 import { finalizeProfessionLabel } from "@/lib/professionOtherResolve";
 import { useProfessionOtherResolver } from "@/lib/useProfessionOtherResolver";
 import { DropdownSelect } from "@/components/DropdownSelect";
@@ -35,8 +35,6 @@ import { maskProfanity } from "@/lib/profanity";
 import {
   getIndustryLabelsForSelect,
   getSubindustryLabelsForSelect,
-  loadIndustryCatalog,
-  loadSubindustryCatalog,
   upsertIndustry,
   upsertSubindustry,
   type IndustryCatalogRow,
@@ -362,15 +360,15 @@ export default function ProfilePage() {
   const [deleteBlockConfirmIndex, setDeleteBlockConfirmIndex] = useState<
     number | null
   >(null);
-  const [professionCatalog, setProfessionCatalog] = useState<ProfessionCatalogRow[]>(
-    [],
-  );
-  const [industryCatalog, setIndustryCatalog] = useState<IndustryCatalogRow[]>([]);
-  const [subindustryCatalog, setSubindustryCatalog] = useState<
-    SubindustryCatalogRow[]
-  >([]);
+  const {
+    professionCatalog,
+    industryCatalog,
+    subindustryCatalog,
+    catalogsLoading,
+    setProfessionCatalog,
+  } = useProfiles();
   const [profileLoading, setProfileLoading] = useState(true);
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const catalogLoading = catalogsLoading;
   const profileLoadInFlightRef = useRef(false);
   const professionOtherInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
   const professionResolver = useProfessionOtherResolver(professionCatalog);
@@ -529,7 +527,6 @@ export default function ProfilePage() {
       profileLoadInFlightRef.current = true;
 
       try {
-        setCatalogLoading(true);
         setError(null);
 
         const {
@@ -575,33 +572,12 @@ export default function ProfilePage() {
         }
         setLastName(loadedLastName);
 
-        const [
-          professionRows,
-          workResult,
-          locationResult,
-          industryRows,
-          subindustryRows,
-        ] = await Promise.all([
-          loadProfessionCatalog().catch(() => [] as ProfessionCatalogRow[]),
+        const [workResult, locationResult] = await Promise.all([
           fetchProfileWorkBlocks(prof.id),
           fetchLocationForProfile(prof.id),
-          loadIndustryCatalog().catch((e) => {
-            console.error("Failed to load industry_catalog", e);
-            return [] as IndustryCatalogRow[];
-          }),
-          loadSubindustryCatalog().catch((e) => {
-            console.error("Failed to load subindustry_catalog", e);
-            return [] as SubindustryCatalogRow[];
-          }),
         ]);
 
         if (cancelled) return;
-
-        setProfessionCatalog(professionRows);
-        const labels = professionRows.map((r) => r.label);
-        setProfessionIsOther(
-          !!(prof.role_title && !labels.includes(prof.role_title)),
-        );
 
         const loadedWorkBlocks = workResult.error
           ? []
@@ -637,8 +613,6 @@ export default function ProfilePage() {
           // ignore
         }
 
-        setIndustryCatalog(industryRows);
-        setSubindustryCatalog(subindustryRows);
       } catch (err: unknown) {
         if (!cancelled) {
           const msg =
@@ -648,7 +622,6 @@ export default function ProfilePage() {
       } finally {
         if (!cancelled) {
           setProfileLoading(false);
-          setCatalogLoading(false);
         }
         profileLoadInFlightRef.current = false;
       }
@@ -661,6 +634,12 @@ export default function ProfilePage() {
       profileLoadInFlightRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!profile?.role_title) return;
+    const labels = professionCatalog.map((r) => r.label);
+    setProfessionIsOther(!labels.includes(profile.role_title));
+  }, [profile?.role_title, professionCatalog]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

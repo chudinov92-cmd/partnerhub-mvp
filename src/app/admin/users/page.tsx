@@ -5,6 +5,7 @@ import Link from "next/link";
 import { buildProfileMapSharePath } from "@/lib/profileShare";
 import { adminFetchProfilesList } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
 import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
@@ -45,8 +46,9 @@ export default function AdminUsersPage() {
       const res = await adminFetchProfilesList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AdminUserRow[]);
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить пользователей.");
+    } catch (e: unknown) {
+      console.error("[admin/users] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить пользователей."));
       setRows([]);
     } finally {
       setLoading(false);
@@ -103,8 +105,9 @@ export default function AdminUsersPage() {
       setRows((prev) =>
         prev.map((x) => (x.id === u.id ? { ...x, is_blocked: !x.is_blocked } : x)),
       );
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось изменить блокировку пользователя.");
+    } catch (e: unknown) {
+      console.error("[admin/users] toggleBlock", e);
+      setError(getErrorMessage(e, "Не удалось изменить блокировку пользователя."));
     } finally {
       setBusyId(null);
     }

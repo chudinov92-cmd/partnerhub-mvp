@@ -2,22 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { authGetUser, authOnAuthStateChange } from "@/services/authService";
-import {
-  fetchCurrentUserProfileRow,
-  fetchProfilesForMap,
-} from "@/services/profileService";
+import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import { loadPrivateChatSidebar } from "@/services/chatService";
 import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 import type { ChatListItem, CurrentUser, Profile } from "@/types";
 
 /**
  * Стартовая загрузка: карта профилей, текущий пользователь, сайдбар личных чатов.
- * blockedProfileIds — на первом маунте обычно []; совпадает с прежним поведением page.tsx.
+ * blockedProfileIds — на первом маунте обычно [].
  */
 export function useAuth(blockedProfileIds: readonly string[]) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUserReady, setCurrentUserReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -76,20 +74,10 @@ export function useAuth(blockedProfileIds: readonly string[]) {
         try {
           setError(null);
           setLoading(true);
+          setCurrentUserReady(false);
 
-          // Карта и лента не ждут auth — публичные данные грузим первыми.
-          try {
-            const allProfiles = await fetchProfilesForMap(50);
-            setProfiles(allProfiles);
-          } catch (err: unknown) {
-            const msg =
-              err instanceof Error
-                ? err.message
-                : "Не удалось загрузить профили для карты";
-            setError(msg);
-          } finally {
-            setLoading(false);
-          }
+          setProfiles([]);
+          setLoading(false);
 
           const {
             data: { user },
@@ -113,6 +101,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
           setError(msg);
           setLoading(false);
         } finally {
+          setCurrentUserReady(true);
           loadPromiseRef.current = null;
         }
       })();
@@ -128,6 +117,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
     } = authOnAuthStateChange(async (event) => {
       if (event === "SIGNED_OUT") {
         setCurrentUser(null);
+        setCurrentUserReady(true);
         setChatList([]);
         chatMembershipRef.current = new Set();
         setSessionExpired(false);
@@ -137,10 +127,6 @@ export function useAuth(blockedProfileIds: readonly string[]) {
       }
       if (event === "TOKEN_REFRESHED") {
         setSessionExpired(false);
-        void authGetUser().then(({ data: { user } }) => {
-          if (!user) return;
-          void loadUserContext(user.id);
-        });
         return;
       }
       if (event === "SIGNED_IN") {
@@ -162,6 +148,7 @@ export function useAuth(blockedProfileIds: readonly string[]) {
     setChatList,
     currentUser,
     setCurrentUser,
+    currentUserReady,
     loading,
     error,
     sessionExpired,

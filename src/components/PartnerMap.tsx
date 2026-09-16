@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import mmrgl from "mmr-gl";
 import "mmr-gl/dist/mmr-gl.css";
 import type { LngLat } from "@/data/cityMapViews";
-import { fetchActiveLocations, getProfessionMatchIndex } from "@/services/profileService";
+import {
+  getProfessionMatchIndex,
+  MAP_ZOOM_STREET_MIN,
+  type MapGridCluster,
+  type MapLightPoint,
+  type MapViewportMode,
+} from "@/services/profileService";
 import { comparePlanRank, getPinColorForPlan, planRank } from "@/lib/subscriptionPlans";
 import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 
@@ -26,6 +32,43 @@ const PIN_FOCUSED_BORDER_COLOR = "#F59E0B";
 const Z_PIN_FOCUSED = 10_000_000;
 const Z_PIN_OWN = 5_000_000;
 const VK_MAP_STYLE = "mmr://api/styles/main_style.json";
+const GRID_SOURCE_ID = "zeip-map-grid-clusters";
+const GRID_LAYER_ID = "zeip-map-grid-circles";
+const LIGHT_SOURCE_ID = "zeip-map-light-points";
+const LIGHT_LAYER_ID = "zeip-map-light-circles";
+
+function removeMapLayerAndSource(map: mmrgl.Map, layerId: string, sourceId: string) {
+  if (map.getLayer(layerId)) map.removeLayer(layerId);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
+}
+
+type MapGeoFeature = {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: Record<string, string | number | boolean>;
+};
+
+function upsertGeoJsonLayer(
+  map: mmrgl.Map,
+  sourceId: string,
+  layerId: string,
+  features: MapGeoFeature[],
+  paint: Record<string, unknown>,
+) {
+  const data = { type: "FeatureCollection" as const, features };
+  const source = map.getSource(sourceId) as mmrgl.GeoJSONSource | undefined;
+  if (source) {
+    source.setData(data);
+    return;
+  }
+  map.addSource(sourceId, { type: "geojson", data });
+  map.addLayer({
+    id: layerId,
+    type: "circle",
+    source: sourceId,
+    paint,
+  });
+}
 
 function hashToSeed(str: string) {
   let h = 2166136261;
@@ -88,6 +131,16 @@ function pinInitial(fullName: string | null | undefined) {
   const c = fullName?.trim()?.[0];
   if (!c) return "?";
   return escapeHtmlChar(c.toLocaleUpperCase("ru-RU"));
+}
+
+function markerVisualKey(row: {
+  isOwn: boolean;
+  isViewed: boolean;
+  isFocused: boolean;
+  subscriptionPlan: string;
+  initial: string;
+}) {
+  return `${row.isOwn}:${row.isFocused}:${row.isViewed}:${row.subscriptionPlan}:${row.initial}`;
 }
 
 function escapeHtmlColor(hex: string, fallback: string) {
@@ -212,10 +265,17 @@ function setMarkerTooltip(
   }`;
 }
 
+export type LightPointClickPayload = {
+  lng: number;
+  lat: number;
+  zoomToStreet: () => void;
+};
+
 export type PartnerMapProps = {
   onOpenChat?: (profileId: string) => void;
   onToggleContact?: (profileId: string) => void;
   onOpenProfile?: (profile: PartnerMapProps["profiles"][number]) => void;
+  onLightPointClick?: (payload: LightPointClickPayload) => void;
   contactProfileIds?: string[];
   viewedProfileIds?: string[];
   focusedProfileId?: string | null;
@@ -226,6 +286,16 @@ export type PartnerMapProps = {
   center?: LngLat;
   zoom?: number;
   professionFilter?: string | null;
+  locations?: LocationPoint[];
+  lightPoints?: MapLightPoint[];
+  gridClusters?: MapGridCluster[];
+  viewportMode?: MapViewportMode;
+  ownLocation?: LocationPoint | null;
+  onViewportChange?: (
+    sw: { lng: number; lat: number },
+    ne: { lng: number; lat: number },
+    zoom: number,
+  ) => void;
   profiles: {
     id: string;
     full_name: string | null;
@@ -272,7 +342,7 @@ type MarkerRow = {
   zIndex: number;
 };
 
-export function PartnerMap({
+function PartnerMapInner({
   onOpenChat,
   onToggleContact,
   onOpenProfile,
@@ -286,19 +356,44 @@ export function PartnerMap({
   center,
   zoom,
   professionFilter,
+  locations = [],
+  lightPoints = [],
+  gridClusters = [],
+  viewportMode,
+  ownLocation = null,
+  onViewportChange,
+  onLightPointClick,
 }: PartnerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mmrgl.Map | null>(null);
   const markersRef = useRef<Map<string, mmrgl.Marker>>(new Map());
+  const markerMetaRef = useRef<Map<string, string>>(new Map());
+  const ownPinMarkerRef = useRef<mmrgl.Marker | null>(null);
+  const ownPinMetaRef = useRef<string | null>(null);
+  const onOpenProfileRef = useRef(onOpenProfile);
+  onOpenProfileRef.current = onOpenProfile;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+  const onLightPointClickRef = useRef(onLightPointClick);
+  onLightPointClickRef.current = onLightPointClick;
   const ownPinWrapRef = useRef<HTMLElement | null>(null);
   const pinHelloPlayedRef = useRef(false);
   const ownPinCenteredRef = useRef(false);
   const appliedCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
     null,
   );
-  const [points, setPoints] = useState<LocationPoint[]>([]);
-  const [locationsLoaded, setLocationsLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+
+  const points = locations;
+  const showHtmlPins = viewportMode === "street" || viewportMode === undefined;
+  const renderOwnPinSeparately = !showHtmlPins && ownLocation != null;
+
+  const visibleLightPoints = useMemo(() => {
+    if (!renderOwnPinSeparately || !currentUserProfileId) {
+      return lightPoints;
+    }
+    return lightPoints.filter((pt) => pt.profile_id !== currentUserProfileId);
+  }, [lightPoints, renderOwnPinSeparately, currentUserProfileId]);
 
   const profileById = useMemo(() => {
     const map: Record<string, PartnerMapProps["profiles"][number]> = {};
@@ -309,33 +404,6 @@ export function PartnerMap({
   }, [profiles]);
 
   const viewedSet = useMemo(() => new Set(viewedProfileIds ?? []), [viewedProfileIds]);
-
-  const locationsFetchKey = `${invalidateKey ?? ""}|${profiles.length}|${currentUserProfileId ?? ""}`;
-
-  useEffect(() => {
-    let cancelled = false;
-    setLocationsLoaded(false);
-
-    const load = async () => {
-      const pts = await fetchActiveLocations(200, currentUserProfileId);
-      if (cancelled) return;
-      setPoints(
-        pts.map((row) => ({
-          id: row.id,
-          user_id: row.user_id,
-          lat: row.lat,
-          lng: row.lng,
-          city: row.city ?? null,
-        })),
-      );
-      setLocationsLoaded(true);
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [locationsFetchKey, currentUserProfileId]);
 
   const effectiveCenter = useMemo(
     () => toLngLat(center ?? PERM_CENTER),
@@ -348,14 +416,15 @@ export function PartnerMap({
 
   const obfByUserId = useMemo(() => {
     const map = new Map<string, { lat: number; lng: number }>();
-    for (const p of points) {
+    const allPoints = ownLocation ? [...points, ownLocation] : points;
+    for (const p of allPoints) {
       map.set(
         p.user_id,
         obfuscateLatLngWithinRadius(p.lat, p.lng, p.user_id, GEO_PRIVACY_RADIUS_M),
       );
     }
     return map;
-  }, [points]);
+  }, [points, ownLocation]);
 
   const focusedTarget = useMemo(() => {
     if (!focusedProfileId) return null;
@@ -415,14 +484,15 @@ export function PartnerMap({
         }
       }
 
+      // Pro+ → Pro → Free, внутри тарифа по rating_count по убыванию (как в SQL RPC).
       const tierRank = comparePlanRank(a.subscriptionPlan, b.subscriptionPlan);
       if (tierRank !== 0) return tierRank;
 
-      const v = Number(a.isViewed) - Number(b.isViewed);
-      if (v !== 0) return v;
-
       const r = (b.rating ?? 0) - (a.rating ?? 0);
       if (r !== 0) return r;
+
+      const v = Number(a.isViewed) - Number(b.isViewed);
+      if (v !== 0) return v;
 
       return a.profile.id.localeCompare(b.profile.id);
     });
@@ -478,7 +548,25 @@ export function PartnerMap({
 
     mapRef.current = map;
 
-    const handleLoad = () => setMapReady(true);
+    const emitViewport = () => {
+      const bounds = map.getBounds();
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      onViewportChangeRef.current?.(
+        { lng: sw.lng, lat: sw.lat },
+        { lng: ne.lng, lat: ne.lat },
+        map.getZoom(),
+      );
+    };
+
+    const handleLoad = () => {
+      setMapReady(true);
+      emitViewport();
+    };
+
+    map.on("moveend", emitViewport);
+    map.on("zoomend", emitViewport);
+
     if (map.loaded()) {
       handleLoad();
     } else {
@@ -486,10 +574,16 @@ export function PartnerMap({
     }
 
     return () => {
+      map.off("moveend", emitViewport);
+      map.off("zoomend", emitViewport);
+      ownPinMarkerRef.current?.remove();
+      ownPinMarkerRef.current = null;
       for (const marker of markersRef.current.values()) {
         marker.remove();
       }
       markersRef.current.clear();
+      removeMapLayerAndSource(map, GRID_LAYER_ID, GRID_SOURCE_ID);
+      removeMapLayerAndSource(map, LIGHT_LAYER_ID, LIGHT_SOURCE_ID);
       map.remove();
       mapRef.current = null;
       setMapReady(false);
@@ -539,7 +633,8 @@ export function PartnerMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || ownPinCenteredRef.current) return;
-    if (!currentUserProfileId || !locationsLoaded) return;
+    if (!currentUserProfileId) return;
+    if (!ownPinTarget && points.length === 0) return;
     if (focusedProfileId) {
       ownPinCenteredRef.current = true;
       return;
@@ -560,7 +655,7 @@ export function PartnerMap({
   }, [
     mapReady,
     currentUserProfileId,
-    locationsLoaded,
+    points.length,
     ownPinTarget,
     focusedProfileId,
     effectiveCenter,
@@ -595,12 +690,269 @@ export function PartnerMap({
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
+    if (viewportMode === "grid" && gridClusters.length > 0) {
+      removeMapLayerAndSource(map, LIGHT_LAYER_ID, LIGHT_SOURCE_ID);
+      upsertGeoJsonLayer(
+        map,
+        GRID_SOURCE_ID,
+        GRID_LAYER_ID,
+        gridClusters.map((cell) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [cell.cell_lng, cell.cell_lat],
+          },
+          properties: {
+            point_count: cell.point_count,
+            has_pro: cell.has_pro ? 1 : 0,
+          },
+        })),
+        {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["get", "point_count"],
+            1,
+            10,
+            50,
+            18,
+            500,
+            28,
+            5000,
+            40,
+          ],
+          "circle-color": [
+            "case",
+            ["==", ["get", "has_pro"], 1],
+            "#6466FA",
+            "#10B981",
+          ],
+          "circle-opacity": 0.75,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      );
+      return;
+    }
+
+    removeMapLayerAndSource(map, GRID_LAYER_ID, GRID_SOURCE_ID);
+
+    if (viewportMode === "cluster" && visibleLightPoints.length > 0) {
+      upsertGeoJsonLayer(
+        map,
+        LIGHT_SOURCE_ID,
+        LIGHT_LAYER_ID,
+        visibleLightPoints.map((pt) => ({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [pt.lng, pt.lat],
+          },
+          properties: {
+            plan_rank: pt.plan_rank,
+          },
+        })),
+        {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            9,
+            7,
+            11,
+            9,
+            12,
+            11,
+          ],
+          "circle-color": [
+            "match",
+            ["get", "plan_rank"],
+            3,
+            "#6466FA",
+            2,
+            "#FDE047",
+            "#10B981",
+          ],
+          "circle-opacity": 0.9,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      );
+      return;
+    }
+
+    removeMapLayerAndSource(map, LIGHT_LAYER_ID, LIGHT_SOURCE_ID);
+  }, [gridClusters, visibleLightPoints, mapReady, viewportMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || viewportMode !== "cluster") return;
+    if (!map.getLayer(LIGHT_LAYER_ID)) return;
+
+    const onEnter = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = "";
+    };
+    const onClick = (event: mmrgl.MapMouseEvent & { defaultPrevented?: boolean }) => {
+      const hits = map.queryRenderedFeatures(event.point, {
+        layers: [LIGHT_LAYER_ID],
+      });
+      if (hits.length === 0) return;
+
+      const { lng, lat } = event.lngLat;
+      onLightPointClickRef.current?.({
+        lng,
+        lat,
+        zoomToStreet: () => {
+          map.easeTo({
+            center: [lng, lat],
+            zoom: MAP_ZOOM_STREET_MIN,
+            duration: 500,
+          });
+        },
+      });
+    };
+
+    map.on("mouseenter", LIGHT_LAYER_ID, onEnter);
+    map.on("mouseleave", LIGHT_LAYER_ID, onLeave);
+    map.on("click", LIGHT_LAYER_ID, onClick);
+
+    return () => {
+      map.off("mouseenter", LIGHT_LAYER_ID, onEnter);
+      map.off("mouseleave", LIGHT_LAYER_ID, onLeave);
+      map.off("click", LIGHT_LAYER_ID, onClick);
+      map.getCanvas().style.cursor = "";
+    };
+  }, [mapReady, viewportMode, visibleLightPoints.length]);
+
+  const ownPinRow = useMemo((): Omit<MarkerRow, "zIndex"> | null => {
+    if (!renderOwnPinSeparately || !ownLocation || !currentUserProfileId) {
+      return null;
+    }
+    const profile = profileById[currentUserProfileId];
+    if (!profile) return null;
+
+    return {
+      pt: ownLocation,
+      profile,
+      isOwn: true,
+      isViewed: false,
+      rating: profile.rating_count ?? 0,
+      isFocused: focusedProfileId === profile.id,
+      subscriptionPlan: getEffectiveSubscriptionPlan(profile),
+      professionMatchIndex: professionFilter
+        ? getProfessionMatchIndex(profile, professionFilter)
+        : null,
+    };
+  }, [
+    renderOwnPinSeparately,
+    ownLocation,
+    currentUserProfileId,
+    profileById,
+    focusedProfileId,
+    professionFilter,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    if (!renderOwnPinSeparately || !ownPinRow) {
+      ownPinMarkerRef.current?.remove();
+      ownPinMarkerRef.current = null;
+      ownPinMetaRef.current = null;
+      if (!showHtmlPins) {
+        ownPinWrapRef.current = null;
+      }
+      return;
+    }
+
+    const row = { ...ownPinRow, zIndex: Z_PIN_OWN };
+    const obf = obfByUserId.get(row.pt.user_id) ?? {
+      lat: row.pt.lat,
+      lng: row.pt.lng,
+    };
+    const online = isOnline(row.profile.last_seen_at ?? null);
+    const initial = pinInitial(row.profile.full_name);
+    const pinFill = getPinColorForPlan(row.subscriptionPlan);
+    const borderColor = pinFill;
+    const visualKey = markerVisualKey({
+      isOwn: true,
+      isViewed: false,
+      isFocused: row.isFocused,
+      subscriptionPlan: row.subscriptionPlan,
+      initial,
+    });
+
+    const existing = ownPinMarkerRef.current;
+    if (existing && ownPinMetaRef.current === visualKey) {
+      existing.setLngLat([obf.lng, obf.lat]);
+      const el = existing.getElement();
+      el.style.zIndex = String(row.zIndex);
+      setMarkerTooltip(
+        el,
+        row.profile.full_name || "Специалист",
+        row.profile.role_title,
+        online,
+      );
+      const wrap = el.querySelector<HTMLElement>(".partner-map-pin-wrap");
+      if (wrap) ownPinWrapRef.current = wrap;
+      return;
+    }
+
+    existing?.remove();
+
+    const element = createPinElement(initial, PIN_BORDER_COLOR, borderColor, {
+      letterColorHex: pinFill,
+      stemHex: pinFill,
+    });
+    element.style.zIndex = String(row.zIndex);
+    setMarkerTooltip(
+      element,
+      row.profile.full_name || "Специалист",
+      row.profile.role_title,
+      online,
+    );
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onOpenProfileRef.current?.(row.profile);
+    });
+
+    const wrap = element.querySelector<HTMLElement>(".partner-map-pin-wrap");
+    if (wrap) ownPinWrapRef.current = wrap;
+
+    ownPinMarkerRef.current = new mmrgl.Marker({ element, anchor: "bottom" })
+      .setLngLat([obf.lng, obf.lat])
+      .addTo(map);
+    ownPinMetaRef.current = visualKey;
+  }, [ownPinRow, obfByUserId, mapReady, renderOwnPinSeparately, showHtmlPins]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    if (!showHtmlPins) {
+      for (const marker of markersRef.current.values()) {
+        marker.remove();
+      }
+      markersRef.current.clear();
+      markerMetaRef.current.clear();
+      return;
+    }
+
     ownPinWrapRef.current = null;
 
-    for (const marker of markersRef.current.values()) {
-      marker.remove();
+    const nextIds = new Set(sortedPoints.map((row) => row.pt.id));
+
+    for (const [id, marker] of markersRef.current.entries()) {
+      if (!nextIds.has(id)) {
+        marker.remove();
+        markersRef.current.delete(id);
+        markerMetaRef.current.delete(id);
+      }
     }
-    markersRef.current.clear();
 
     for (const row of sortedPoints) {
       const obf = obfByUserId.get(row.pt.user_id) ?? {
@@ -617,6 +969,39 @@ export function PartnerMap({
           : row.isOwn
             ? pinFill
             : PIN_BORDER_COLOR;
+
+      const visualKey = markerVisualKey({
+        isOwn: row.isOwn,
+        isViewed: row.isViewed,
+        isFocused: row.isFocused,
+        subscriptionPlan: row.subscriptionPlan,
+        initial,
+      });
+
+      const existing = markersRef.current.get(row.pt.id);
+      const prevKey = markerMetaRef.current.get(row.pt.id);
+
+      if (existing && prevKey === visualKey) {
+        existing.setLngLat([obf.lng, obf.lat]);
+        const el = existing.getElement();
+        el.style.zIndex = String(row.zIndex);
+        setMarkerTooltip(
+          el,
+          row.profile.full_name || "Специалист",
+          row.profile.role_title,
+          online,
+        );
+        if (row.isOwn) {
+          const wrap = el.querySelector<HTMLElement>(".partner-map-pin-wrap");
+          if (wrap) ownPinWrapRef.current = wrap;
+        }
+        continue;
+      }
+
+      if (existing) {
+        existing.remove();
+        markersRef.current.delete(row.pt.id);
+      }
 
       const element = row.isOwn
         ? createPinElement(initial, PIN_BORDER_COLOR, borderColor, {
@@ -635,14 +1020,12 @@ export function PartnerMap({
 
       element.addEventListener("click", (event) => {
         event.stopPropagation();
-        onOpenProfile?.(row.profile);
+        onOpenProfileRef.current?.(row.profile);
       });
 
       if (row.isOwn) {
         const wrap = element.querySelector<HTMLElement>(".partner-map-pin-wrap");
-        if (wrap) {
-          ownPinWrapRef.current = wrap;
-        }
+        if (wrap) ownPinWrapRef.current = wrap;
       }
 
       const marker = new mmrgl.Marker({ element, anchor: "bottom" })
@@ -650,8 +1033,9 @@ export function PartnerMap({
         .addTo(map);
 
       markersRef.current.set(row.pt.id, marker);
+      markerMetaRef.current.set(row.pt.id, visualKey);
     }
-  }, [sortedPoints, obfByUserId, onOpenProfile, mapReady]);
+  }, [sortedPoints, obfByUserId, mapReady, showHtmlPins]);
 
   useEffect(() => {
     if (mapVisitKey !== "map" || !mapReady) return;
@@ -659,7 +1043,7 @@ export function PartnerMap({
     const wrap = ownPinWrapRef.current;
     if (!map || !wrap?.isConnected || pinHelloPlayedRef.current) return;
     return scheduleOwnPinHello(map, wrap, pinHelloPlayedRef);
-  }, [mapVisitKey, mapReady, sortedPoints, currentUserProfileId]);
+  }, [mapVisitKey, mapReady, sortedPoints, ownPinRow, currentUserProfileId]);
 
   return (
     <div className="relative isolate h-full min-h-0 w-full overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
@@ -675,3 +1059,62 @@ export function PartnerMap({
     </div>
   );
 }
+
+function profilesStableKey(profiles: PartnerMapProps["profiles"]) {
+  return profiles
+    .map(
+      (p) =>
+        `${p.id}:${p.last_seen_at ?? ""}:${p.subscription_plan ?? "free"}:${p.rating_count ?? 0}`,
+    )
+    .join("|");
+}
+
+function arrayStableKey(arr: string[] | undefined) {
+  return (arr ?? []).join(",");
+}
+
+function locationsStableKey(locations: LocationPoint[] | undefined) {
+  return (locations ?? [])
+    .map((p) => `${p.id}:${p.user_id}:${p.lat}:${p.lng}`)
+    .join("|");
+}
+
+function gridClustersStableKey(clusters: MapGridCluster[] | undefined) {
+  return (clusters ?? [])
+    .map((c) => `${c.cell_lat}:${c.cell_lng}:${c.point_count}:${c.has_pro}`)
+    .join("|");
+}
+
+function lightPointsStableKey(points: MapLightPoint[] | undefined) {
+  return (points ?? [])
+    .map((p) => `${p.profile_id}:${p.lat}:${p.lng}:${p.plan_rank}`)
+    .join("|");
+}
+
+export const PartnerMap = memo(PartnerMapInner, (prev, next) => {
+  return (
+    prev.focusedProfileId === next.focusedProfileId &&
+    prev.currentUserProfileId === next.currentUserProfileId &&
+    prev.professionFilter === next.professionFilter &&
+    prev.invalidateKey === next.invalidateKey &&
+    prev.center?.[0] === next.center?.[0] &&
+    prev.center?.[1] === next.center?.[1] &&
+    prev.zoom === next.zoom &&
+    prev.mapVisitKey === next.mapVisitKey &&
+    prev.viewportMode === next.viewportMode &&
+    prev.onViewportChange === next.onViewportChange &&
+    prev.onLightPointClick === next.onLightPointClick &&
+    locationsStableKey(prev.ownLocation ? [prev.ownLocation] : []) ===
+      locationsStableKey(next.ownLocation ? [next.ownLocation] : []) &&
+    profilesStableKey(prev.profiles) === profilesStableKey(next.profiles) &&
+    locationsStableKey(prev.locations) === locationsStableKey(next.locations) &&
+    gridClustersStableKey(prev.gridClusters) ===
+      gridClustersStableKey(next.gridClusters) &&
+    lightPointsStableKey(prev.lightPoints) ===
+      lightPointsStableKey(next.lightPoints) &&
+    arrayStableKey(prev.viewedProfileIds) ===
+      arrayStableKey(next.viewedProfileIds) &&
+    arrayStableKey(prev.contactProfileIds) ===
+      arrayStableKey(next.contactProfileIds)
+  );
+});

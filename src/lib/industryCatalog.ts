@@ -1,6 +1,12 @@
 import { supabase } from "@/lib/supabaseClient";
 import { maskProfanity } from "@/lib/profanity";
 import { INDUSTRY_SEED, SUBINDUSTRY_SEED } from "@/data/industrySeed";
+import {
+  msNow,
+  readCatalogCache,
+  shouldRefreshAt4amMsk,
+  writeCatalogCache,
+} from "@/lib/catalogCache";
 
 export const OTHER_INDUSTRY_LABEL = "Другое";
 
@@ -12,32 +18,14 @@ const LS_INDUSTRY_KEY = "industry_catalog_v2";
 const LS_INDUSTRY_FETCHED_AT_KEY = "industry_catalog_fetched_at_v2";
 const LS_SUBINDUSTRY_KEY = "subindustry_catalog_v2";
 const LS_SUBINDUSTRY_FETCHED_AT_KEY = "subindustry_catalog_fetched_at_v2";
-
-function msNow() {
-  return Date.now();
-}
-
-function toMskMs(utcMs: number) {
-  return utcMs + 3 * 60 * 60 * 1000;
-}
-
-function toUtcMs(mskMs: number) {
-  return mskMs - 3 * 60 * 60 * 1000;
-}
-
-function getToday4amMskUtcMs(nowUtcMs: number) {
-  const nowMsk = new Date(toMskMs(nowUtcMs));
-  const d = new Date(nowMsk);
-  d.setHours(4, 0, 0, 0);
-  return toUtcMs(d.getTime());
-}
-
-function shouldRefreshAt4amMsk(lastFetchedUtcMs: number | null, nowUtcMs: number) {
-  if (!lastFetchedUtcMs) return true;
-  const boundary = getToday4amMskUtcMs(nowUtcMs);
-  if (nowUtcMs < boundary) return false;
-  return lastFetchedUtcMs < boundary;
-}
+const INDUSTRY_CACHE_KEYS = {
+  dataKey: LS_INDUSTRY_KEY,
+  fetchedAtKey: LS_INDUSTRY_FETCHED_AT_KEY,
+};
+const SUBINDUSTRY_CACHE_KEYS = {
+  dataKey: LS_SUBINDUSTRY_KEY,
+  fetchedAtKey: LS_SUBINDUSTRY_FETCHED_AT_KEY,
+};
 
 export type IndustryCatalogRow = { label: string };
 export type SubindustryCatalogRow = { industry_label: string; label: string };
@@ -85,61 +73,10 @@ export async function fetchSubindustryCatalogFromDb(): Promise<SubindustryCatalo
   return (data ?? []) as SubindustryCatalogRow[];
 }
 
-function readCachedIndustryCatalog(): {
-  rows: IndustryCatalogRow[] | null;
-  lastFetchedUtcMs: number | null;
-} {
-  if (typeof window === "undefined") {
-    return { rows: null, lastFetchedUtcMs: null };
-  }
-
-  let rows: IndustryCatalogRow[] | null = null;
-  const cached = window.localStorage.getItem(LS_INDUSTRY_KEY);
-  if (cached) {
-    try {
-      rows = JSON.parse(cached) as IndustryCatalogRow[];
-    } catch {}
-  }
-
-  let lastFetchedUtcMs: number | null = null;
-  const fetchedAtRaw = window.localStorage.getItem(LS_INDUSTRY_FETCHED_AT_KEY);
-  if (fetchedAtRaw) {
-    const parsed = Number(fetchedAtRaw);
-    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
-  }
-
-  return { rows, lastFetchedUtcMs };
-}
-
-function readCachedSubindustryCatalog(): {
-  rows: SubindustryCatalogRow[] | null;
-  lastFetchedUtcMs: number | null;
-} {
-  if (typeof window === "undefined") {
-    return { rows: null, lastFetchedUtcMs: null };
-  }
-
-  let rows: SubindustryCatalogRow[] | null = null;
-  const cached = window.localStorage.getItem(LS_SUBINDUSTRY_KEY);
-  if (cached) {
-    try {
-      rows = JSON.parse(cached) as SubindustryCatalogRow[];
-    } catch {}
-  }
-
-  let lastFetchedUtcMs: number | null = null;
-  const fetchedAtRaw = window.localStorage.getItem(LS_SUBINDUSTRY_FETCHED_AT_KEY);
-  if (fetchedAtRaw) {
-    const parsed = Number(fetchedAtRaw);
-    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
-  }
-
-  return { rows, lastFetchedUtcMs };
-}
-
 export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
   const nowUtc = msNow();
-  const { rows: cachedRows, lastFetchedUtcMs } = readCachedIndustryCatalog();
+  const { rows: cachedRows, lastFetchedUtcMs } =
+    readCatalogCache<IndustryCatalogRow>(INDUSTRY_CACHE_KEYS);
 
   if (
     cachedRows &&
@@ -163,16 +100,14 @@ export async function loadIndustryCatalog(): Promise<IndustryCatalogRow[]> {
     if (cachedRows) return cachedRows;
     return [];
   }
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(LS_INDUSTRY_KEY, JSON.stringify(fresh));
-    window.localStorage.setItem(LS_INDUSTRY_FETCHED_AT_KEY, String(nowUtc));
-  }
+  writeCatalogCache(INDUSTRY_CACHE_KEYS, fresh, nowUtc);
   return fresh;
 }
 
 export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]> {
   const nowUtc = msNow();
-  const { rows: cachedRows, lastFetchedUtcMs } = readCachedSubindustryCatalog();
+  const { rows: cachedRows, lastFetchedUtcMs } =
+    readCatalogCache<SubindustryCatalogRow>(SUBINDUSTRY_CACHE_KEYS);
 
   if (
     cachedRows &&
@@ -196,10 +131,7 @@ export async function loadSubindustryCatalog(): Promise<SubindustryCatalogRow[]>
     if (cachedRows) return cachedRows;
     return [];
   }
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(LS_SUBINDUSTRY_KEY, JSON.stringify(fresh));
-    window.localStorage.setItem(LS_SUBINDUSTRY_FETCHED_AT_KEY, String(nowUtc));
-  }
+  writeCatalogCache(SUBINDUSTRY_CACHE_KEYS, fresh, nowUtc);
   return fresh;
 }
 

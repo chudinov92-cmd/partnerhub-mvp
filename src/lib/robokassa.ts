@@ -66,3 +66,43 @@ export function applyRobokassaInvoiceDescription(
   url.searchParams.set("InvDesc", description);
   url.searchParams.set("Encoding", "utf-8");
 }
+
+/** Случайный InvId в диапазоне Robokassa (9 цифр). */
+export function allocRobokassaInvId(): number {
+  return Math.floor(100_000_000 + Math.random() * 900_000_000);
+}
+
+export type BuildRobokassaPaymentUrlParams = {
+  merchantLogin: string;
+  password1: string;
+  outSum: string;
+  invId: number;
+  description: string;
+  siteUrl: string;
+};
+
+/** Ссылка на оплату Robokassa с подписью и return URL. */
+export function buildRobokassaPaymentUrl(
+  params: BuildRobokassaPaymentUrlParams,
+): string {
+  const signatureValue = signPaymentRequest(
+    params.merchantLogin,
+    params.outSum,
+    params.invId,
+    params.password1,
+  );
+
+  const url = new URL("https://auth.robokassa.ru/Merchant/Index.aspx");
+  url.searchParams.set("MerchantLogin", params.merchantLogin);
+  url.searchParams.set("OutSum", params.outSum);
+  url.searchParams.set("InvId", String(params.invId));
+  applyRobokassaInvoiceDescription(url, params.description);
+  url.searchParams.set("SignatureValue", signatureValue);
+  url.searchParams.set("Culture", "ru");
+  if (isRobokassaTestMode()) {
+    url.searchParams.set("IsTest", "1");
+  }
+  url.searchParams.set("SuccessURL", `${params.siteUrl}/payment/success`);
+  url.searchParams.set("FailURL", `${params.siteUrl}/payment/fail`);
+  return url.toString();
+}

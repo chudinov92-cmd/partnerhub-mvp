@@ -114,9 +114,32 @@ body {
   z-index: 2;
 }
 
+/**
+ * Chromium (Chrome / встроенный браузер Cursor): <canvas> — отдельный
+ * compositor-слой и не наследует `cursor: grab` с `.mmrgl-canvas-container`.
+ * Без явного cursor на самом canvas курсор мигает default ↔ grab
+ * (стрелка ↔ рука) при любом движении по карте.
+ */
+.mmrgl-canvas-container.mmrgl-interactive,
+.mmrgl-canvas-container.mmrgl-interactive .mmrgl-canvas {
+  cursor: grab;
+}
+
+.mmrgl-canvas-container.mmrgl-interactive:active,
+.mmrgl-canvas-container.mmrgl-interactive:active .mmrgl-canvas {
+  cursor: grabbing;
+}
+
+.mmrgl-canvas-container.mmrgl-interactive.mmrgl-track-pointer,
+.mmrgl-canvas-container.mmrgl-interactive.mmrgl-track-pointer .mmrgl-canvas {
+  cursor: pointer;
+}
+
 /* VK Maps (mmr-gl): кастомные пины партнёров */
 .partner-map-marker-root {
   position: relative;
+  /* Хит-тест только у пина: пустая область маркера (тултип) не перехватывает курсор. */
+  pointer-events: none;
   cursor: pointer;
 }
 
@@ -126,6 +149,7 @@ body {
   flex-direction: column;
   align-items: center;
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .partner-map-pin-head {

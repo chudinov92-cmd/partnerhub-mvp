@@ -2,140 +2,106 @@ import {
   getRobokassaPassword2,
   signResultWebhook,
 } from "@/lib/robokassa";
-import {
-  isUpgradePaymentPlan,
-  parsePaymentPlanId,
-} from "@/lib/subscriptionPlans";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+
+type ApplyPaymentRow = {
+  result: string;
+  profile_id: string | null;
+  plan: string | null;
+};
 
 /**
  * Robokassa Result URL (POST).
  * Ответ должен быть точно: OK{InvId}
  */
 export async function POST(req: Request) {
-  const password2 = getRobokassaPassword2();
-  if (!password2) {
-    console.error("[webhook] ROBOKASSA password #2 не задан");
-    return new Response("Server misconfigured", { status: 500 });
-  }
-
-  let body: URLSearchParams;
   try {
-    const text = await req.text();
-    body = new URLSearchParams(text);
-  } catch {
-    return new Response("Bad request", { status: 400 });
-  }
+    const password2 = getRobokassaPassword2();
+    if (!password2) {
+      console.error("[webhook] ROBOKASSA password #2 не задан");
+      return new Response("Server misconfigured", { status: 500 });
+    }
 
-  const outSum = body.get("OutSum") ?? "";
-  const invIdStr = body.get("InvId") ?? "";
-  const signatureValue = (body.get("SignatureValue") ?? "").toUpperCase();
+    let body: URLSearchParams;
+    try {
+      const text = await req.text();
+      body = new URLSearchParams(text);
+    } catch {
+      return new Response("Bad request", { status: 400 });
+    }
 
-  if (!outSum || !invIdStr || !signatureValue) {
-    return new Response("Missing params", { status: 400 });
-  }
+    const outSum = body.get("OutSum") ?? "";
+    const invIdStr = body.get("InvId") ?? "";
+    const signatureValue = (body.get("SignatureValue") ?? "").toUpperCase();
 
-  const invId = parseInt(invIdStr, 10);
-  if (isNaN(invId)) {
-    return new Response("Invalid InvId", { status: 400 });
-  }
+    if (!outSum || !invIdStr || !signatureValue) {
+      return new Response("Missing params", { status: 400 });
+    }
 
-  const expected = signResultWebhook(outSum, invId, password2);
+    const invId = parseInt(invIdStr, 10);
+    if (isNaN(invId)) {
+      return new Response("Invalid InvId", { status: 400 });
+    }
 
-  if (expected !== signatureValue) {
-    console.error("[webhook] bad signature", { expected, got: signatureValue });
-    return new Response("Bad signature", { status: 403 });
-  }
+    const expected = signResultWebhook(outSum, invId, password2);
 
-  const admin = createSupabaseAdmin();
+    if (expected !== signatureValue) {
+      console.error("[webhook] bad signature", { expected, got: signatureValue });
+      return new Response("Bad signature", { status: 403 });
+    }
 
-  const { data: payment, error: paymentError } = await admin
-    .from("subscription_payments")
-    .select("id, profile_id, status, plan")
-    .eq("inv_id", invId)
-    .maybeSingle();
+    const admin = createSupabaseAdmin();
 
-  if (paymentError || !payment) {
-    console.error("[webhook] payment not found", invId, paymentError);
-    return new Response("Payment not found", { status: 404 });
-  }
+    const { data, error } = await admin.rpc("apply_robokassa_payment", {
+      p_inv_id: invId,
+      p_paid_at: new Date().toISOString(),
+    });
 
-  if (payment.status === "paid") {
-    return new Response(`OK${invId}`, { status: 200 });
-  }
-
-  const { count: priorPaidCount } = await admin
-    .from("subscription_payments")
-    .select("id", { count: "exact", head: true })
-    .eq("profile_id", payment.profile_id)
-    .eq("status", "paid")
-    .neq("id", payment.id);
-
-  const parsedPlan = parsePaymentPlanId(payment.plan ?? "pro_monthly");
-
-  await admin
-    .from("subscription_payments")
-    .update({
-      status: "paid",
-      paid_at: new Date().toISOString(),
-      period: parsedPlan?.period ?? "monthly",
-      is_renewal: (priorPaidCount ?? 0) > 0,
-    })
-    .eq("id", payment.id);
-
-  if (isUpgradePaymentPlan(payment.plan ?? "")) {
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({
-        subscription_plan: "pro_plus",
-        is_pro: true,
-      })
-      .eq("id", payment.profile_id);
-
-    if (profileError) {
-      console.error("[webhook] upgrade profile update error", profileError);
+    if (error) {
+      console.error("[webhook] RPC apply_robokassa_payment", invId, error);
       return new Response("DB error", { status: 500 });
     }
 
-    console.log(
-      `[webhook] Pro -> Pro+ upgrade for profile ${payment.profile_id}, inv_id=${invId}`,
-    );
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | ApplyPaymentRow
+      | null
+      | undefined;
+    const outcome = row?.result ?? "not_found";
 
-    return new Response(`OK${invId}`, {
-      status: 200,
-      headers: { "Content-Type": "text/plain" },
-    });
-  }
+    if (outcome === "not_found") {
+      console.error("[webhook] payment not found", invId);
+      return new Response("Payment not found", { status: 404 });
+    }
 
-  if (!parsedPlan) {
-    console.error("[webhook] unknown plan", payment.plan);
-    return new Response("Unknown plan", { status: 500 });
-  }
+    if (outcome === "unknown_plan") {
+      console.error("[webhook] unknown plan", invId, row?.plan);
+      return new Response("Unknown plan", { status: 500 });
+    }
 
-  const proExpiresAt = new Date(
-    Date.now() + parsedPlan.days * 24 * 60 * 60 * 1000,
-  ).toISOString();
+    if (
+      outcome === "applied" ||
+      outcome === "already_paid" ||
+      outcome === "repaired"
+    ) {
+      if (outcome === "applied") {
+        console.log(
+          `[webhook] subscription activated profile=${row?.profile_id} inv_id=${invId} plan=${row?.plan}`,
+        );
+      } else if (outcome === "repaired") {
+        console.log(
+          `[webhook] profile repaired after paid inv_id=${invId} profile=${row?.profile_id}`,
+        );
+      }
+      return new Response(`OK${invId}`, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
 
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({
-      subscription_plan: parsedPlan.subscriptionPlan,
-      is_pro: true,
-      pro_expires_at: proExpiresAt,
-    })
-    .eq("id", payment.profile_id);
-
-  if (profileError) {
-    console.error("[webhook] profile update error", profileError);
+    console.error("[webhook] unexpected RPC result", invId, outcome);
     return new Response("DB error", { status: 500 });
+  } catch (err) {
+    console.error("[webhook] unexpected", err);
+    return new Response("Server error", { status: 500 });
   }
-
-  console.log(
-    `[webhook] ${parsedPlan.subscriptionPlan} activated for profile ${payment.profile_id}, inv_id=${invId}`,
-  );
-
-  return new Response(`OK${invId}`, {
-    status: 200,
-    headers: { "Content-Type": "text/plain" },
-  });
 }

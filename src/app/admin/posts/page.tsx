@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminFetchPostsList } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
 
 type ModerationStatus = "active" | "hidden" | "deleted";
 
@@ -38,8 +39,9 @@ export default function AdminPostsPage() {
       const res = await adminFetchPostsList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AdminPostRow[]);
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить посты.");
+    } catch (e: unknown) {
+      console.error("[admin/posts] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить посты."));
       setRows([]);
     } finally {
       setLoading(false);
@@ -104,8 +106,9 @@ export default function AdminPostsPage() {
             : x,
         ),
       );
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось изменить статус поста.");
+    } catch (e: unknown) {
+      console.error("[admin/posts] setStatus", e);
+      setError(getErrorMessage(e, "Не удалось изменить статус поста."));
     } finally {
       setBusyId(null);
     }
@@ -125,8 +128,9 @@ export default function AdminPostsPage() {
       if (!res.ok) throw new Error(j.error ?? "Не удалось удалить пост.");
 
       setRows((prev) => prev.filter((x) => x.id !== postId));
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось удалить пост.");
+    } catch (e: unknown) {
+      console.error("[admin/posts] delete", e);
+      setError(getErrorMessage(e, "Не удалось удалить пост."));
     } finally {
       setBusyId(null);
     }

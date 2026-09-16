@@ -6,6 +6,28 @@ import {
 
 export const PROFESSION_FUZZY_THRESHOLD = 0.6;
 
+const fuseByCatalog = new WeakMap<
+  ProfessionCatalogRow[],
+  Fuse<ProfessionCatalogRow>
+>();
+
+function getFuseForCatalog(
+  catalog: ProfessionCatalogRow[],
+  threshold: number,
+): Fuse<ProfessionCatalogRow> {
+  const cached = fuseByCatalog.get(catalog);
+  if (cached) return cached;
+
+  const fuse = new Fuse(catalog, {
+    keys: ["label"],
+    threshold,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
+  });
+  fuseByCatalog.set(catalog, fuse);
+  return fuse;
+}
+
 export function normalizeProfessionKey(label: string | null | undefined): string {
   return (label ?? "").trim().toLowerCase();
 }
@@ -49,12 +71,7 @@ export function findSimilarProfessions(
   const limit = opts?.limit ?? 1;
   const threshold = opts?.threshold ?? PROFESSION_FUZZY_THRESHOLD;
 
-  const fuse = new Fuse(catalog, {
-    keys: ["label"],
-    threshold,
-    ignoreLocation: true,
-    minMatchCharLength: 2,
-  });
+  const fuse = getFuseForCatalog(catalog, threshold);
 
   return fuse
     .search(query)

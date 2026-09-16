@@ -33,15 +33,36 @@ export function usePreventBodyScroll() {
     html.style.overscrollBehavior = "none";
     body.style.overscrollBehavior = "none";
 
-    let rafId: number;
-    const poll = () => {
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
-      rafId = requestAnimationFrame(poll);
+    let rafId: number | null = null;
+
+    const stopPoll = () => {
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
     };
-    rafId = requestAnimationFrame(poll);
+
+    const poll = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+        rafId = requestAnimationFrame(poll);
+      } else {
+        stopPoll();
+      }
+    };
+
+    const startPollIfNeeded = () => {
+      if (window.scrollY !== 0 && rafId == null) {
+        rafId = requestAnimationFrame(poll);
+      }
+    };
+
+    startPollIfNeeded();
+    window.addEventListener("scroll", startPollIfNeeded, { passive: true });
 
     return () => {
-      cancelAnimationFrame(rafId);
+      stopPoll();
+      window.removeEventListener("scroll", startPollIfNeeded);
       html.style.overflow = "";
       body.style.overflow = "";
       html.style.overscrollBehavior = "";

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { adminGetAdminRow, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
+import { getErrorMessage } from "@/lib/errors";
 
 type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -69,9 +70,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
         if (!alive) return;
         setAdmin(data as AdminRow);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return;
-        setError(e?.message ?? "Не удалось открыть админку.");
+        console.error("[admin/shell] init", e);
+        setError(getErrorMessage(e, "Не удалось открыть админку."));
       } finally {
         if (alive) setLoading(false);
       }

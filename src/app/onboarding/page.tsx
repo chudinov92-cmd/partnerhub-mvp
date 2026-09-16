@@ -52,17 +52,15 @@ import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
 import { maskProfanity } from "@/lib/profanity";
 import {
-  loadProfessionCatalog,
   OTHER_PROFESSION_LABEL,
   syncCustomProfessionToCatalog,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
+import { useProfiles } from "@/hooks/useProfiles";
 import { useProfessionOtherResolver } from "@/lib/useProfessionOtherResolver";
 import {
   getIndustryLabelsForSelect,
   getSubindustryLabelsForSelect,
-  loadIndustryCatalog,
-  loadSubindustryCatalog,
   type IndustryCatalogRow,
   type SubindustryCatalogRow,
 } from "@/lib/industryCatalog";
@@ -244,15 +242,12 @@ export default function OnboardingPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
   );
-  const [professionCatalog, setProfessionCatalog] = useState<
-    ProfessionCatalogRow[]
-  >([]);
-  const [industryCatalog, setIndustryCatalog] = useState<IndustryCatalogRow[]>(
-    [],
-  );
-  const [subindustryCatalog, setSubindustryCatalog] = useState<
-    SubindustryCatalogRow[]
-  >([]);
+  const {
+    professionCatalog,
+    industryCatalog,
+    subindustryCatalog,
+    setProfessionCatalog,
+  } = useProfiles();
   const [professionIsOther, setProfessionIsOther] = useState(false);
   const [subindustryIsOther, setSubindustryIsOther] = useState(false);
   const [interestedDraft, setInterestedDraft] = useState<string | null>(null);
@@ -357,21 +352,6 @@ export default function OnboardingPage() {
           if (c) setCoords(c);
         }
 
-        const [profRows, indRows, subRows] = await Promise.all([
-          loadProfessionCatalog().catch(() => [] as ProfessionCatalogRow[]),
-          loadIndustryCatalog().catch(() => [] as IndustryCatalogRow[]),
-          loadSubindustryCatalog().catch(() => [] as SubindustryCatalogRow[]),
-        ]);
-
-        if (!cancelled) {
-          setProfessionCatalog(profRows);
-          setIndustryCatalog(indRows);
-          setSubindustryCatalog(subRows);
-          const labels = profRows.map((p) => p.label);
-          setProfessionIsOther(
-            !!(row.role_title && !labels.includes(row.role_title)),
-          );
-        }
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -388,6 +368,12 @@ export default function OnboardingPage() {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!profile?.role_title) return;
+    const labels = professionCatalog.map((p) => p.label);
+    setProfessionIsOther(!labels.includes(profile.role_title));
+  }, [profile?.role_title, professionCatalog]);
 
   useEffect(() => {
     let cancelled = false;

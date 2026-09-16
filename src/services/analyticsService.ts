@@ -8,13 +8,25 @@ export type MapSearchEventPayload = {
   filters_json?: Partial<FeedFilters> | null;
 };
 
+const DAILY_PING_STORAGE_PREFIX = "zeip_daily_ping_utc:";
+
 /** Best-effort: фиксирует активность пользователя за текущий день (UTC). */
 export async function logDailyActivity(): Promise<void> {
   try {
-    await fetch("/api/analytics/daily-ping", {
+    if (typeof window !== "undefined") {
+      const dayKey = `${DAILY_PING_STORAGE_PREFIX}${new Date().toISOString().slice(0, 10)}`;
+      if (sessionStorage.getItem(dayKey)) return;
+    }
+
+    const res = await fetch("/api/analytics/daily-ping", {
       method: "POST",
       keepalive: true,
     });
+
+    if (typeof window !== "undefined" && res.ok) {
+      const dayKey = `${DAILY_PING_STORAGE_PREFIX}${new Date().toISOString().slice(0, 10)}`;
+      sessionStorage.setItem(dayKey, "1");
+    }
   } catch {
     // analytics must not break UX
   }

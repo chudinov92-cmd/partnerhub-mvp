@@ -10,6 +10,7 @@ import {
   adminUpdateAbuseReport,
 } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
 
 type ReportStatus = "new" | "in_review" | "resolved" | "rejected";
 type TargetType = "profile" | "post" | "message";
@@ -43,8 +44,9 @@ export default function AdminReportsPage() {
       const res = await adminFetchAbuseReportsList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AbuseReportRow[]);
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить репорты.");
+    } catch (e: unknown) {
+      console.error("[admin/reports] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить репорты."));
       setRows([]);
     } finally {
       setLoading(false);
@@ -102,8 +104,9 @@ export default function AdminReportsPage() {
         target_id: id,
         payload,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось обновить репорт.");
+    } catch (e: unknown) {
+      console.error("[admin/reports] update", e);
+      setError(getErrorMessage(e, "Не удалось обновить репорт."));
     } finally {
       setBusyId(null);
     }

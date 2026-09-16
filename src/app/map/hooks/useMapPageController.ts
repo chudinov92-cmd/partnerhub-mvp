@@ -5,33 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { deleteBlock, insertBlock, getEffectiveViewedProfileIds } from "@/services/contactService";
-import { fetchProfilesInterestedIn, fetchProfileForMapById, getProfessionMatchIndex, profileMatchesProfession } from "@/services/profileService";
+import { fetchProfileForMapById, getProfessionMatchIndex, profileMatchesProfession } from "@/services/profileService";
 import {
-  formatChatListPreview,
-  openOrEnsurePrivateChat,
-  fetchRecentMessages,
-  updateMessageContent,
-  deleteMessage,
-  fetchLatestMessageMeta,
-  insertMessage,
-  getUniqueChatPartnersToday,
-  fetchSupportProfile,
   getSupportProfileId,
   isChatClosed,
-  reopenChat,
   loadDmUnreadCounts,
-  markChatAsRead,
 } from "@/services/chatService";
 import {
-  formatAppealMessage,
   getSupportProfileIdFromEnv,
   isAppealMessage,
-  OPEN_SUPPORT_CHAT_EVENT,
-  getChatErrorMessage,
-  getErrorMessage,
-  SUPPORT_STUB_PROFILE,
 } from "@/lib/support";
-import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import { ProfileShareCard } from "@/components/ProfileShareCard";
 import { MessageLinks } from "@/components/MessageLinks";
@@ -39,15 +22,10 @@ import {
   buildProfileMapShareUrl,
   buildProfileShortUrl,
   isProfileShareMessage,
-  PROFILE_MAP_QUERY_PARAM,
 } from "@/lib/profileShare";
 import {
-  getDmPartnersDailyLimit,
   getSubscriptionStatus,
   getEffectiveSubscriptionPlan,
-  canWriteGeneralChat as userCanWriteGeneralChat,
-  canSendDirectMessages,
-  PRO_PLUS_CHAT_LIMIT,
 } from "@/services/subscriptionService";
 import { comparePlanRank, FREE_PROFILE_VIEWS_LIMIT } from "@/lib/subscriptionPlans";
 import { isPaidGateMode } from "@/lib/accessMode";
@@ -61,10 +39,6 @@ import { OnboardingPaywallBanner } from "@/components/OnboardingPaywallBanner";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
 import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
 import {
-  clearPaywallQueryParams,
-  clearPendingPaywallContext,
-  parseMapSearchParams,
-  readPendingPaywallContext,
   savePendingPaywallContext,
   type PaywallIntentContext,
 } from "@/lib/paywallIntent";
@@ -75,15 +49,7 @@ import {
 import {
   trackPaywallDismissed,
   trackPaywallShown,
-  trackPaymentSuccessAha,
 } from "@/lib/paywallAnalytics";
-import {
-  updatePostBody,
-  deletePost,
-  insertPost as insertFeedPost,
-  insertPostComment,
-  countTodayChatPosts,
-} from "@/services/feedService";
 import type {
   Post,
   Profile,
@@ -97,11 +63,7 @@ import {
   SEEKING_OPTIONS,
   toggleArrayItem,
 } from "@/lib/seekingOptions";
-import {
-  markWelcomeOnboardingShown,
-  shouldShowWelcomeOnboarding,
-} from "@/lib/welcomeOnboarding";
-import { maskProfanity } from "@/lib/profanity";
+import { markWelcomeOnboardingShown } from "@/lib/welcomeOnboarding";
 import {
   getProfessionLabelsForSelect,
   type ProfessionCatalogRow,
@@ -118,7 +80,6 @@ import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
 import { logDailyActivity, logMapSearchEvent } from "@/services/analyticsService";
 import { RUSSIA_LABEL } from "@/data/cities";
-import type { PostCommentRow } from "@/components/PostComments";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useContacts } from "@/hooks/useContacts";
@@ -126,10 +87,14 @@ import { useMobileNav } from "@/hooks/useMobileNav";
 import { useFeed } from "@/hooks/useFeed";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useChatMessagesRealtime } from "@/hooks/useChat";
-import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
 import { useAutoResizeTextarea } from "@/hooks/useAutoResizeTextarea";
-import { usePreventBodyScroll, isOnline, scrollComposerIntoView, persistFeedFilters } from "../utils";
+import { usePreventBodyScroll, isOnline, scrollComposerIntoView } from "../utils";
 import { useMapPageState } from "./useMapPageState";
+import { useMapViewport } from "./useMapViewport";
+import { useFeedHandlers } from "./useFeedHandlers";
+import { useMapEffects } from "./useMapEffects";
+import { useChatHandlers } from "./useChatHandlers";
+import type { LightPointClickPayload, PartnerMapProps } from "@/components/PartnerMap";
 import {
   INDUSTRY_OPTIONS,
   SORTED_INDUSTRY_OPTIONS,
@@ -143,8 +108,6 @@ export type MapPageController = ReturnType<typeof useMapPageController>;
 
 export function useMapPageController() {
   usePreventBodyScroll();
-  const { offsetTop: vvTop, height: vvHeight, keyboardInset } =
-    useVisualViewportLayout();
   const {
     isMobileLayout,
     setIsMobileLayout,
@@ -259,10 +222,12 @@ export function useMapPageController() {
 
   const {
     profiles,
+    setProfiles,
     chatList,
     setChatList,
     currentUser,
     setCurrentUser,
+    currentUserReady,
     loading,
     error,
     chatMembershipRef,
@@ -437,6 +402,28 @@ export function useMapPageController() {
   const { selectedCity, setSelectedCity } = useSelectedCity();
   const isRussiaChat = selectedCity === RUSSIA_LABEL;
 
+  const {
+    mapViewportMode,
+    mapLocations,
+    mapProfiles,
+    mapLightPoints,
+    mapGridClusters,
+    mapOwnLocation,
+    mapViewportLoading,
+    mapViewportError,
+    handleMapViewportChange,
+    invalidateMapViewport,
+    mergeMapProfile,
+  } = useMapViewport({
+    feedFilters,
+    contactsOnlyMode,
+    contactProfileIds,
+    selectedCity,
+    currentUserProfileId: currentUser?.profileId,
+    currentUserRoleTitle: currentUser?.roleTitle,
+    focusedProfileId,
+  });
+
   const profileReadyForMessaging = Boolean(
     currentUser &&
       (currentUser.city ?? "").trim() &&
@@ -493,10 +480,65 @@ export function useMapPageController() {
     return tzFromProfileCity ?? getBrowserTimeZone() ?? "Europe/Moscow";
   }, [currentUser?.city]);
 
+  const {
+    handleToggleRecommended,
+    handleTogglePost,
+    formatDateTime,
+    canWriteGeneralChat,
+    handleCreatePost,
+    handleDeletePost,
+    handleSubmitComment,
+  } = useFeedHandlers({
+    currentUser,
+    feedFilters,
+    setFeedFilters,
+    setRecommendedProfiles,
+    setRecommendedNotice,
+    setRecommendedLoading,
+    setExpandedPosts,
+    newPostBody,
+    setNewPostBody,
+    editingPostId,
+    setEditingPostId,
+    deletingPostId,
+    setDeletingPostId,
+    creating,
+    setCreating,
+    setCreateError,
+    selectedCity,
+    setPosts,
+    setCommentsByPostId,
+    postsFingerprintRef,
+    timeZone,
+  });
+
   useEffect(() => {
     if (!currentUser?.profileId) return;
     void logDailyActivity();
   }, [currentUser?.profileId]);
+
+  useEffect(() => {
+    if (mapProfiles.length === 0) return;
+    setProfiles(mapProfiles);
+  }, [mapProfiles, setProfiles]);
+
+  useEffect(() => {
+    if (!currentUser?.profileId) return;
+    void fetchProfileForMapById(currentUser.profileId).then((ownProfile) => {
+      if (ownProfile) mergeMapProfile(ownProfile);
+    });
+  }, [currentUser?.profileId, mergeMapProfile]);
+
+  useEffect(() => {
+    invalidateMapViewport();
+  }, [
+    feedFilters,
+    contactsOnlyMode,
+    contactProfileIds,
+    selectedCity,
+    focusedProfileId,
+    invalidateMapViewport,
+  ]);
 
   useEffect(() => {
     if (!currentUser || loading) return;
@@ -546,120 +588,13 @@ export function useMapPageController() {
   }, [selectedCity]);
 
   useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      const d = e.data as { type?: string; profileId?: string };
-      if (d?.type === "ZEIP_OPEN_CHAT" && typeof d.profileId === "string") {
-        router.replace(`/map?chat=${encodeURIComponent(d.profileId)}`);
-        setChatDeepLinkNonce((n) => n + 1);
-      }
-    };
-    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
-      navigator.serviceWorker.addEventListener("message", handler);
-      return () => navigator.serviceWorker.removeEventListener("message", handler);
-    }
-  }, [router]);
-
-  useEffect(() => {
     if (!currentUser) return;
     void getSupportProfileId()
       .then((id) => setSupportProfileId(id))
-      .catch(() => {
-        /* env или SQL ещё не применены */
+      .catch((e) => {
+        console.error("[map] getSupportProfileId failed", e);
       });
   }, [currentUser]);
-
-  // Автооткрытие чата: ?chat=<profiles.id собеседника>
-  useEffect(() => {
-    if (!currentUser || !profiles.length || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const chatProfileId = params.get("chat");
-    if (!chatProfileId) return;
-    if (chatProfileId === currentUser.profileId) return;
-    const p = profiles.find((pr) => pr.id === chatProfileId);
-    if (p) {
-      void openChatWithProfile(p);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- открываем только при смене списков/URL-nonce
-  }, [currentUser, profiles, chatDeepLinkNonce]);
-
-  // Автооткрытие поп-апа профиля: ?profile=<profiles.id>
-  useEffect(() => {
-    if (!currentUser || typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    const profileId = params.get(PROFILE_MAP_QUERY_PARAM)?.trim();
-    if (!profileId) return;
-
-    const clearProfileQueryParam = () => {
-      const next = new URLSearchParams(window.location.search);
-      if (!next.has(PROFILE_MAP_QUERY_PARAM)) return;
-      next.delete(PROFILE_MAP_QUERY_PARAM);
-      const qs = next.toString();
-      router.replace(qs ? `/map?${qs}` : "/map");
-    };
-
-    if (profileId === currentUser.profileId) {
-      clearProfileQueryParam();
-      return;
-    }
-
-    let cancelled = false;
-
-    const openFromDeepLink = async () => {
-      let profile = profiles.find((p) => p.id === profileId) ?? null;
-      if (!profile) {
-        try {
-          profile = await fetchProfileForMapById(profileId);
-        } catch (e) {
-          console.error("Failed to load shared profile", e);
-        }
-      }
-      if (cancelled) return;
-      if (profile) {
-        openProfileOverlay(profile);
-      } else {
-        setPaymentToast({ message: "Профиль не найден или недоступен" });
-      }
-      clearProfileQueryParam();
-    };
-
-    void openFromDeepLink();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- открываем только при смене списков/URL-nonce
-  }, [currentUser, profiles, profileDeepLinkNonce]);
-
-  // Открытие поддержки: ?support=1 (ссылка) или событие zeip:open-support (клик в TopBar на главной)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const clearSupportQuery = () => {
-      const next = new URLSearchParams(window.location.search);
-      if (!next.has("support")) return;
-      next.delete("support");
-      const qs = next.toString();
-      router.replace(qs ? `/map?${qs}` : "/map");
-    };
-
-    const runFromQuery = async () => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("support") !== "1") return;
-      await openSupportChat();
-      clearSupportQuery();
-    };
-
-    const runFromEvent = () => {
-      void openSupportChat();
-    };
-
-    void runFromQuery();
-    window.addEventListener(OPEN_SUPPORT_CHAT_EVENT, runFromEvent);
-    return () => {
-      window.removeEventListener(OPEN_SUPPORT_CHAT_EVENT, runFromEvent);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, supportDeepLinkNonce]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -677,10 +612,16 @@ export function useMapPageController() {
     };
   }, [currentUser?.profileId, blockedProfileIds]);
 
+  const knownChatIds = useMemo(
+    () => chatList.map((item) => item.chatId),
+    [chatList],
+  );
+
   useChatMessagesRealtime({
     currentUser,
     activeChatId,
     blockedProfileIds,
+    knownChatIds,
     chatMembershipRef,
     setChatMessages,
     setUnreadByUser,
@@ -782,7 +723,7 @@ export function useMapPageController() {
     const source =
       feedFilters.recommendedContacts && recommendedProfiles !== null
         ? recommendedProfiles
-        : profiles;
+        : mapProfiles;
 
     return source.filter((p) => {
       if (feedFilters.recommendedContacts) {
@@ -828,7 +769,7 @@ export function useMapPageController() {
       return true;
     });
   }, [
-    profiles,
+    mapProfiles,
     recommendedProfiles,
     feedFilters,
     contactsOnlyMode,
@@ -844,11 +785,13 @@ export function useMapPageController() {
       return filteredProfilesForMap;
     }
 
-    const ownProfile = profiles.find((p) => p.id === ownProfileId);
+    const ownProfile =
+      mapProfiles.find((p) => p.id === ownProfileId) ??
+      profiles.find((p) => p.id === ownProfileId);
     if (!ownProfile) return filteredProfilesForMap;
 
     return [...filteredProfilesForMap, ownProfile];
-  }, [filteredProfilesForMap, currentUser?.profileId, profiles]);
+  }, [filteredProfilesForMap, currentUser?.profileId, mapProfiles, profiles]);
 
   const recommendedProfilesAll = useMemo(() => {
     if (!recommendedProfiles) return [];
@@ -903,48 +846,6 @@ export function useMapPageController() {
       document.removeEventListener("keydown", handleKey);
     };
   }, [showRecommendedEmptyBanner]);
-
-  const handleToggleRecommended = async () => {
-    if (feedFilters.recommendedContacts) {
-      setRecommendedProfiles(null);
-      setRecommendedNotice(null);
-      const next: FeedFilters = { ...feedFilters, recommendedContacts: false };
-      setFeedFilters(next);
-      persistFeedFilters(next);
-      return;
-    }
-
-    setRecommendedNotice(null);
-
-    if (!currentUser) {
-      setRecommendedNotice(
-        "Зарегистрируйтесь, чтобы видеть рекомендованные контакты",
-      );
-      return;
-    }
-
-    const roleTitle = (currentUser.roleTitle ?? "").trim();
-    if (!roleTitle) {
-      setRecommendedNotice("Заполните профессию в профиле");
-      return;
-    }
-
-    setRecommendedLoading(true);
-    try {
-      const rows = await fetchProfilesInterestedIn(roleTitle, {
-        excludeProfileId: currentUser.profileId,
-      });
-      setRecommendedProfiles(rows);
-      const next: FeedFilters = { ...feedFilters, recommendedContacts: true };
-      setFeedFilters(next);
-      persistFeedFilters(next);
-    } catch (e) {
-      console.error("Failed to load recommended contacts", e);
-      setRecommendedNotice("Не удалось загрузить рекомендованные контакты");
-    } finally {
-      setRecommendedLoading(false);
-    }
-  };
 
   const filteredChatList = useMemo(() => {
     if (!contactsOnlyMode) return chatList;
@@ -1013,594 +914,97 @@ export function useMapPageController() {
     };
   }, [feedFiltersOpen]);
 
-  const handleTogglePost = (id: string) => {
-    setExpandedPosts((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const {
+    openSupportChat,
+    openChatWithProfile,
+    handleWriteToProfile,
+    openChatFromList,
+    handleSendSupportAppeal,
+    handleSendChatMessage,
+    handleDeleteChatMessage,
+  } = useChatHandlers({
+    router,
+    currentUser,
+    supportProfileId,
+    setSupportProfileId,
+    blockedProfileIds,
+    activeChatId,
+    activeChatUser,
+    chatInput,
+    setChatInput,
+    editingMessageId,
+    setEditingMessageId,
+    deletingMessageId,
+    setDeletingMessageId,
+    setChatLoading,
+    setChatError,
+    setChatSending,
+    supportSubject,
+    supportDescription,
+    setSupportFieldErrors,
+    activeChatIsClosed,
+    setActiveChatIsClosed,
+    setActiveChatUser,
+    setActiveChatId,
+    setChatMessages,
+    setChatList,
+    setUnreadByUser,
+    chatMembershipRef,
+    suppressChatOutsideCloseUntilRef,
+    setActiveProfileOverlay,
+    setMobileTab,
+    openPaywallDrawer,
+    resetSupportComposer,
+    isSupportProfile,
+    isSupportChat,
+    showSupportAppealForm,
+    profileReadyForMessaging,
+  });
 
-  const formatDateTime = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return new Intl.DateTimeFormat("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone,
-    }).format(d);
-  };
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
+  const openChatWithProfileRef = useRef(openChatWithProfile);
+  openChatWithProfileRef.current = openChatWithProfile;
 
-  const canWriteGeneralChat =
-    !!currentUser &&
-    userCanWriteGeneralChat(
-      currentUser.subscriptionPlan,
-      currentUser.isBlocked,
-    );
+  const handleMapPinOpenProfile = useCallback(
+    (p: PartnerMapProps["profiles"][number]) => {
+      const full =
+        profilesRef.current.find((x) => x.id === p.id) ?? (p as Profile);
+      openProfileOverlay(full);
+      setFocusedProfileId(null);
+    },
+    [openProfileOverlay, setFocusedProfileId],
+  );
 
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) {
-      setCreateError("Нужно войти, чтобы написать пост.");
-      return;
-    }
-    if (currentUser.isBlocked) {
-      setCreateError("Ваш аккаунт заблокирован. Публикация недоступна.");
-      return;
-    }
-    if (!userCanWriteGeneralChat(currentUser.subscriptionPlan, currentUser.isBlocked)) {
-      setCreateError(
-        isPaidGateMode()
-          ? "Писать в общий чат доступно на тарифе Pro+. Оформите подписку в разделе «Подписка»."
-          : currentUser.subscriptionPlan === "pro"
-            ? "На тарифе Pro общий чат доступен только для чтения. Перейдите на Pro+, чтобы писать сообщения."
-            : "На тарифе Free общий чат доступен только для чтения. Оформите Pro+, чтобы писать сообщения.",
-      );
-      return;
-    }
+  const lastLightPointHintAtRef = useRef(0);
+  const handleLightPointClick = useCallback(
+    (payload: LightPointClickPayload) => {
+      const now = Date.now();
+      if (now - lastLightPointHintAtRef.current < 1500) return;
+      lastLightPointHintAtRef.current = now;
 
-    if (!editingPostId) {
-      const postsToday = await countTodayChatPosts(currentUser.profileId);
-      if (postsToday >= PRO_PLUS_CHAT_LIMIT) {
-        setCreateError(
-          `Лимит ${PRO_PLUS_CHAT_LIMIT} сообщений в общем чате за сутки исчерпан.`,
-        );
-        return;
-      }
-    }
-    if (!newPostBody.trim()) {
-      setCreateError("Напишите текст сообщения.");
-      return;
-    }
-
-    setCreating(true);
-    setCreateError(null);
-
-    try {
-      const maskedBody = maskProfanity(newPostBody.trim()) ?? "";
-      const body = maskedBody.slice(0, 1000);
-      if (editingPostId) {
-        const { data, error } = await updatePostBody(editingPostId, body);
-        if (error) throw error;
-
-        setPosts((prev) =>
-          prev.map((p) => (p.id === editingPostId ? (data as Post) : p)),
-        );
-        setEditingPostId(null);
-        setNewPostBody("");
-      } else {
-        const { data, error } = await insertFeedPost({
-          authorId: currentUser.profileId,
-          body,
-          city: selectedCity,
-        });
-        if (error) throw error;
-
-        setPosts((prev) => {
-          const next = [data as Post, ...prev];
-          return next.slice(0, 20);
-        });
-        setNewPostBody("");
-      }
-    } catch (err: any) {
-      setCreateError(err.message ?? "Не удалось отправить сообщение.");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleDeletePost = async (postId: string) => {
-    if (!currentUser || currentUser.isBlocked) return;
-    if (deletingPostId) return;
-    if (!window.confirm("Удалить сообщение из общего чата?")) return;
-
-    setDeletingPostId(postId);
-    setCreateError(null);
-    try {
-      const { error } = await deletePost(postId);
-      if (error) throw error;
-      setPosts((prev) => {
-        const next = prev.filter((p) => p.id !== postId);
-        postsFingerprintRef.current = next.map((p) => p.id).join("|");
-        return next;
+      setPaymentToast({
+        message: "Приблизьте карту, чтобы открыть профиль",
+        actionLabel: "Приблизить",
+        onAction: () => {
+          payload.zoomToStreet();
+          setPaymentToast(null);
+        },
+        durationMs: 5000,
+        showCloseButton: true,
       });
-      setCommentsByPostId((prev) => {
-        if (!(postId in prev)) return prev;
-        const next = { ...prev };
-        delete next[postId];
-        return next;
-      });
-      if (editingPostId === postId) {
-        setEditingPostId(null);
-        setNewPostBody("");
-      }
-    } catch (err: unknown) {
-      setCreateError(
-        getErrorMessage(err, "Не удалось удалить сообщение."),
-      );
-    } finally {
-      setDeletingPostId(null);
-    }
-  };
+    },
+    [setPaymentToast],
+  );
 
-  const handleSubmitComment = async (postId: string, body: string) => {
-    if (!currentUser || currentUser.isBlocked) return;
-    const masked = (maskProfanity(body.trim()) ?? "").slice(0, 1000);
-    if (!masked) {
-      throw new Error("Пустой текст.");
-    }
-    const { data, error } = await insertPostComment({
-      postId,
-      authorId: currentUser.profileId,
-      body: masked,
-    });
-    if (error) throw error;
-    if (data) {
-      setCommentsByPostId((prev) => ({
-        ...prev,
-        [postId]: [...(prev[postId] ?? []), data as PostCommentRow],
-      }));
-    }
-  };
-
-  const openSupportChat = async () => {
-    resetSupportComposer();
-    setChatError(null);
-    setChatLoading(true);
-    setEditingMessageId(null);
-    setDeletingMessageId(null);
-    setChatInput("");
-
-    const envId = getSupportProfileIdFromEnv();
-    const supportStub: Profile = {
-      id: envId ?? SUPPORT_STUB_PROFILE.id,
-      full_name: SUPPORT_STUB_PROFILE.full_name,
-      city: null,
-      rating_avg: null,
-      rating_count: null,
-    };
-    setActiveChatUser(supportStub);
-    if (envId) setSupportProfileId(envId);
-
-    try {
-      if (!currentUser) {
-        setActiveChatId(null);
-        setChatMessages([]);
-        setActiveChatIsClosed(false);
-        return;
-      }
-
-      const envSupportId = getSupportProfileIdFromEnv();
-      const profile: Profile = envSupportId
-        ? {
-            id: envSupportId,
-            full_name: "Поддержка",
-            city: null,
-            rating_avg: null,
-            rating_count: null,
-          }
-        : await fetchSupportProfile();
-      setSupportProfileId(profile.id);
-      setActiveChatUser(profile);
-
-      const chatId = await openOrEnsurePrivateChat(
-        currentUser.profileId,
-        profile.id,
-      );
-      setActiveChatId(chatId);
-      chatMembershipRef.current.add(chatId);
-
-      setChatList((prev) => {
-        const exists = prev.some((x) => x.chatId === chatId);
-        if (exists) return prev;
-        return [
-          {
-            chatId,
-            profile,
-            lastMessageAt: null,
-            lastMessagePreview: null,
-          },
-          ...prev,
-        ];
-      });
-
-      let closed = false;
-      try {
-        closed = await isChatClosed(chatId);
-      } catch {
-        closed = false;
-      }
-      setActiveChatIsClosed(closed);
-
-      const normalized = await fetchRecentMessages(chatId);
-      setChatMessages(normalized);
-      setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
-      void markChatAsRead(chatId, currentUser.profileId);
-    } catch (err: unknown) {
-      setChatError(
-        getErrorMessage(err, "Не удалось открыть поддержку."),
-      );
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const openChatWithProfile = async (profile: Profile) => {
-    if (!currentUser) {
-      setChatError("Нужно войти, чтобы отправлять сообщения.");
-      return;
-    }
-
-    if (profile.id === currentUser.profileId) {
-      setChatError("Нельзя написать самому себе.");
-      return;
-    }
-
-    setActiveChatUser(profile);
-    setChatError(null);
-    setChatLoading(true);
-    resetSupportComposer();
-
-    try {
-      const sid =
-        supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
-      const isSupportPeer = sid != null && profile.id === sid;
-
-      if (isPaidGateMode() && !currentUser.isPro && !isSupportPeer) {
-        openPaywallDrawer({
-          intent: "dm",
-          profileId: profile.id,
-          profileName: profile.full_name,
-          profileRole: profile.role_title ?? profile.city,
-        });
-        setChatLoading(false);
-        return;
-      }
-
-      if (
-        !isPaidGateMode() &&
-        !canSendDirectMessages(currentUser.subscriptionPlan) &&
-        !isSupportPeer
-      ) {
-        openPaywallDrawer({
-          intent: "dm",
-          profileId: profile.id,
-          profileName: profile.full_name,
-          profileRole: profile.role_title ?? profile.city,
-        });
-        setChatLoading(false);
-        return;
-      }
-
-      if (!isSupportPeer) {
-        const limit = getDmPartnersDailyLimit(currentUser.subscriptionPlan);
-        const partnersToday = await getUniqueChatPartnersToday(
-          currentUser.profileId,
-        );
-        if (
-          !partnersToday.has(profile.id) &&
-          partnersToday.size >= limit
-        ) {
-          setChatError(
-            `Лимит ${limit} уникальных собеседников в сутки исчерпан.${
-              currentUser.subscriptionPlan === "pro"
-                ? " Перейдите на Pro+ для лимита 30."
-                : ""
-            }`.trim(),
-          );
-          setChatLoading(false);
-          return;
-        }
-      }
-
-      const chatId = await openOrEnsurePrivateChat(
-        currentUser.profileId,
-        profile.id,
-      );
-
-      setActiveChatId(chatId);
-      chatMembershipRef.current.add(chatId);
-
-      if (isSupportPeer) {
-        setActiveChatIsClosed(await isChatClosed(chatId));
-      } else {
-        setActiveChatIsClosed(false);
-      }
-
-      // Гарантируем, что чат есть в списке (важно для UI поп-апа и сортировки)
-      setChatList((prev) => {
-        const exists = prev.some((x) => x.chatId === chatId);
-        if (exists) return prev;
-        const item: ChatListItem = {
-          chatId,
-          profile,
-          lastMessageAt: null,
-          lastMessagePreview: null,
-        };
-        return [item, ...prev];
-      });
-
-      const excludeSenderIds = blockedProfileIds.includes(profile.id)
-        ? [profile.id]
-        : undefined;
-      const normalized = await fetchRecentMessages(chatId, {
-        excludeSenderIds,
-      });
-
-      setChatMessages(normalized);
-      setEditingMessageId(null);
-      setChatInput("");
-      setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
-      void markChatAsRead(chatId, currentUser.profileId);
-    } catch (err: unknown) {
-      setChatError(getChatErrorMessage(err, "Не удалось открыть диалог."));
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const handleWriteToProfile = async (profile: Profile) => {
-    setActiveProfileOverlay(null);
-
-    if (!currentUser) {
-      router.push(
-        `/auth?redirect=${encodeURIComponent(`/map?chat=${profile.id}`)}`,
-      );
-      return;
-    }
-
-    if (isPaidGateMode() && !currentUser.isPro && !isSupportProfile(profile.id)) {
-      openPaywallDrawer({
-        intent: "dm",
-        profileId: profile.id,
-        profileName: profile.full_name,
-        profileRole: profile.role_title ?? profile.city,
-      });
-      return;
-    }
-
-    if (
-      !isPaidGateMode() &&
-      !canSendDirectMessages(currentUser.subscriptionPlan) &&
-      !isSupportProfile(profile.id)
-    ) {
-      openPaywallDrawer({
-        intent: "dm",
-        profileId: profile.id,
-        profileName: profile.full_name,
-        profileRole: profile.role_title ?? profile.city,
-      });
-      return;
-    }
-
-    suppressChatOutsideCloseUntilRef.current = Date.now() + 400;
-    await openChatWithProfile(profile);
-    setMobileTab("my-chats");
-  };
-
-  const openChatFromList = async (item: ChatListItem) => {
-    await openChatWithProfile(item.profile);
-    setUnreadByUser((prev) => ({ ...prev, [item.profile.id]: 0 }));
-    setChatList((prev) => {
-      const idx = prev.findIndex((x) => x.chatId === item.chatId);
-      if (idx < 0) return prev;
-      const next = [...prev];
-      const moved = next[idx];
-      next.splice(idx, 1);
-      return [moved, ...next];
-    });
-  };
-
-  const handleSendSupportAppeal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !activeChatId || !isSupportChat) return;
-    if (currentUser.isBlocked) {
-      setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
-      return;
-    }
-
-    const subject = supportSubject.trim();
-    const description = supportDescription.trim();
-    const fieldErrors: { subject?: string; description?: string } = {};
-    if (!subject) {
-      fieldErrors.subject = "Укажите тему обращения.";
-    }
-    if (!description) {
-      fieldErrors.description = "Укажите описание проблемы.";
-    }
-    setSupportFieldErrors(fieldErrors);
-    if (Object.keys(fieldErrors).length > 0) {
-      setChatError("Заполните тему и описание, чтобы отправить обращение.");
-      return;
-    }
-
-    setChatSending(true);
-    setChatError(null);
-
-    try {
-      const content = formatAppealMessage(subject, description);
-      const { data, error } = await insertMessage({
-        chatId: activeChatId,
-        senderId: currentUser.profileId,
-        content,
-      });
-      if (error) throw error;
-
-      await reopenChat(activeChatId);
-      setActiveChatIsClosed(false);
-      setChatMessages((prev) => [...prev, data as ChatMessage]);
-      resetSupportComposer();
-
-      const preview = formatChatListPreview(content);
-      setChatList((prev) => {
-        const idx = prev.findIndex((x) => x.chatId === activeChatId);
-        if (idx < 0) return prev;
-        const next = [...prev];
-        const item = {
-          ...next[idx],
-          lastMessageAt: (data as ChatMessage).created_at,
-          lastMessagePreview: preview,
-        };
-        next.splice(idx, 1);
-        return [item, ...next];
-      });
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Не удалось отправить обращение.";
-      setChatError(msg);
-    } finally {
-      setChatSending(false);
-    }
-  };
-
-  const handleSendChatMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (showSupportAppealForm) return;
-    if (!currentUser || !activeChatId || !chatInput.trim()) return;
-    if (currentUser.isBlocked) {
-      setChatError("Ваш аккаунт заблокирован. Отправка сообщений недоступна.");
-      return;
-    }
-    if (!profileReadyForMessaging) {
-      setChatError(
-        "Заполните город и профессию в профиле, чтобы отправлять сообщения.",
-      );
-      return;
-    }
-
-    setChatSending(true);
-    setChatError(null);
-
-    try {
-      // Personal messages: do not mask profanity (per product rule)
-      const content = chatInput.trim().slice(0, 1000);
-
-      if (editingMessageId) {
-        const { data, error } = await updateMessageContent(
-          editingMessageId,
-          content,
-        );
-        if (error) throw error;
-
-        setChatMessages((prev) =>
-          prev.map((m) => (m.id === editingMessageId ? (data as ChatMessage) : m)),
-        );
-        setEditingMessageId(null);
-        setChatInput("");
-
-        // Если редактировали последнее сообщение — обновим превью в списке
-        setChatList((prev) => {
-          if (!activeChatId) return prev;
-          const idx = prev.findIndex((x) => x.chatId === activeChatId);
-          if (idx < 0) return prev;
-          const next = [...prev];
-          const item = {
-            ...next[idx],
-            lastMessagePreview: content,
-          };
-          next[idx] = item;
-          return next;
-        });
-      } else {
-        const { data, error } = await insertMessage({
-          chatId: activeChatId,
-          senderId: currentUser.profileId,
-          content,
-        });
-        if (error) throw error;
-
-        setChatMessages((prev) => [...prev, data as ChatMessage]);
-        setChatInput("");
-        notifyUsefulContactsChanged();
-
-        // Поднимаем чат вверх в списке по отправке
-        setChatList((prev) => {
-          if (!activeChatId) return prev;
-          const idx = prev.findIndex((x) => x.chatId === activeChatId);
-          if (idx < 0) return prev;
-          const next = [...prev];
-          const item = {
-            ...next[idx],
-            lastMessageAt: (data as any).created_at,
-            lastMessagePreview: content,
-          };
-          next.splice(idx, 1);
-          return [item, ...next];
-        });
-      }
-    } catch (err: any) {
-      setChatError(err.message ?? "Не удалось отправить сообщение.");
-    } finally {
-      setChatSending(false);
-    }
-  };
-
-  const handleDeleteChatMessage = async (message: ChatMessage) => {
-    if (!currentUser || currentUser.isBlocked) return;
-    if (deletingMessageId) return;
-    suppressChatOutsideCloseUntilRef.current = Date.now() + 800;
-    if (!window.confirm("Удалить сообщение? Собеседник тоже его не увидит.")) {
-      return;
-    }
-
-    setDeletingMessageId(message.id);
-    setChatError(null);
-    try {
-      const { error } = await deleteMessage(message.id);
-      if (error) throw error;
-
-      setChatMessages((prev) => prev.filter((m) => m.id !== message.id));
-      if (editingMessageId === message.id) {
-        setEditingMessageId(null);
-        setChatInput("");
-      }
-
-      if (activeChatId) {
-        const last = await fetchLatestMessageMeta(activeChatId);
-        setChatList((prev) => {
-          const idx = prev.findIndex((x) => x.chatId === activeChatId);
-          if (idx < 0) return prev;
-          const next = [...prev];
-          next[idx] = {
-            ...next[idx],
-            lastMessageAt: last?.at ?? null,
-            lastMessagePreview: last?.preview ? last.preview : null,
-          };
-          return next;
-        });
-      }
-    } catch (err: unknown) {
-      setChatError(getErrorMessage(err, "Не удалось удалить сообщение."));
-    } finally {
-      setDeletingMessageId(null);
-    }
-  };
+  const handleMapPinOpenChat = useCallback(
+    (profileId: string) => {
+      if (profileId === currentUser?.profileId) return;
+      const p = profilesRef.current.find((pr) => pr.id === profileId);
+      if (p) void openChatWithProfileRef.current(p);
+    },
+    [currentUser?.profileId],
+  );
 
   // автоскролл к последнему сообщению при изменении списка
   useEffect(() => {
@@ -1660,97 +1064,31 @@ export function useMapPageController() {
     };
   }, [activeProfileOverlay]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || loading) return;
-    if (!isPaidGateMode()) return;
-
-    const { writeProfileId, payment } = parseMapSearchParams(
-      window.location.search,
-    );
-
-    if (payment === "success" && !paymentSuccessHandledRef.current) {
-      paymentSuccessHandledRef.current = true;
-      trackPaymentSuccessAha();
-      const pending = readPendingPaywallContext();
-      const resumeProfileId = writeProfileId ?? pending?.profileId ?? null;
-      const resumeProfile = resumeProfileId
-        ? profiles.find((p) => p.id === resumeProfileId)
-        : null;
-
-      if (
-        currentUser?.isPro &&
-        pending?.intent === "dm" &&
-        resumeProfile
-      ) {
-        setPaymentToast({
-          message: "Подписка активна",
-          actionLabel: `Написать ${resumeProfile.full_name ?? "участнику"}`,
-          onAction: () => {
-            void openChatWithProfile(resumeProfile);
-            setMobileTab("my-chats");
-          },
-        });
-      } else if (
-        currentUser?.subscriptionPlan === "pro_plus" &&
-        pending?.intent === "chat"
-      ) {
-        setPaymentToast({
-          message: "Подписка Pro+ активна — можно писать в общий чат",
-        });
-      } else if (currentUser?.isPro) {
-        setPaymentToast({ message: "Подписка активна" });
-      }
-
-      clearPendingPaywallContext();
-      clearPaywallQueryParams();
-    }
-
-    if (
-      writeProfileId &&
-      currentUser &&
-      !paywallResumeHandledRef.current
-    ) {
-      paywallResumeHandledRef.current = true;
-      const target = profiles.find((p) => p.id === writeProfileId);
-      if (
-        !canSendDirectMessages(currentUser.subscriptionPlan) &&
-        target
-      ) {
-        openPaywallDrawer({
-          intent: "dm",
-          profileId: target.id,
-          profileName: target.full_name,
-          profileRole: target.role_title ?? target.city,
-        });
-      } else if (canSendDirectMessages(currentUser.subscriptionPlan) && target) {
-        void openChatWithProfile(target);
-        setMobileTab("my-chats");
-      }
-      clearPaywallQueryParams();
-    }
-  }, [
+  useMapEffects({
+    router,
     currentUser,
     loading,
     profiles,
-    openPaywallDrawer,
+    chatDeepLinkNonce,
+    profileDeepLinkNonce,
+    supportDeepLinkNonce,
+    setChatDeepLinkNonce,
     openChatWithProfile,
+    openSupportChat,
+    openProfileOverlay,
+    setPaymentToast,
+    paywallResumeHandledRef,
+    paymentSuccessHandledRef,
+    openPaywallDrawer,
     setMobileTab,
-  ]);
-
-  useEffect(() => {
-    setWelcomeBannerVisible(
-      shouldShowWelcomeOnboarding({
-        isAuthed: Boolean(currentUser),
-        profileCity: currentUser?.city ?? null,
-      }),
-    );
-  }, [currentUser]);
+    setWelcomeBannerVisible,
+  });
 
   const showChatsColumn =
     mobileTab === "my-chats" || mobileTab === "contacts";
   const hideMobileMainStack = isMobileLayout && !!activeChatUser;
   return {
-    vvTop, vvHeight, keyboardInset, isMobileLayout, mobileTab, hideMobileMainStack,
+    isMobileLayout, mobileTab, hideMobileMainStack,
     welcomeBannerVisible, setWelcomeBannerVisible,
     expandedPosts, feedFiltersOpen, setFeedFiltersOpen, mapViewMode, setMapViewMode,
     feedFilters, setFeedFilters, recommendedProfiles, setRecommendedProfiles,
@@ -1769,7 +1107,8 @@ export function useMapPageController() {
     paymentToast, setPaymentToast, focusedProfileId, setFocusedProfileId,
     feedFiltersRef, recommendedEmptyBannerRef, mapContainerRef,
     blockBusyByProfileId, router, contactsOnlyMode, handleMobileTab, resetContactsMode, setMobileTab,
-    profiles, chatList, currentUser, loading, error,
+    profiles, chatList, currentUser, currentUserReady, loading, error,
+    handleMapPinOpenProfile, handleMapPinOpenChat, handleLightPointClick,
     openPaywallDrawer, openProfileOverlay, shareProfileLink, openProfileFromChatLink,
     contactProfileIds, blockedProfileIds, toggleContact, markProfileViewed,
     effectiveViewedProfileIds, selectedCity, setSelectedCity, isRussiaChat,
@@ -1778,6 +1117,8 @@ export function useMapPageController() {
     isSupportChat, showSupportAppealForm, closeChatWindow,
     mapConfig, timeZone, visiblePosts, searchedVisiblePosts,
     subindustryOptionsForFilters, filteredProfilesForMap, profilesForMapPins,
+    mapViewportMode, mapLocations, mapLightPoints, mapGridClusters, mapOwnLocation,
+    mapViewportLoading, mapViewportError, handleMapViewportChange,
     showRecommendedEmptyBanner, showRecommendedEmptyRussiaPrompt, showRecommendedEmptyAll,
     handleToggleRecommended, filteredChatList, unreadChatsTotal, toggleBlock,
     handleTogglePost, formatDateTime, canWriteGeneralChat,

@@ -50,6 +50,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-08-11-subscription-trial.sql" "subs
 run_sql_migration "${ROOT}/supabase/sql/2026-08-11-push-dispatch-internal-url.sql" "push-dispatch-internal-url"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-13-seeking-has.sql" "seeking-has"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-17-disable-pioneer-promo.sql" "disable-pioneer-promo"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-pioneer-promo-admin.sql" "pioneer-promo-admin"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-17-subscription-tiers.sql" "subscription-tiers"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-email-notifications.sql" "email-notifications"
 run_sql_migration "${ROOT}/supabase/sql/2026-08-19-user-daily-activity.sql" "user-daily-activity"
@@ -65,6 +66,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-13-auth-otp-sends.sql" "auth-otp
 run_sql_migration "${ROOT}/supabase/sql/2026-09-15-admin-moderation-purge.sql" "admin-moderation-purge"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-profession-catalog-label-key.sql" "profession-catalog-label-key"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-auth-login-attempts.sql" "auth-login-attempts"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-perf-hot-paths.sql" "perf-hot-paths"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

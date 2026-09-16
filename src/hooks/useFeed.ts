@@ -91,6 +91,8 @@ export function useFeed(selectedCity: string) {
 
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+
       const { posts: data, error } = await fetchPostsForCity(selectedCity);
 
       if (!error && data) {

@@ -25,6 +25,7 @@ import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;
+const LAST_SEEN_MIN_GAP_MS = 45_000;
 
 function IconUsers({ className }: { className?: string }) {
   return (
@@ -201,6 +202,9 @@ export function TopBar() {
       const user = session?.user;
       if (user) {
         setIsAuthed(true);
+        if (event === "TOKEN_REFRESHED") {
+          return;
+        }
         void applyTopBarProfile(user.id, {
           resetMapCityFromProfile: event === "SIGNED_IN",
         }).catch(() => {
@@ -259,6 +263,8 @@ export function TopBar() {
       );
   }, [reloadContactCount]);
 
+  const lastSeenPingAtRef = useRef(0);
+
   useEffect(() => {
     if (!myProfileId) return;
 
@@ -268,8 +274,10 @@ export function TopBar() {
       if (!alive) return;
       if (typeof document !== "undefined" && document.visibilityState !== "visible")
         return;
+      if (Date.now() - lastSeenPingAtRef.current < LAST_SEEN_MIN_GAP_MS) return;
       try {
         await updateProfileLastSeen(myProfileId);
+        lastSeenPingAtRef.current = Date.now();
       } catch {
         // best-effort
       }

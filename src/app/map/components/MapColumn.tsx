@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -31,7 +32,7 @@ const PartnerMap = dynamic<PartnerMapProps>(
 
 type Props = MapPageController;
 
-export function MapColumn(props: Props) {
+function MapColumnInner(props: Props) {
   const {
     mobileTab,
     hideMobileMainStack,
@@ -69,10 +70,19 @@ export function MapColumn(props: Props) {
     subindustryOptionsForFilters,
     filteredProfilesForMap,
     profilesForMapPins,
+    mapViewportMode,
+    mapLocations,
+    mapLightPoints,
+    mapGridClusters,
+    mapOwnLocation,
+    mapViewportLoading,
+    handleMapViewportChange,
     showRecommendedEmptyBanner,
     showRecommendedEmptyRussiaPrompt,
     handleToggleRecommended,
-    openChatWithProfile
+    handleMapPinOpenProfile,
+    handleMapPinOpenChat,
+    handleLightPointClick,
   } = props;
 
   return (
@@ -512,38 +522,32 @@ export function MapColumn(props: Props) {
               </div>
             ) : null}
             {mapViewMode === "map" ? (
-              loading && profiles.length === 0 ? (
+              mapViewportLoading && profilesForMapPins.length === 0 ? (
                 <div className="flex h-full min-h-0 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100">
                   <p className="text-sm text-slate-500">Загрузка карты...</p>
                 </div>
               ) : (
                 <PartnerMap
                   profiles={profilesForMapPins}
+                  locations={mapLocations}
+                  lightPoints={mapLightPoints}
+                  gridClusters={mapGridClusters}
+                  ownLocation={mapOwnLocation}
+                  viewportMode={mapViewportMode}
+                  onViewportChange={handleMapViewportChange}
                   professionFilter={feedFilters.profession}
                   contactProfileIds={contactProfileIds}
                   viewedProfileIds={effectiveViewedProfileIds}
                   focusedProfileId={focusedProfileId}
                   currentUserProfileId={currentUser?.profileId ?? null}
                   mapVisitKey={mobileTab}
-                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${profiles.length}`}
+                  invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${mapViewportMode}-${mapLocations.length}-${mapLightPoints.length}-${mapGridClusters.length}`}
                   center={mapConfig.center}
                   zoom={mapConfig.zoom}
-                  onOpenProfile={(p) => {
-                    const full = profiles.find((x) => x.id === p.id);
-                    if (!full) return;
-                    openProfileOverlay(full);
-                    setFocusedProfileId(null);
-                  }}
-                  onOpenChat={(profileId) => {
-                    if (profileId === currentUser?.profileId) return;
-                    const p = profiles.find((pr) => pr.id === profileId);
-                    if (p) {
-                      openChatWithProfile(p);
-                    }
-                  }}
-                  onToggleContact={(profileId) => {
-                    toggleContact(profileId);
-                  }}
+                  onOpenProfile={handleMapPinOpenProfile}
+                  onLightPointClick={handleLightPointClick}
+                  onOpenChat={handleMapPinOpenChat}
+                  onToggleContact={toggleContact}
                 />
               )
             ) : (
@@ -663,3 +667,5 @@ export function MapColumn(props: Props) {
 </>
   );
 }
+
+export const MapColumn = memo(MapColumnInner);

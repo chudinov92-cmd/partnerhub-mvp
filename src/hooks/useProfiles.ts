@@ -12,7 +12,7 @@ import {
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
 
-/** Загрузка справочников для фильтров карты и ленты. */
+/** Загрузка справочников для фильтров карты, онбординга и профиля. */
 export function useProfiles() {
   const [professionCatalog, setProfessionCatalog] = useState<
     ProfessionCatalogRow[]
@@ -23,44 +23,46 @@ export function useProfiles() {
   const [subindustryCatalog, setSubindustryCatalog] = useState<
     SubindustryCatalogRow[]
   >([]);
+  const [catalogsLoading, setCatalogsLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    loadProfessionCatalog()
-      .then((rows) => {
+    setCatalogsLoading(true);
+
+    Promise.all([
+      loadProfessionCatalog(),
+      loadIndustryCatalog(),
+      loadSubindustryCatalog(),
+    ])
+      .then(([profRows, indRows, subRows]) => {
         if (!alive) return;
-        setProfessionCatalog(rows);
+        setProfessionCatalog(profRows);
+        setIndustryCatalog(indRows);
+        setSubindustryCatalog(subRows);
       })
-      .catch(() => {
-        //
+      .catch((e) => {
+        console.error("[useProfiles] failed to load catalogs", e);
+        if (!alive) return;
+        setProfessionCatalog([]);
+        setIndustryCatalog([]);
+        setSubindustryCatalog([]);
+      })
+      .finally(() => {
+        if (alive) setCatalogsLoading(false);
       });
+
     return () => {
       alive = false;
     };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    loadIndustryCatalog()
-      .then((rows) => {
-        if (!alive) return;
-        setIndustryCatalog(rows);
-      })
-      .catch((e) => {
-        console.error("Failed to load industry_catalog", e);
-      });
-    loadSubindustryCatalog()
-      .then((rows) => {
-        if (!alive) return;
-        setSubindustryCatalog(rows);
-      })
-      .catch((e) => {
-        console.error("Failed to load subindustry_catalog", e);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  return { professionCatalog, industryCatalog, subindustryCatalog };
+  return {
+    professionCatalog,
+    industryCatalog,
+    subindustryCatalog,
+    catalogsLoading,
+    setProfessionCatalog,
+    setIndustryCatalog,
+    setSubindustryCatalog,
+  };
 }

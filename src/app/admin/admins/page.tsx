@@ -11,6 +11,7 @@ import {
   adminUpdateAdminUserRole,
 } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
 
 type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -38,8 +39,9 @@ export default function AdminAdminsPage() {
       const res = await adminFetchAdminUsersList();
       if (res.error) throw res.error;
       setRows((res.data ?? []) as AdminUserRow[]);
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить админов.");
+    } catch (e: unknown) {
+      console.error("[admin/admins] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить админов."));
       setRows([]);
     } finally {
       setLoading(false);
@@ -75,8 +77,9 @@ export default function AdminAdminsPage() {
         target_id: v,
         payload: { role: newRole },
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось добавить админа.");
+    } catch (e: unknown) {
+      console.error("[admin/admins] add", e);
+      setError(getErrorMessage(e, "Не удалось добавить админа."));
     } finally {
       setBusy(false);
     }
@@ -97,8 +100,9 @@ export default function AdminAdminsPage() {
         payload: { role },
       });
       setInfo("Роль обновлена.");
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось обновить роль.");
+    } catch (e: unknown) {
+      console.error("[admin/admins] updateRole", e);
+      setError(getErrorMessage(e, "Не удалось обновить роль."));
     } finally {
       setBusy(false);
     }
@@ -119,8 +123,9 @@ export default function AdminAdminsPage() {
         payload: {},
       });
       setInfo("Доступ удалён.");
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось удалить доступ.");
+    } catch (e: unknown) {
+      console.error("[admin/admins] remove", e);
+      setError(getErrorMessage(e, "Не удалось удалить доступ."));
     } finally {
       setBusy(false);
     }

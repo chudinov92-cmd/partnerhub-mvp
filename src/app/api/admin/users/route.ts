@@ -1,30 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import {
-  createSupabaseAdminClient,
-  createSupabaseRouteClient,
-} from "@/lib/supabaseServer";
-import {
-  fetchAdminRoleForAuthUser,
-  hasMinRole,
-} from "@/app/api/admin/_lib/requireAdmin";
+import { createSupabaseAdminClient } from "@/lib/supabaseServer";
+import { requireMinRole } from "@/app/api/admin/_lib/requireAdmin";
+import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 /** Мутации профилей (блокировка) — только после JWT + роль support+. */
 export async function PATCH(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const sb = createSupabaseRouteClient(cookieStore);
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const role = await fetchAdminRoleForAuthUser(user.id);
-    if (!hasMinRole(role, "support")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireMinRole("support");
+    if (!auth.ok) return auth.response;
 
     let body: { profile_id?: string; is_blocked?: boolean };
     try {
@@ -52,7 +35,7 @@ export async function PATCH(req: Request) {
     }
 
     await adminSb.from("admin_audit_log").insert({
-      actor_auth_user_id: user.id,
+      actor_auth_user_id: auth.authUserId,
       action: "profiles.toggle_block",
       target_type: "profile",
       target_id: profileId,
@@ -61,13 +44,6 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Server error";
-    if (msg.includes("SUPABASE_SERVICE_ROLE_KEY")) {
-      return NextResponse.json(
-        { error: "Сервер: не задан SUPABASE_SERVICE_ROLE_KEY" },
-        { status: 500 },
-      );
-    }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return jsonRouteError("[admin/users PATCH]", e);
   }
 }

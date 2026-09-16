@@ -1,7 +1,6 @@
 "use client";
 
 import { supabase } from "@/lib/supabaseClient";
-import { isPaidGateMode } from "@/lib/accessMode";
 import {
   FREE_DM_LIMIT,
   FREE_FAVORITES_LIMIT,
@@ -9,25 +8,22 @@ import {
   PRO_DM_LIMIT,
   PRO_PLUS_CHAT_LIMIT,
   PRO_PLUS_DM_LIMIT,
+  getEffectiveSubscriptionPlan,
+  isActiveProProfile,
   type PaidSubscriptionPlan,
+  type ProProfileFields,
   type SubscriptionPeriod,
   type SubscriptionPlan,
 } from "@/lib/subscriptionPlans";
 
 export type { SubscriptionPlan, PaidSubscriptionPlan, SubscriptionPeriod };
+export type { ProProfileFields };
 
 export type SubscriptionStatus = {
   isPro: boolean;
   plan: SubscriptionPlan;
   expiresAt: string | null;
   trialUsed: boolean;
-};
-
-export type ProProfileFields = {
-  is_pro?: boolean | null;
-  pro_expires_at?: string | null;
-  trial_used?: boolean | null;
-  subscription_plan?: SubscriptionPlan | null;
 };
 
 export { PIN_COLOR_PRO as PRO_PIN_COLOR } from "@/lib/subscriptionPlans";
@@ -39,44 +35,12 @@ export {
   PRO_DM_LIMIT,
   PRO_PLUS_DM_LIMIT,
   PRO_PLUS_CHAT_LIMIT,
-};
-
-/** Активная подписка Pro/Pro+: флаг и (пустая дата или дата в будущем). */
-export function isActiveProProfile(
-  row: ProProfileFields | null | undefined,
-): boolean {
-  if (!row) return false;
-  const expiresAt = row.pro_expires_at ?? null;
-  const isProFlag = Boolean(row.is_pro);
-  const notExpired =
-    !expiresAt || new Date(expiresAt).getTime() > Date.now();
-  return isProFlag && notExpired;
-}
-
-/** Алиас для UI (профиль в ленте / на карте). */
-export const isProActive = isActiveProProfile;
-
-export function getEffectiveSubscriptionPlan(
-  row: ProProfileFields | null | undefined,
-): SubscriptionPlan {
-  if (!isActiveProProfile(row)) return "free";
-  const plan = row?.subscription_plan;
-  if (plan === "pro" || plan === "pro_plus") return plan;
-  return "pro";
-}
+  isActiveProProfile,
+  isProActive,
+  getEffectiveSubscriptionPlan,
+} from "@/lib/subscriptionPlans";
 
 export function getDmPartnersDailyLimit(plan: SubscriptionPlan): number {
-  if (isPaidGateMode()) {
-    switch (plan) {
-      case "pro_plus":
-        return PRO_PLUS_DM_LIMIT;
-      case "pro":
-        return PRO_DM_LIMIT;
-      default:
-        return FREE_DM_LIMIT;
-    }
-  }
-
   switch (plan) {
     case "pro_plus":
       return PRO_PLUS_DM_LIMIT;

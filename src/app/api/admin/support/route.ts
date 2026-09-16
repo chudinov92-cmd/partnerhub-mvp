@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createSupabaseAdminClient, createSupabaseRouteClient } from "@/lib/supabaseServer";
-import {
-  fetchAdminRoleForAuthUser,
-  hasMinRole,
-} from "@/app/api/admin/_lib/requireAdmin";
+import { createSupabaseAdminClient } from "@/lib/supabaseServer";
+import { requireMinRole } from "@/app/api/admin/_lib/requireAdmin";
 import { resolveSupportProfileId } from "@/app/api/admin/support/_lib/supportProfile";
 import { appealPreviewText } from "@/lib/support";
+import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 export type AdminSupportChatRow = {
   chatId: string;
@@ -21,19 +18,8 @@ export type AdminSupportChatRow = {
 /** Список чатов поддержки или сообщения одного чата (?chatId=). */
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const sb = createSupabaseRouteClient(cookieStore);
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const role = await fetchAdminRoleForAuthUser(user.id);
-    if (!hasMinRole(role, "support")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireMinRole("support");
+    if (!auth.ok) return auth.response;
 
     const adminSb = createSupabaseAdminClient();
     const supportId = await resolveSupportProfileId(adminSb);
@@ -131,13 +117,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ chats: items, supportProfileId: supportId });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Server error";
-    if (msg.includes("SUPABASE_SERVICE_ROLE_KEY")) {
-      return NextResponse.json(
-        { error: "Сервер: не задан SUPABASE_SERVICE_ROLE_KEY" },
-        { status: 500 },
-      );
-    }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return jsonRouteError("[admin/support GET]", e);
   }
 }

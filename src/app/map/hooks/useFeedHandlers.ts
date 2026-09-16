@@ -225,9 +225,7 @@ export function useFeedHandlers(deps: FeedHandlerDeps) {
           setNewPostBody("");
         }
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Не удалось отправить сообщение.";
-        setCreateError(message);
+        setCreateError(getErrorMessage(err, "Не удалось отправить сообщение."));
       } finally {
         setCreating(false);
       }

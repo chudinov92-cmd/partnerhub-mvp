@@ -1,15 +1,35 @@
 "use client";
 
+import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
+import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
 import Link from "next/link";
 import { isPaidGateMode } from "@/lib/accessMode";
 import { isOnline, scrollComposerIntoView } from "../utils";
 
 type Props = MapPageController;
 
-export function FeedColumn(props: Props) {
+function GeneralChatComposerSkeleton() {
+  return (
+    <div
+      className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-gray-50 p-4"
+      aria-busy="true"
+      aria-live="polite"
+      role="status"
+    >
+      <span className="sr-only">Загрузка поля сообщения</span>
+      <div className="min-h-[80px] w-full animate-pulse rounded-xl border border-gray-200 bg-white" />
+      <div className="flex items-center justify-between">
+        <div className="h-3 w-10 animate-pulse rounded bg-gray-200" />
+        <div className="h-8 w-24 animate-pulse rounded-lg bg-gray-200" />
+      </div>
+    </div>
+  );
+}
+
+function FeedColumnInner(props: Props) {
+  const { keyboardInset } = useVisualViewportLayout();
   const {
-    keyboardInset,
     mobileTab,
     hideMobileMainStack,
     expandedPosts,
@@ -26,6 +46,7 @@ export function FeedColumn(props: Props) {
     feedScrollRef,
     profiles,
     currentUser,
+    currentUserReady,
     loading,
     error,
     openPaywallDrawer,
@@ -265,7 +286,9 @@ export function FeedColumn(props: Props) {
           </div>
 
           {/* Форма нового сообщения / заглушка без подписки */}
-          {currentUser && !canWriteGeneralChat ? (
+          {!currentUserReady ? (
+            <GeneralChatComposerSkeleton />
+          ) : currentUser && !canWriteGeneralChat ? (
             <div className="mt-auto shrink-0 space-y-2 border-t border-gray-200 bg-amber-50/80 p-4">
               {createError ? (
                 <p className="text-[11px] text-red-600">{createError}</p>
@@ -368,3 +391,5 @@ export function FeedColumn(props: Props) {
 </>
   );
 }
+
+export const FeedColumn = memo(FeedColumnInner);

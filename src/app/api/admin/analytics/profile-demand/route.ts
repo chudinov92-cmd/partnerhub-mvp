@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import {
-  createSupabaseAdminClient,
-  createSupabaseRouteClient,
-} from "@/lib/supabaseServer";
-import {
-  fetchAdminRoleForAuthUser,
-  hasMinRole,
-} from "@/app/api/admin/_lib/requireAdmin";
+import { createSupabaseAdminClient } from "@/lib/supabaseServer";
+import { requireMinRole } from "@/app/api/admin/_lib/requireAdmin";
+import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 export const runtime = "nodejs";
 
@@ -26,19 +20,8 @@ function parseOptionalBool(raw: string | null): boolean | null {
 /** Матрица спроса из профилей (interested_in). Режим B: active_only + active_from/to. */
 export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies();
-    const sb = createSupabaseRouteClient(cookieStore);
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const role = await fetchAdminRoleForAuthUser(user.id);
-    if (!hasMinRole(role, "support")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const auth = await requireMinRole("support");
+    if (!auth.ok) return auth.response;
 
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("active_only") === "true";
@@ -69,7 +52,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ rows: data ?? [] });
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonRouteError("[admin/analytics/profile-demand]", e);
   }
 }

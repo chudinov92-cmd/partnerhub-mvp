@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
 import { formatChatListPreview } from "@/services/chatService";
@@ -7,7 +8,7 @@ import { isOnline } from "../utils";
 
 type Props = MapPageController;
 
-export function ChatsColumn(props: Props) {
+function ChatsColumnInner(props: Props) {
   const {
     hideMobileMainStack,
     unreadByUser,
@@ -143,3 +144,5 @@ export function ChatsColumn(props: Props) {
 </>
   );
 }
+
+export const ChatsColumn = memo(ChatsColumnInner);

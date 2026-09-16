@@ -2,6 +2,12 @@ import { supabase } from "@/lib/supabaseClient";
 import { PROFESSION_CATALOG_SEED } from "@/data/professionsSeed";
 import { maskProfanity } from "@/lib/profanity";
 import {
+  msNow,
+  readCatalogCache,
+  shouldRefreshAt4amMsk,
+  writeCatalogCache,
+} from "@/lib/catalogCache";
+import {
   appendProfessionToCatalog,
   normalizeProfessionKey,
   shouldUpsertProfession,
@@ -25,35 +31,10 @@ export {
 
 const LS_KEY = "profession_catalog_v2";
 const LS_FETCHED_AT_KEY = "profession_catalog_fetched_at_v2";
+const CACHE_KEYS = { dataKey: LS_KEY, fetchedAtKey: LS_FETCHED_AT_KEY };
 
 function sortRuAsc(a: string, b: string) {
   return a.localeCompare(b, "ru");
-}
-
-function msNow() {
-  return Date.now();
-}
-
-function toMskMs(utcMs: number) {
-  return utcMs + 3 * 60 * 60 * 1000;
-}
-
-function toUtcMs(mskMs: number) {
-  return mskMs - 3 * 60 * 60 * 1000;
-}
-
-function getToday4amMskUtcMs(nowUtcMs: number) {
-  const nowMsk = new Date(toMskMs(nowUtcMs));
-  const d = new Date(nowMsk);
-  d.setHours(4, 0, 0, 0);
-  return toUtcMs(d.getTime());
-}
-
-function shouldRefreshAt4amMsk(lastFetchedUtcMs: number | null, nowUtcMs: number) {
-  if (!lastFetchedUtcMs) return true;
-  const boundary = getToday4amMskUtcMs(nowUtcMs);
-  if (nowUtcMs < boundary) return false;
-  return lastFetchedUtcMs < boundary;
 }
 
 function sortWithOtherLast(labels: string[]) {
@@ -97,37 +78,10 @@ async function seedCatalogIfEmptyAuthenticated() {
   if (seedErr) return;
 }
 
-function readCachedProfessionCatalog(): {
-  rows: ProfessionCatalogRow[] | null;
-  lastFetchedUtcMs: number | null;
-} {
-  if (typeof window === "undefined") {
-    return { rows: null, lastFetchedUtcMs: null };
-  }
-
-  let rows: ProfessionCatalogRow[] | null = null;
-  const cached = window.localStorage.getItem(LS_KEY);
-  if (cached) {
-    try {
-      rows = JSON.parse(cached) as ProfessionCatalogRow[];
-    } catch {
-      // ignore cache parse errors
-    }
-  }
-
-  let lastFetchedUtcMs: number | null = null;
-  const fetchedAtRaw = window.localStorage.getItem(LS_FETCHED_AT_KEY);
-  if (fetchedAtRaw) {
-    const parsed = Number(fetchedAtRaw);
-    if (!Number.isNaN(parsed)) lastFetchedUtcMs = parsed;
-  }
-
-  return { rows, lastFetchedUtcMs };
-}
-
 export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
   const nowUtc = msNow();
-  const { rows: cachedRows, lastFetchedUtcMs } = readCachedProfessionCatalog();
+  const { rows: cachedRows, lastFetchedUtcMs } =
+    readCatalogCache<ProfessionCatalogRow>(CACHE_KEYS);
 
   if (
     cachedRows &&
@@ -145,10 +99,7 @@ export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
 
   try {
     const fresh = await fetchProfessionCatalogFromDb();
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_KEY, JSON.stringify(fresh));
-      window.localStorage.setItem(LS_FETCHED_AT_KEY, String(nowUtc));
-    }
+    writeCatalogCache(CACHE_KEYS, fresh, nowUtc);
     return fresh;
   } catch {
     if (cachedRows) return cachedRows;

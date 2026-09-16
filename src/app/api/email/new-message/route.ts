@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 import {
   emailMapLink,
   wrapTransactionalEmail,
@@ -16,6 +17,7 @@ type MessageEmailCandidate = {
 };
 
 export async function POST(req: Request) {
+  try {
   if (!verifyInternalEmailSecret(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -71,6 +73,7 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok) {
+      console.error("[email/new-message] send failed", profileId, result.error);
       skipped += 1;
       continue;
     }
@@ -81,6 +84,7 @@ export async function POST(req: Request) {
       .eq("id", profileId);
 
     if (updateErr) {
+      console.error("[email/new-message] update flag", profileId, updateErr);
       skipped += 1;
       continue;
     }
@@ -89,4 +93,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, sent, skipped });
+  } catch (e) {
+    return jsonRouteError("[email/new-message]", e);
+  }
 }

@@ -6,6 +6,7 @@ import { AdminShell } from "@/app/admin/AdminShell";
 import { ProfessionDemandAnalytics } from "@/components/admin/ProfessionDemandAnalytics";
 import { PaywallFunnelAnalytics } from "@/components/admin/PaywallFunnelAnalytics";
 import { RevenueAnalytics } from "@/components/admin/RevenueAnalytics";
+import { getErrorMessage } from "@/lib/errors";
 
 type MetricCardProps = {
   title: string;
@@ -113,8 +114,9 @@ export default function AdminAnalyticsPage() {
         wau7d,
         mau30d,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить аналитику.");
+    } catch (e: unknown) {
+      console.error("[admin/analytics] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить аналитику."));
       setMetrics(null);
     } finally {
       setLoading(false);

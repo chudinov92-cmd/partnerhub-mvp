@@ -171,11 +171,23 @@ export async function adminSetPioneerCityMax(city: string, maxCount: number) {
     .upsert({ city, max_count: maxCount }, { onConflict: "city" });
 }
 
-export async function adminFetchDashboardCounts(params: {
+type DashboardCountsParams = {
   fromIso: string;
   toIso: string;
   activeCutoff: string;
-}) {
+};
+
+type DashboardCountsResult = Awaited<
+  ReturnType<typeof adminFetchDashboardCountsUncached>
+>;
+
+let dashboardCountsCache:
+  | { key: string; at: number; value: DashboardCountsResult }
+  | null = null;
+
+const DASHBOARD_COUNTS_CACHE_MS = 45_000;
+
+async function adminFetchDashboardCountsUncached(params: DashboardCountsParams) {
   const { fromIso, toIso, activeCutoff } = params;
   return Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
@@ -202,4 +214,20 @@ export async function adminFetchDashboardCounts(params: {
       .select("id", { count: "exact", head: true })
       .eq("status", "resolved"),
   ]);
+}
+
+export async function adminFetchDashboardCounts(params: DashboardCountsParams) {
+  const key = `${params.fromIso}|${params.toIso}|${params.activeCutoff}`;
+  const now = Date.now();
+  if (
+    dashboardCountsCache &&
+    dashboardCountsCache.key === key &&
+    now - dashboardCountsCache.at < DASHBOARD_COUNTS_CACHE_MS
+  ) {
+    return dashboardCountsCache.value;
+  }
+
+  const value = await adminFetchDashboardCountsUncached(params);
+  dashboardCountsCache = { key, at: now, value };
+  return value;
 }

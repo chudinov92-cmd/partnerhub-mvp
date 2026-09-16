@@ -14,6 +14,7 @@ import {
   adminSignOut,
 } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
 
 type IndustryRow = { label: string; is_stock: boolean };
 type SubindustryRow = { industry_label: string; label: string; is_stock: boolean };
@@ -76,8 +77,9 @@ export default function AdminCatalogsPage() {
           .slice()
           .sort((a, b) => sortRuAsc(a.label, b.label)),
       );
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось загрузить справочники.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить справочники."));
     } finally {
       setLoading(false);
     }
@@ -126,8 +128,9 @@ export default function AdminCatalogsPage() {
         target_type: "industry_catalog",
         target_id: v,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось добавить отрасль.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] addIndustry", e);
+      setError(getErrorMessage(e, "Не удалось добавить отрасль."));
     }
   };
 
@@ -148,8 +151,9 @@ export default function AdminCatalogsPage() {
         target_type: "subindustry_catalog",
         target_id: `${ind}::${sub}`,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось добавить подотрасль.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] addSubindustry", e);
+      setError(getErrorMessage(e, "Не удалось добавить подотрасль."));
     }
   };
 
@@ -169,8 +173,9 @@ export default function AdminCatalogsPage() {
         target_type: "profession_catalog",
         target_id: v,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось добавить профессию.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] addProfession", e);
+      setError(getErrorMessage(e, "Не удалось добавить профессию."));
     }
   };
 
@@ -187,8 +192,9 @@ export default function AdminCatalogsPage() {
         target_type: "industry_catalog",
         target_id: label,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось удалить отрасль.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] deleteIndustry", e);
+      setError(getErrorMessage(e, "Не удалось удалить отрасль."));
     }
   };
 
@@ -205,8 +211,9 @@ export default function AdminCatalogsPage() {
         target_type: "subindustry_catalog",
         target_id: `${industryLabel}::${label}`,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось удалить подотрасль.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] deleteSubindustry", e);
+      setError(getErrorMessage(e, "Не удалось удалить подотрасль."));
     }
   };
 
@@ -223,8 +230,9 @@ export default function AdminCatalogsPage() {
         target_type: "profession_catalog",
         target_id: label,
       });
-    } catch (e: any) {
-      setError(e?.message ?? "Не удалось удалить профессию.");
+    } catch (e: unknown) {
+      console.error("[admin/catalogs] deleteProfession", e);
+      setError(getErrorMessage(e, "Не удалось удалить профессию."));
     }
   };
 

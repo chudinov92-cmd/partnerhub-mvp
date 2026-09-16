@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import {
   subscribeToMessagesRealtime,
   unsubscribeChannel,
@@ -8,6 +14,7 @@ import {
   markChatAsRead,
   fetchLatestMessageMeta,
   loadDmUnreadCounts,
+  loadPrivateChatSidebar,
 } from "@/services/chatService";
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import type { ChatMessage, ChatListItem, CurrentUser } from "@/types";
@@ -17,6 +24,7 @@ export function useChatMessagesRealtime(opts: {
   currentUser: CurrentUser | null;
   activeChatId: string | null;
   blockedProfileIds: readonly string[];
+  knownChatIds: string[];
   chatMembershipRef: MutableRefObject<Set<string>>;
   setChatMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setUnreadByUser: Dispatch<SetStateAction<Record<string, number>>>;
@@ -26,14 +34,33 @@ export function useChatMessagesRealtime(opts: {
     currentUser,
     activeChatId,
     blockedProfileIds,
+    knownChatIds,
     chatMembershipRef,
     setChatMessages,
     setUnreadByUser,
     setChatList,
   } = opts;
 
+  const blockedRef = useRef(blockedProfileIds);
+  blockedRef.current = blockedProfileIds;
+
+  const activeChatIdRef = useRef(activeChatId);
+  activeChatIdRef.current = activeChatId;
+
+  const knownChatIdsKey = knownChatIds.join(",");
+
   useEffect(() => {
     if (!currentUser) return;
+
+    const reloadSidebar = async () => {
+      const sidebar = await loadPrivateChatSidebar(
+        currentUser.profileId,
+        [...blockedRef.current],
+      );
+      chatMembershipRef.current = sidebar.chatMembership;
+      setChatList(sidebar.items);
+      return sidebar;
+    };
 
     const resolveMembersForChat = async (
       chatId: string,
@@ -50,148 +77,157 @@ export function useChatMessagesRealtime(opts: {
       return data;
     };
 
-    const channel = subscribeToMessagesRealtime({
-      onInsert: async (payload) => {
-        const msg = payload as ChatMessage & { chat_id?: string };
+    const channel = subscribeToMessagesRealtime(
+      {
+        onInsert: async (payload) => {
+          const msg = payload as ChatMessage & { chat_id?: string };
 
-        if (msg.sender_id === currentUser.profileId) return;
-        if (blockedProfileIds.includes(msg.sender_id)) return;
+          if (msg.sender_id === currentUser.profileId) return;
+          if (blockedRef.current.includes(msg.sender_id)) return;
 
-        try {
-          const chatId = (msg as { chat_id?: string }).chat_id as string;
-          const members = await resolveMembersForChat(chatId, msg.sender_id);
-          if (!members) return;
+          try {
+            const chatId = (msg as { chat_id?: string }).chat_id as string;
+            const members = await resolveMembersForChat(chatId, msg.sender_id);
+            if (!members) return;
 
-          const memberIds = members.map((m) => m.user_id as string);
-          if (!memberIds.includes(currentUser.profileId)) return;
+            const memberIds = members.map((m) => m.user_id as string);
+            if (!memberIds.includes(currentUser.profileId)) return;
 
-          const otherId =
-            memberIds.find((id) => id !== currentUser.profileId) ??
-            currentUser.profileId;
+            const otherId =
+              memberIds.find((id) => id !== currentUser.profileId) ??
+              currentUser.profileId;
 
-          if (activeChatId === chatId) {
-            setChatMessages((prev) => [...prev, msg]);
-            void markChatAsRead(chatId, currentUser.profileId);
-          } else {
-            setUnreadByUser((prev) => ({
-              ...prev,
-              [otherId]: (prev[otherId] || 0) + 1,
-            }));
+            if (activeChatIdRef.current === chatId) {
+              setChatMessages((prev) => [...prev, msg]);
+              void markChatAsRead(chatId, currentUser.profileId);
+            } else {
+              setUnreadByUser((prev) => ({
+                ...prev,
+                [otherId]: (prev[otherId] || 0) + 1,
+              }));
+            }
+
+            notifyUsefulContactsChanged();
+
+            let updatedList = false;
+            setChatList((prev) => {
+              const idx = prev.findIndex((x) => x.chatId === chatId);
+              if (idx < 0) return prev;
+              updatedList = true;
+              const next = [...prev];
+              const item = {
+                ...next[idx],
+                lastMessageAt: msg.created_at,
+                lastMessagePreview: String(msg.content ?? "").trim(),
+              };
+              next.splice(idx, 1);
+              return [item, ...next];
+            });
+
+            if (!updatedList) {
+              await reloadSidebar();
+            }
+          } catch {
+            //
           }
+        },
+        onUpdate: async (payload) => {
+          const msg = payload as ChatMessage & { chat_id?: string };
 
-          notifyUsefulContactsChanged();
+          if (blockedRef.current.includes(msg.sender_id)) return;
 
-          setChatList((prev) => {
-            const idx = prev.findIndex((x) => x.chatId === chatId);
-            if (idx < 0) return prev;
-            const next = [...prev];
-            const item = {
-              ...next[idx],
-              lastMessageAt: msg.created_at,
-              lastMessagePreview: String(msg.content ?? "").trim(),
-            };
-            next.splice(idx, 1);
-            return [item, ...next];
-          });
-        } catch {
-          //
-        }
-      },
-      onUpdate: async (payload) => {
-        const msg = payload as ChatMessage & { chat_id?: string };
+          try {
+            const chatId = (msg as { chat_id?: string }).chat_id as string;
+            const members = await resolveMembersForChat(chatId, msg.sender_id);
+            if (!members) return;
 
-        if (blockedProfileIds.includes(msg.sender_id)) return;
+            const memberIds = members.map((m) => m.user_id as string);
+            if (!memberIds.includes(currentUser.profileId)) return;
 
-        try {
-          const chatId = (msg as { chat_id?: string }).chat_id as string;
-          const members = await resolveMembersForChat(chatId, msg.sender_id);
-          if (!members) return;
+            if (activeChatIdRef.current === chatId) {
+              setChatMessages((prev) =>
+                prev.map((m) => (m.id === msg.id ? msg : m)),
+              );
+            }
 
-          const memberIds = members.map((m) => m.user_id as string);
-          if (!memberIds.includes(currentUser.profileId)) return;
-
-          if (activeChatId === chatId) {
-            setChatMessages((prev) =>
-              prev.map((m) => (m.id === msg.id ? msg : m)),
-            );
+            setChatList((prev) => {
+              const idx = prev.findIndex((x) => x.chatId === chatId);
+              if (idx < 0) return prev;
+              const next = [...prev];
+              const item = {
+                ...next[idx],
+                lastMessagePreview: String(msg.content ?? "").trim(),
+              };
+              next[idx] = item;
+              return next;
+            });
+          } catch {
+            //
           }
-
-          setChatList((prev) => {
-            const idx = prev.findIndex((x) => x.chatId === chatId);
-            if (idx < 0) return prev;
-            const next = [...prev];
-            const item = {
-              ...next[idx],
-              lastMessagePreview: String(msg.content ?? "").trim(),
-            };
-            next[idx] = item;
-            return next;
-          });
-        } catch {
-          //
-        }
-      },
-      onDelete: async (payload) => {
-        const msg = payload as ChatMessage & { chat_id?: string };
-        if (!msg.id) return;
-        if (msg.sender_id && blockedProfileIds.includes(msg.sender_id)) return;
-
-        try {
-          const chatId = msg.chat_id as string | undefined;
-          if (!chatId) {
-            setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
+        },
+        onDelete: async (payload) => {
+          const msg = payload as ChatMessage & { chat_id?: string };
+          if (!msg.id) return;
+          if (msg.sender_id && blockedRef.current.includes(msg.sender_id))
             return;
-          }
 
-          const members = await resolveMembersForChat(
-            chatId,
-            msg.sender_id || currentUser.profileId,
-          );
-          if (!members) return;
+          try {
+            const chatId = msg.chat_id as string | undefined;
+            if (!chatId) {
+              setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
+              return;
+            }
 
-          const memberIds = members.map((m) => m.user_id as string);
-          if (!memberIds.includes(currentUser.profileId)) return;
+            const members = await resolveMembersForChat(
+              chatId,
+              msg.sender_id || currentUser.profileId,
+            );
+            if (!members) return;
 
-          if (activeChatId === chatId) {
+            const memberIds = members.map((m) => m.user_id as string);
+            if (!memberIds.includes(currentUser.profileId)) return;
+
+            if (activeChatIdRef.current === chatId) {
+              setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
+            }
+
+            const last = await fetchLatestMessageMeta(chatId);
+            setChatList((prev) => {
+              const idx = prev.findIndex((x) => x.chatId === chatId);
+              if (idx < 0) return prev;
+              const next = [...prev];
+              next[idx] = {
+                ...next[idx],
+                lastMessageAt: last?.at ?? null,
+                lastMessagePreview: last?.preview ? last.preview : null,
+              };
+              return next;
+            });
+
+            if (
+              activeChatIdRef.current !== chatId &&
+              msg.sender_id &&
+              msg.sender_id !== currentUser.profileId
+            ) {
+              const counts = await loadDmUnreadCounts(currentUser.profileId, [
+                ...blockedRef.current,
+              ]);
+              setUnreadByUser(counts);
+            }
+          } catch {
             setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
           }
-
-          const last = await fetchLatestMessageMeta(chatId);
-          setChatList((prev) => {
-            const idx = prev.findIndex((x) => x.chatId === chatId);
-            if (idx < 0) return prev;
-            const next = [...prev];
-            next[idx] = {
-              ...next[idx],
-              lastMessageAt: last?.at ?? null,
-              lastMessagePreview: last?.preview ? last.preview : null,
-            };
-            return next;
-          });
-
-          if (
-            activeChatId !== chatId &&
-            msg.sender_id &&
-            msg.sender_id !== currentUser.profileId
-          ) {
-            const counts = await loadDmUnreadCounts(currentUser.profileId, [
-              ...blockedProfileIds,
-            ]);
-            setUnreadByUser(counts);
-          }
-        } catch {
-          setChatMessages((prev) => prev.filter((m) => m.id !== msg.id));
-        }
+        },
       },
-    });
+      { chatIds: knownChatIds },
+    );
 
     return () => {
       unsubscribeChannel(channel);
     };
   }, [
     currentUser,
-    activeChatId,
-    blockedProfileIds,
+    knownChatIdsKey,
     chatMembershipRef,
     setChatMessages,
     setUnreadByUser,
