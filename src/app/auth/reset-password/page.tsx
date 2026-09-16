@@ -20,11 +20,11 @@ import {
   isOtpSendLimitedError,
   requestOtpSend,
 } from "@/lib/authOtpSendClient";
+import { requestAuthLogin } from "@/lib/authLoginClient";
 import {
   authGetSession,
   authOnAuthStateChange,
   authRefreshSessionPublic,
-  authSignInWithPassword,
   authUpdateUser,
   authVerifyOtp,
   completeAuthEmailCallbackWithParams,
@@ -264,11 +264,7 @@ export default function ResetPasswordPage() {
       } = await authGetSession();
 
       if (isPasswordRecoverySession(sessionAfterRefresh) && email) {
-        const { error: signInErr } = await authSignInWithPassword({
-          email,
-          password,
-        });
-        if (signInErr) throw signInErr;
+        await requestAuthLogin(email, password);
       }
 
       markPasswordResetComplete();

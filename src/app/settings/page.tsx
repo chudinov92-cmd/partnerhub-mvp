@@ -6,10 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
 import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
+import { requestAuthLogin } from "@/lib/authLoginClient";
 import {
   authGetUser,
   authSignOut,
-  authSignInWithPassword,
   authUpdateUser,
 } from "@/services/authService";
 import {
@@ -197,11 +197,9 @@ export default function SettingsPage() {
     }
     setPasswordBusy(true);
     try {
-      const { error: signErr } = await authSignInWithPassword({
-        email,
-        password: currentPassword,
-      });
-      if (signErr) {
+      try {
+        await requestAuthLogin(email, currentPassword);
+      } catch {
         setPasswordErr("Текущий пароль неверный");
         return;
       }

@@ -13,6 +13,8 @@ export type CookieStoreLike = Pick<typeof cookies.prototype, "getAll"> &
 /** Mutable holder — setAll пересоздаёт response по паттерну @supabase/ssr. */
 export type SupabaseMiddlewareResponseHolder = {
   current: NextResponse;
+  /** Заголовки запроса с x-nonce — сохраняем при refresh cookie-сессии. */
+  requestHeaders: Headers;
 };
 
 /** Supabase в middleware: чтение request.cookies, запись в request + response. */
@@ -30,7 +32,7 @@ export function createSupabaseMiddlewareClient(
           request.cookies.set(name, value);
         });
         holder.current = NextResponse.next({
-          request: { headers: request.headers },
+          request: { headers: holder.requestHeaders },
         });
         toSet.forEach(({ name, value, options }) => {
           holder.current.cookies.set(name, value, options);

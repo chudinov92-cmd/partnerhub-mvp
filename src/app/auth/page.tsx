@@ -28,13 +28,16 @@ import {
   authGetUser,
   authLocalSignOut,
   authOnAuthStateChange,
-  authSignInWithPassword,
   authVerifyOtp,
   completeAuthEmailCallbackFromLocation,
 } from "@/services/authService";
 import { linkAnonymousCookieConsent, recordAgreementConsent } from "@/lib/cookieConsent";
 import { PasswordInput } from "@/components/PasswordInput";
 import { useOtpSendCooldown } from "@/hooks/useOtpSendCooldown";
+import {
+  isAuthLoginLimitedError,
+  requestAuthLogin,
+} from "@/lib/authLoginClient";
 import {
   isOtpSendLimitedError,
   requestOtpSend,
@@ -699,15 +702,11 @@ export default function AuthPage() {
         });
 
         try {
-          const { error } = await withAuthTimeout(
-            authSignInWithPassword({
-              email,
-              password,
-            }),
-            "signInWithPassword",
+          await withAuthTimeout(
+            requestAuthLogin(email, password),
+            "requestAuthLogin",
             AUTH_FORM_TIMEOUT_MS,
           );
-          if (error) throw error;
           const {
             data: { session },
           } = await withAuthTimeout(
@@ -719,6 +718,10 @@ export default function AuthPage() {
             await finishSignIn(session.user.id);
           }
         } catch (err: unknown) {
+          if (!redirected && isAuthLoginLimitedError(err)) {
+            setError(err.message);
+            return;
+          }
           if (
             !redirected &&
             isAuthTimeoutError(err)

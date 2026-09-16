@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
+import { SCHEMA_ORG_JSON_LD, SITE_URL } from "@/lib/inlineScripts";
 import { AuthRecoveryUrlHandler } from "@/components/AuthRecoveryUrlHandler";
 import { AuthSessionKeeper } from "@/components/AuthSessionKeeper";
 import { RecoveryRedirectScript } from "@/components/RecoveryRedirectScript";
@@ -13,7 +13,6 @@ import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { VkPixel } from "@/components/VkPixel";
 import { SelectedCityProvider } from "@/contexts/SelectedCityContext";
 
-const SITE_URL = "https://zeip.ru";
 const OG_IMAGE = `${SITE_URL}/assets/landing/og-image.jpg`;
 
 export const metadata: Metadata = {
@@ -99,45 +98,6 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${SITE_URL}/#organization`,
-      name: "Zeip",
-      alternateName: ["ЗЕИП", "Зеип", "зеип"],
-      legalName: "ООО «ЗЕИП»",
-      url: SITE_URL,
-      logo: {
-        "@type": "ImageObject",
-        url: `${SITE_URL}/zeip-logo.svg`,
-      },
-      sameAs: [],
-      description:
-        "Zeip — карта людей в твоём городе, готовых вместе делать бизнес-проекты. Найди партнёра, единомышленника или команду рядом.",
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      url: SITE_URL,
-      name: "Zeip",
-      description:
-        "Карта людей, готовых делать проекты вместе. Поиск бизнес-партнёров и команд по городам России.",
-      publisher: { "@id": `${SITE_URL}/#organization` },
-      inLanguage: "ru-RU",
-      potentialAction: {
-        "@type": "SearchAction",
-        target: {
-          "@type": "EntryPoint",
-          urlTemplate: `${SITE_URL}/map?q={search_term_string}`,
-        },
-        "query-input": "required name=search_term_string",
-      },
-    },
-  ],
-};
-
 export const viewport: Viewport = {
   themeColor: "#009966",
   width: "device-width",
@@ -153,10 +113,10 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <head>
-        <Script
+        <script
           id="schema-org"
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: SCHEMA_ORG_JSON_LD }}
         />
       </head>
       <body className="font-sans antialiased text-slate-900">

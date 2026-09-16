@@ -115,6 +115,13 @@ else
   echo "WARN: fix-supabase-caddy-proxy.sh не найден — проверьте /etc/caddy/Caddyfile вручную"
 fi
 
+echo "=== caddy security headers (HSTS, X-Frame-Options) ==="
+if [[ -f "${ROOT}/scripts/vps/apply-caddy-security-headers.sh" ]]; then
+  bash "${ROOT}/scripts/vps/apply-caddy-security-headers.sh"
+else
+  echo "WARN: apply-caddy-security-headers.sh не найден"
+fi
+
 echo "=== check cookie-consent API ==="
 sleep 2
 curl -sS -o /dev/null -w "cookie-consent: HTTP %{http_code}\n" \

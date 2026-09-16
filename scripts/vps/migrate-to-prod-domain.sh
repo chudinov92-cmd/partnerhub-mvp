@@ -19,15 +19,29 @@ APP_ENV="${APP_ENV:-/root/zeip/my-app/deploy/timeweb/.env.app}"
 
 echo "=== 1. Caddy: zeip.ru + www.zeip.ru ==="
 cat > "${CADDYFILE}" <<'CADDY'
+(common_security_headers) {
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Frame-Options "DENY"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
 zeip.ru, www.zeip.ru {
+  import common_security_headers
   encode gzip zstd
   reverse_proxy 127.0.0.1:3001
 }
 
-# Kong: HTTP :8000, HTTPS :8443. Caddy уже снимает TLS — проксируем на :8000.
+# Kong: HTTP :8000. Caddy снимает TLS — проксируем на :8000 с IP клиента.
 supabase.zeip.ru {
+  import common_security_headers
   encode gzip zstd
-  reverse_proxy 127.0.0.1:8000
+  reverse_proxy 127.0.0.1:8000 {
+    header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+    header_up X-Real-IP {remote_host}
+  }
 }
 CADDY
 

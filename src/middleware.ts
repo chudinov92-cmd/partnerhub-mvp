@@ -1,5 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import {
+  applySecurityHeaders,
+  CSP_NONCE_HEADER,
+  generateCspNonce,
+  isCspReportOnly,
+} from "@/lib/csp";
 import { PROFILE_MAP_QUERY_PARAM } from "@/lib/profileShare";
 import {
   hasSupabaseAuthCookie,
@@ -11,19 +17,61 @@ import {
   type SupabaseMiddlewareResponseHolder,
 } from "@/lib/supabaseServer";
 
+function finalizeResponse(
+  response: NextResponse,
+  nonce: string,
+  request: NextRequest,
+): NextResponse {
+  return applySecurityHeaders(response, nonce, {
+    reportOnly: isCspReportOnly(),
+  });
+}
+
+function createMiddlewareHolder(
+  requestHeaders: Headers,
+): SupabaseMiddlewareResponseHolder {
+  return {
+    current: NextResponse.next({
+      request: { headers: requestHeaders },
+    }),
+    requestHeaders,
+  };
+}
+
+function needsAuthCheck(pathname: string): boolean {
+  return (
+    pathname === "/map" ||
+    pathname.startsWith("/map/") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/payment/success" ||
+    pathname === "/payment/fail"
+  );
+}
+
 /**
  * /admin/* — JWT + admin_users
  * /map — только авторизованные (гости → лендинг; битая сессия → /auth)
  * /payment/success, /payment/fail — refresh cookie-сессии после Robokassa
+ * Все HTML-страницы — CSP nonce + security headers
  */
 export async function middleware(request: NextRequest) {
+  const nonce = generateCspNonce();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(CSP_NONCE_HEADER, nonce);
+
   const { pathname } = request.nextUrl;
 
-  const holder: SupabaseMiddlewareResponseHolder = {
-    current: NextResponse.next({
-      request: { headers: request.headers },
-    }),
-  };
+  if (!needsAuthCheck(pathname)) {
+    return finalizeResponse(
+      NextResponse.next({
+        request: { headers: requestHeaders },
+      }),
+      nonce,
+      request,
+    );
+  }
+
+  const holder = createMiddlewareHolder(requestHeaders);
 
   const sb = createSupabaseMiddlewareClient(request, holder);
   const {
@@ -33,7 +81,7 @@ export async function middleware(request: NextRequest) {
 
   if (pathname === "/map" || pathname.startsWith("/map/")) {
     if (user) {
-      return holder.current;
+      return finalizeResponse(holder.current, nonce, request);
     }
 
     const hasAuthCookie = hasSupabaseAuthCookie(request);
@@ -42,50 +90,61 @@ export async function middleware(request: NextRequest) {
       ? `${request.nextUrl.pathname}?${PROFILE_MAP_QUERY_PARAM}=${encodeURIComponent(profileId)}`
       : "/map";
 
-    // Cookie есть — не считаем гостем: либо fail-open, либо /auth.
     if (hasAuthCookie) {
       if (authError && isAuthUnavailableError(authError)) {
-        return holder.current;
+        return finalizeResponse(holder.current, nonce, request);
       }
 
       const url = request.nextUrl.clone();
       url.pathname = "/auth";
       url.search = "";
       url.searchParams.set("redirect", mapRedirectTarget);
-      return redirectPreservingCookies(holder.current, url);
+      return finalizeResponse(
+        redirectPreservingCookies(holder.current, url),
+        nonce,
+        request,
+      );
     }
 
-    // Настоящий гость (нет cookie сессии)
     if (profileId) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth";
       url.search = "";
       url.searchParams.set("redirect", mapRedirectTarget);
-      return redirectPreservingCookies(holder.current, url);
+      return finalizeResponse(
+        redirectPreservingCookies(holder.current, url),
+        nonce,
+        request,
+      );
     }
 
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
-    return redirectPreservingCookies(holder.current, url);
+    return finalizeResponse(
+      redirectPreservingCookies(holder.current, url),
+      nonce,
+      request,
+    );
   }
 
-  if (
-    pathname === "/payment/success" ||
-    pathname === "/payment/fail"
-  ) {
-    return holder.current;
+  if (pathname === "/payment/success" || pathname === "/payment/fail") {
+    return finalizeResponse(holder.current, nonce, request);
   }
 
   if (!pathname.startsWith("/admin")) {
-    return holder.current;
+    return finalizeResponse(holder.current, nonce, request);
   }
 
   if (!user) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
     url.searchParams.set("redirect", request.nextUrl.pathname);
-    return redirectPreservingCookies(holder.current, url);
+    return finalizeResponse(
+      redirectPreservingCookies(holder.current, url),
+      nonce,
+      request,
+    );
   }
 
   const { data: adminRow, error: adminErr } = await sb
@@ -95,18 +154,25 @@ export async function middleware(request: NextRequest) {
     .maybeSingle();
 
   if (adminErr || !adminRow) {
-    return new NextResponse("Доступ запрещён", { status: 403 });
+    return finalizeResponse(
+      new NextResponse("Доступ запрещён", { status: 403 }),
+      nonce,
+      request,
+    );
   }
 
-  return holder.current;
+  return finalizeResponse(holder.current, nonce, request);
 }
 
 export const config = {
   matcher: [
-    "/admin/:path*",
-    "/map",
-    "/map/:path*",
-    "/payment/success",
-    "/payment/fail",
+    {
+      source:
+        "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };

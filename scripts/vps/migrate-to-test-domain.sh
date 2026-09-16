@@ -14,17 +14,32 @@ APP_ENV="${APP_ENV:-/root/zeip/my-app/deploy/timeweb/.env.app}"
 
 echo "=== 1. Caddy: test.zeip.ru, без zeip.ru ==="
 cat > "${CADDYFILE}" <<'CADDY'
+(common_security_headers) {
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Frame-Options "DENY"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
 test.zeip.ru {
+  import common_security_headers
   encode gzip zstd
   reverse_proxy 127.0.0.1:3001
 }
 
 supabase.zeip.ru {
+  import common_security_headers
   encode gzip zstd
-  reverse_proxy 127.0.0.1:8000
+  reverse_proxy 127.0.0.1:8000 {
+    header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+    header_up X-Real-IP {remote_host}
+  }
 }
 
 zeip.ru, www.zeip.ru {
+  import common_security_headers
   respond "Сайт временно недоступен" 404
 }
 CADDY
