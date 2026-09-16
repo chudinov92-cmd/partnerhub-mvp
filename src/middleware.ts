@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
+  applyCspToRequestHeaders,
   applySecurityHeaders,
-  CSP_NONCE_HEADER,
   generateCspNonce,
   isCspReportOnly,
 } from "@/lib/csp";
@@ -57,7 +57,9 @@ function needsAuthCheck(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const nonce = generateCspNonce();
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set(CSP_NONCE_HEADER, nonce);
+  applyCspToRequestHeaders(requestHeaders, nonce, {
+    reportOnly: isCspReportOnly(),
+  });
 
   const { pathname } = request.nextUrl;
 

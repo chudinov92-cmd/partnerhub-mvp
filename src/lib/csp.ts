@@ -4,7 +4,7 @@ import {
   SCHEMA_ORG_JSON_LD,
 } from "@/lib/inlineScripts";
 
-/** Request header для nonce — Next.js 16 читает его и ставит nonce на runtime-скрипты. */
+/** Дублируем nonce в x-nonce для layout; Next.js берёт nonce из request CSP. */
 export const CSP_NONCE_HEADER = "x-nonce";
 
 const SCRIPT_SRC_HOSTS = [
@@ -134,17 +134,36 @@ export function isCspReportOnly(): boolean {
   return process.env.CSP_REPORT_ONLY === "1";
 }
 
+export function cspHeaderName(reportOnly?: boolean): string {
+  return (reportOnly ?? isCspReportOnly())
+    ? "Content-Security-Policy-Report-Only"
+    : "Content-Security-Policy";
+}
+
+/**
+ * CSP на request, не только на response: Next.js читает nonce из
+ * Content-Security-Policy входящего запроса и ставит его на <script>.
+ * Одного x-nonce недостаточно.
+ */
+export function applyCspToRequestHeaders(
+  requestHeaders: Headers,
+  nonce: string,
+  options: SecurityHeadersOptions = {},
+): void {
+  const csp = buildCspHeader(nonce);
+  requestHeaders.set(CSP_NONCE_HEADER, nonce);
+  requestHeaders.set(cspHeaderName(options.reportOnly), csp);
+}
+
 export function applySecurityHeaders(
   response: NextResponse,
   nonce: string,
   options: SecurityHeadersOptions = {},
 ): NextResponse {
   const csp = buildCspHeader(nonce);
-  const cspHeaderName = (options.reportOnly ?? isCspReportOnly())
-    ? "Content-Security-Policy-Report-Only"
-    : "Content-Security-Policy";
+  const headerName = cspHeaderName(options.reportOnly);
 
-  response.headers.set(cspHeaderName, csp);
+  response.headers.set(headerName, csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

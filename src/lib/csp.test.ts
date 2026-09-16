@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { NextResponse } from "next/server";
 import {
+  applyCspToRequestHeaders,
   applySecurityHeaders,
   buildCspHeader,
+  CSP_NONCE_HEADER,
   INLINE_SCRIPT_HASHES,
   INLINE_SCRIPT_SOURCES,
   sha256ScriptHash,
@@ -56,6 +58,14 @@ describe("buildCspHeader", () => {
 });
 
 describe("applySecurityHeaders", () => {
+  it("puts CSP with nonce on the request so Next can stamp scripts", () => {
+    const headers = new Headers();
+    applyCspToRequestHeaders(headers, "req-nonce-1");
+    const csp = headers.get("Content-Security-Policy") ?? "";
+    assert.match(csp, /'nonce-req-nonce-1'/);
+    assert.equal(headers.get(CSP_NONCE_HEADER), "req-nonce-1");
+  });
+
   it("sets X-Frame-Options DENY", () => {
     const prevNodeEnv = process.env.NODE_ENV;
     const prevDisableHsts = process.env.CSP_DISABLE_HSTS;

@@ -4,9 +4,10 @@ import { RECOVERY_REDIRECT_SCRIPT_INLINE } from "@/lib/inlineScripts";
  * Синхронный редирект до React/Supabase: PKCE после письма часто попадает на `/` с ?code=.
  * CSP: sha256-хеш в script-src (см. inlineScripts.ts / csp.ts).
  */
-export function RecoveryRedirectScript() {
+export function RecoveryRedirectScript({ nonce }: { nonce?: string }) {
   return (
     <script
+      nonce={nonce}
       dangerouslySetInnerHTML={{ __html: RECOVERY_REDIRECT_SCRIPT_INLINE }}
       suppressHydrationWarning
     />

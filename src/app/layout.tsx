@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
+import { CSP_NONCE_HEADER } from "@/lib/csp";
 import { SCHEMA_ORG_JSON_LD, SITE_URL } from "@/lib/inlineScripts";
 import { AuthRecoveryUrlHandler } from "@/components/AuthRecoveryUrlHandler";
 import { AuthSessionKeeper } from "@/components/AuthSessionKeeper";
@@ -105,22 +107,28 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+/** CSP nonce per-request: иначе static HTML без nonce + strict-dynamic блокирует React. */
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get(CSP_NONCE_HEADER) ?? undefined;
+
   return (
     <html lang="ru">
       <head>
         <script
           id="schema-org"
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: SCHEMA_ORG_JSON_LD }}
         />
       </head>
       <body className="font-sans antialiased text-slate-900">
-        <RecoveryRedirectScript />
+        <RecoveryRedirectScript nonce={nonce} />
         <PushBootstrap />
         <AuthRecoveryUrlHandler />
         <AuthSessionKeeper />

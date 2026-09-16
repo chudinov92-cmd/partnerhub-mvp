@@ -923,7 +923,12 @@ export default function AuthPage() {
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          action="#"
+          method="post"
+          className="space-y-4"
+        >
           {mode === "signup" && (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-800">
