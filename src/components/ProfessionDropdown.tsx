@@ -50,13 +50,22 @@ export function ProfessionDropdown({
     return [...labels, OTHER_PROFESSION_LABEL];
   }, [catalog]);
 
-  const visible = useMemo(() => {
+  const { visible, showOtherHint } = useMemo(() => {
     const q = normalizeQuery(query);
-    if (!q) return sortedLabels;
-    const matches = sortedLabels.filter((l) => normalizeQuery(l).includes(q));
-    // "Другое" должно быть доступно всегда, даже без совпадений
-    if (!matches.includes(OTHER_PROFESSION_LABEL)) matches.push(OTHER_PROFESSION_LABEL);
-    return matches;
+    if (!q) return { visible: sortedLabels, showOtherHint: false };
+
+    const catalogMatches = sortedLabels.filter(
+      (l) => l !== OTHER_PROFESSION_LABEL && normalizeQuery(l).includes(q),
+    );
+    const matches =
+      catalogMatches.length > 0
+        ? [...catalogMatches, OTHER_PROFESSION_LABEL]
+        : [OTHER_PROFESSION_LABEL];
+
+    return {
+      visible: matches,
+      showOtherHint: catalogMatches.length === 0,
+    };
   }, [query, sortedLabels]);
 
   return (
@@ -91,27 +100,29 @@ export function ProfessionDropdown({
             />
           </div>
           <div className="max-h-[560px] overflow-y-auto px-1 pb-1">
-            {visible.length === 0 ? (
-              <p className="px-2 py-1 text-[11px] text-slate-400">Ничего не найдено</p>
-            ) : (
-              visible.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    onChange(label);
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                  className={
-                    "flex w-full items-center rounded-lg px-2 py-1 text-left text-[11px] hover:bg-[#009966]/10 " +
-                    (label === OTHER_PROFESSION_LABEL ? "font-medium text-slate-800" : "text-slate-700")
-                  }
-                >
-                  {label}
-                </button>
-              ))
-            )}
+            {showOtherHint ? (
+              <p className="px-2 py-1.5 text-[11px] leading-snug text-slate-500">
+                Нет вашей профессии? Выберите «Другое» и впишите её — мы добавим её в базу в
+                течение суток.
+              </p>
+            ) : null}
+            {visible.map((label) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  onChange(label);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className={
+                  "flex w-full items-center rounded-lg px-2 py-1 text-left text-[11px] hover:bg-[#009966]/10 " +
+                  (label === OTHER_PROFESSION_LABEL ? "font-medium text-slate-800" : "text-slate-700")
+                }
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       )}

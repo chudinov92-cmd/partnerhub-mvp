@@ -20,6 +20,8 @@ import {
 } from "@/services/authService";
 import { CityDropdown } from "@/components/CityDropdown";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
+import { ProfessionDidYouMeanModal } from "@/components/ProfessionDidYouMeanModal";
+import { ProfessionOtherInput } from "@/components/ProfessionOtherInput";
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { MultiChoiceRow } from "@/components/MultiChoiceRow";
 import { PioneerModal } from "@/components/PioneerModal";
@@ -43,9 +45,10 @@ import { maskProfanity } from "@/lib/profanity";
 import {
   loadProfessionCatalog,
   OTHER_PROFESSION_LABEL,
-  upsertProfession,
+  syncCustomProfessionToCatalog,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
+import { useProfessionOtherResolver } from "@/lib/useProfessionOtherResolver";
 import {
   getIndustryLabelsForSelect,
   getSubindustryLabelsForSelect,
@@ -239,6 +242,8 @@ export default function OnboardingPage() {
   const [pioneerModalOpen, setPioneerModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const coordsMovedRef = useRef(false);
+  const professionOtherInputRef = useRef<HTMLInputElement>(null);
+  const professionResolver = useProfessionOtherResolver(professionCatalog);
 
   const interestedValues = useMemo(
     () => parseInterestedProfessions(profile?.interested_in),
@@ -450,15 +455,29 @@ export default function OnboardingPage() {
     }
 
     if (step === 1) {
-      if (professionIsOther && profile.role_title?.trim()) {
-        try {
-          await upsertProfession(profile.role_title.trim(), []);
-        } catch {
-          //
+      let roleTitle = profile.role_title;
+      if (professionIsOther && roleTitle?.trim()) {
+        const resolved = await professionResolver.resolveForSave(roleTitle);
+        if (resolved.action === "canonical") {
+          setProfessionIsOther(false);
+          roleTitle = resolved.label;
+          setProfile((prev) =>
+            prev ? { ...prev, role_title: resolved.label } : prev,
+          );
+        } else {
+          roleTitle = resolved.label;
+          const nextCatalog = await syncCustomProfessionToCatalog(
+            professionCatalog,
+            resolved.label,
+          );
+          setProfessionCatalog(nextCatalog);
+          setProfile((prev) =>
+            prev ? { ...prev, role_title: resolved.label } : prev,
+          );
         }
       }
       await persistStep(step + 1, {
-        role_title: maskProfanity(profile.role_title),
+        role_title: maskProfanity(roleTitle),
         industry: profile.industry,
         industry_other:
           profile.industry === "Другое"
@@ -729,21 +748,39 @@ export default function OnboardingPage() {
                       ...profile,
                       role_title: isOther ? "" : v,
                     });
+                    if (isOther) {
+                      requestAnimationFrame(() => {
+                        professionOtherInputRef.current?.focus();
+                      });
+                    }
                   }}
                 />
                 {professionIsOther ? (
-                  <input
-                    type="text"
-                    value={profile.role_title ?? ""}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        role_title: e.target.value.slice(0, 40),
-                      })
-                    }
-                    placeholder="Введите профессию"
-                    className={"mt-2 " + FIELD_CLASS}
-                  />
+                  <div className="mt-2">
+                    <ProfessionOtherInput
+                      inputRef={professionOtherInputRef}
+                      autoFocus
+                      value={profile.role_title ?? ""}
+                      catalog={professionCatalog}
+                      dismissedKeys={professionResolver.dismissedKeys}
+                      onDismissSuggestion={professionResolver.dismissSuggestion}
+                      onChange={(v) =>
+                        setProfile({
+                          ...profile,
+                          role_title: v,
+                        })
+                      }
+                      onResolved={(canonicalLabel) => {
+                        setProfessionIsOther(false);
+                        setProfile({
+                          ...profile,
+                          role_title: canonicalLabel,
+                        });
+                      }}
+                      placeholder="Введите профессию"
+                      className={FIELD_CLASS}
+                    />
+                  </div>
                 ) : null}
               </div>
               <div>
@@ -969,6 +1006,13 @@ export default function OnboardingPage() {
       <PioneerModal
         open={pioneerModalOpen}
         onClose={() => setPioneerModalOpen(false)}
+      />
+      <ProfessionDidYouMeanModal
+        open={professionResolver.modalOpen}
+        input={professionResolver.modalInput}
+        suggestion={professionResolver.modalSuggestion}
+        onConfirm={professionResolver.confirmCanonical}
+        onReject={professionResolver.confirmCustom}
       />
       <QuizCompleteModal
         open={completeModalOpen}

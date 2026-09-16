@@ -9,13 +9,18 @@ import { authGetUser } from "@/services/authService";
 import {
   OTHER_PROFESSION_LABEL,
   loadProfessionCatalog,
-  upsertProfession,
+  shouldUpsertProfession,
+  syncCustomProfessionToCatalog,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
+import { finalizeProfessionLabel } from "@/lib/professionOtherResolve";
+import { useProfessionOtherResolver } from "@/lib/useProfessionOtherResolver";
 import { DropdownSelect } from "@/components/DropdownSelect";
 import { CityDropdown } from "@/components/CityDropdown";
 import { MultiChoiceRow } from "@/components/MultiChoiceRow";
 import { ProfessionDropdown } from "@/components/ProfessionDropdown";
+import { ProfessionDidYouMeanModal } from "@/components/ProfessionDidYouMeanModal";
+import { ProfessionOtherInput } from "@/components/ProfessionOtherInput";
 import { maskProfanity } from "@/lib/profanity";
 import {
   getIndustryLabelsForSelect,
@@ -357,6 +362,8 @@ export default function ProfilePage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const profileLoadInFlightRef = useRef(false);
+  const professionOtherInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const professionResolver = useProfessionOtherResolver(professionCatalog);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveFeedback, setSaveFeedback] = useState<ProfileSaveFeedback | null>(
@@ -691,15 +698,19 @@ export default function ProfilePage() {
     setIsSaved(false);
 
     try {
-      // If user entered a custom profession ("Другое"), persist it in catalog.
-      if (professionIsOther) {
-        const v = (profile.role_title ?? "").trim();
-        if (v) {
-          try {
-            await upsertProfession(v, []);
-          } catch {
-            // best-effort: should not block saving profile
-          }
+      let nextProfessionCatalog = professionCatalog;
+      let resolvedRoleTitle = profile.role_title;
+
+      if (professionIsOther && (profile.role_title ?? "").trim()) {
+        const finalized = await finalizeProfessionLabel(
+          nextProfessionCatalog,
+          profile.role_title ?? "",
+          professionResolver.resolveForSave,
+        );
+        nextProfessionCatalog = finalized.catalog;
+        resolvedRoleTitle = finalized.label;
+        if (finalized.usedCanonical) {
+          setProfessionIsOther(false);
         }
       }
 
@@ -727,20 +738,23 @@ export default function ProfilePage() {
         }
       }
 
-      // Sync custom values from additional Group 2 blocks to catalogs as well.
-      // This ensures values typed after clicking "Другое" appear in dropdowns after next refresh (and after 04:00 rule).
-      for (const wb of workBlocks) {
+      const resolvedWorkBlocks = [...workBlocks];
+      for (let i = 0; i < resolvedWorkBlocks.length; i += 1) {
+        const wb = resolvedWorkBlocks[i];
         const roleRaw = (wb.role_title ?? "").trim();
-        const role = maskProfanity(roleRaw);
-        if (role && role !== OTHER_PROFESSION_LABEL) {
-          const exists = professionCatalog.some((p) => p.label === role);
-          if (!exists) {
-            try {
-              await upsertProfession(role, []);
-            } catch {}
-          }
+        if (roleRaw && roleRaw !== OTHER_PROFESSION_LABEL) {
+          const finalized = await finalizeProfessionLabel(
+            nextProfessionCatalog,
+            roleRaw,
+            professionResolver.resolveForSave,
+          );
+          nextProfessionCatalog = finalized.catalog;
+          resolvedWorkBlocks[i] = { ...wb, role_title: finalized.label };
         }
+      }
 
+      // Sync custom industry/subindustry values from additional Group 2 blocks.
+      for (const wb of resolvedWorkBlocks) {
         if ((wb.industry ?? null) === "Другое") {
           const indOtherRaw = (wb.industry_other ?? "").trim();
           const indOther = maskProfanity(indOtherRaw);
@@ -782,15 +796,15 @@ export default function ProfilePage() {
         ),
       );
       for (const profession of interestedProfessionValues) {
-        const exists = professionCatalog.some((p) => p.label === profession);
-        if (!exists) {
-          try {
-            await upsertProfession(profession, []);
-          } catch {
-            // best-effort
-          }
+        if (shouldUpsertProfession(nextProfessionCatalog, profession)) {
+          nextProfessionCatalog = await syncCustomProfessionToCatalog(
+            nextProfessionCatalog,
+            profession,
+          );
         }
       }
+
+      setProfessionCatalog(nextProfessionCatalog);
 
       // обновляем профиль
       const { error: updateError } = await profileTable("profiles")
@@ -805,7 +819,7 @@ export default function ProfilePage() {
               ? maskProfanity(profile.industry_other)
               : null,
           subindustry: profile.subindustry,
-          role_title: maskProfanity(profile.role_title),
+          role_title: maskProfanity(resolvedRoleTitle),
           experience_years: profile.experience_years,
           current_status: profile.current_status
             ? maskProfanity(profile.current_status)
@@ -832,7 +846,7 @@ export default function ProfilePage() {
       // Sync repeating work blocks to DB (replace-all strategy)
       try {
         await deleteProfileWork(profile.id);
-        const payload = workBlocks
+        const payload = resolvedWorkBlocks
           .filter((b) => {
             const hasRole = (b.role_title ?? "").trim().length > 0;
             const hasIndustry = (b.industry ?? "").trim().length > 0;
@@ -898,6 +912,13 @@ export default function ProfilePage() {
       const skillsEmpty =
         !profile.skills?.trim() && !profile.resources?.trim();
 
+      const savedProfile = {
+        ...profile,
+        role_title: resolvedRoleTitle,
+      };
+      setProfile(savedProfile);
+      setWorkBlocks(resolvedWorkBlocks);
+
       showSaveFeedback({
         successMessage: "Профиль успешно сохранён",
         subscriptionHint: needsSubscriptionForDm
@@ -910,8 +931,8 @@ export default function ProfilePage() {
       });
       setIsSaved(true);
       savedSnapshotRef.current = buildProfileSnapshot(
-        profile,
-        workBlocks,
+        savedProfile,
+        resolvedWorkBlocks,
         lastName,
         coords,
       );
@@ -1331,6 +1352,11 @@ export default function ProfilePage() {
                           role_title: isOther ? OTHER_PROFESSION_LABEL : v,
                         });
                       }
+                      if (isOther) {
+                        requestAnimationFrame(() => {
+                          professionOtherInputRefs.current.get(blockIndex)?.focus();
+                        });
+                      }
                     }}
                   />
                   {isProfessionOther && (
@@ -1338,17 +1364,27 @@ export default function ProfilePage() {
                       <label className="mb-1 block text-xs text-slate-500">
                         Укажите профессию (если выбрано «Другое»)
                       </label>
-                      <input
-                        type="text"
+                      <ProfessionOtherInput
+                        inputRef={(el) => {
+                          if (el) professionOtherInputRefs.current.set(blockIndex, el);
+                          else professionOtherInputRefs.current.delete(blockIndex);
+                        }}
+                        autoFocus
                         value={
                           b.role_title === OTHER_PROFESSION_LABEL
                             ? ""
                             : b.role_title ?? ""
                         }
-                        onChange={(e) =>
-                          ctx.set({ ...b, role_title: e.target.value.slice(0, 40) })
-                        }
-                        maxLength={40}
+                        catalog={professionCatalog}
+                        dismissedKeys={professionResolver.dismissedKeys}
+                        onDismissSuggestion={professionResolver.dismissSuggestion}
+                        onChange={(v) => ctx.set({ ...b, role_title: v })}
+                        onResolved={(canonicalLabel) => {
+                          if (isPrimaryBlock) {
+                            ctx.setOtherProfession(false);
+                          }
+                          ctx.set({ ...b, role_title: canonicalLabel });
+                        }}
                         placeholder="Введите название"
                         className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
                       />
@@ -1708,6 +1744,14 @@ export default function ProfilePage() {
             } max-h-[42rem]`}
           />
         </div>
+
+        <ProfessionDidYouMeanModal
+          open={professionResolver.modalOpen}
+          input={professionResolver.modalInput}
+          suggestion={professionResolver.modalSuggestion}
+          onConfirm={professionResolver.confirmCanonical}
+          onReject={professionResolver.confirmCustom}
+        />
 
         {deleteBlockConfirmOpen && (
           <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/50 px-3">

@@ -1,12 +1,27 @@
 import { supabase } from "@/lib/supabaseClient";
 import { PROFESSION_CATALOG_SEED } from "@/data/professionsSeed";
 import { maskProfanity } from "@/lib/profanity";
+import {
+  appendProfessionToCatalog,
+  normalizeProfessionKey,
+  shouldUpsertProfession,
+} from "@/lib/professionCatalogMatch";
+import {
+  OTHER_PROFESSION_LABEL,
+  type ProfessionCatalogRow,
+} from "@/lib/professionCatalog.types";
 
-export type ProfessionCatalogRow = {
-  label: string;
-};
-
-export const OTHER_PROFESSION_LABEL = "Другое";
+export type { ProfessionCatalogRow } from "@/lib/professionCatalog.types";
+export { OTHER_PROFESSION_LABEL } from "@/lib/professionCatalog.types";
+export {
+  appendProfessionToCatalog,
+  findProfessionByKey,
+  findSimilarProfessions,
+  normalizeProfessionKey,
+  PROFESSION_FUZZY_THRESHOLD,
+  resolveProfessionInput,
+  shouldUpsertProfession,
+} from "@/lib/professionCatalogMatch";
 
 const LS_KEY = "profession_catalog_v2";
 const LS_FETCHED_AT_KEY = "profession_catalog_fetched_at_v2";
@@ -53,7 +68,6 @@ export async function fetchProfessionCatalogFromDb(): Promise<ProfessionCatalogR
 
   if (error) throw error;
   const rows = (data ?? []) as ProfessionCatalogRow[];
-  // remove any legacy "Другое…" records from DB (handled as synthetic option)
   const filtered = rows.filter(
     (r) => r.label && r.label !== "Другое…" && r.label !== OTHER_PROFESSION_LABEL,
   );
@@ -124,7 +138,6 @@ export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
   }
 
   try {
-    // Ensure initial data exists (best-effort; requires auth and insert policy)
     await seedCatalogIfEmptyAuthenticated();
   } catch {
     // ignore seed errors; we'll still try to fetch or fallback to cache
@@ -138,7 +151,6 @@ export async function loadProfessionCatalog(): Promise<ProfessionCatalogRow[]> {
     }
     return fresh;
   } catch {
-    // If DB is temporarily unavailable, keep app working with cached values.
     if (cachedRows) return cachedRows;
     return [];
   }
@@ -156,10 +168,23 @@ export async function upsertProfession(label: string, specialties: string[] = []
   void specialties;
   const v = maskProfanity((label ?? "").trim());
   if (!v) return;
-  if (v === OTHER_PROFESSION_LABEL || v === "Другое…") return;
+  const key = normalizeProfessionKey(v);
+  if (!key || key === normalizeProfessionKey(OTHER_PROFESSION_LABEL)) return;
 
   await supabase
     .from("profession_catalog")
-    .upsert({ label: v }, { onConflict: "label" });
+    .upsert({ label: v, label_key: key }, { onConflict: "label_key", ignoreDuplicates: true });
 }
 
+export async function syncCustomProfessionToCatalog(
+  catalog: ProfessionCatalogRow[],
+  label: string,
+): Promise<ProfessionCatalogRow[]> {
+  if (!shouldUpsertProfession(catalog, label)) return catalog;
+  try {
+    await upsertProfession(label);
+  } catch {
+    // best-effort
+  }
+  return appendProfessionToCatalog(catalog, label);
+}
