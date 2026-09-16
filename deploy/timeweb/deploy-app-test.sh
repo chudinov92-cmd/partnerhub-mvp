@@ -38,8 +38,8 @@ fi
 
 echo "=== docker build app-web-test ==="
 cd "${ROOT}/deploy/timeweb"
-docker compose --env-file .env.app.test -f docker-compose.app.yml build app-web-test
-docker compose --env-file .env.app.test -f docker-compose.app.yml up -d app-web-test
+docker compose --env-file .env.app.test --profile test -f docker-compose.app.yml build app-web-test
+docker compose --env-file .env.app.test --profile test -f docker-compose.app.yml up -d app-web-test
 
 echo "=== check test :3002 ==="
 sleep 3

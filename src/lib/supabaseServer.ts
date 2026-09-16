@@ -10,10 +10,15 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 export type CookieStoreLike = Pick<typeof cookies.prototype, "getAll"> &
   Partial<Pick<typeof cookies.prototype, "set">>;
 
-/** Supabase в middleware: чтение request.cookies, запись в response.cookies. */
+/** Mutable holder — setAll пересоздаёт response по паттерну @supabase/ssr. */
+export type SupabaseMiddlewareResponseHolder = {
+  current: NextResponse;
+};
+
+/** Supabase в middleware: чтение request.cookies, запись в request + response. */
 export function createSupabaseMiddlewareClient(
   request: NextRequest,
-  response: NextResponse,
+  holder: SupabaseMiddlewareResponseHolder,
 ) {
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -21,9 +26,15 @@ export function createSupabaseMiddlewareClient(
         return request.cookies.getAll();
       },
       setAll(toSet: { name: string; value: string; options?: CookieOptions }[]) {
-        for (const c of toSet) {
-          response.cookies.set(c.name, c.value, c.options);
-        }
+        toSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        holder.current = NextResponse.next({
+          request: { headers: request.headers },
+        });
+        toSet.forEach(({ name, value, options }) => {
+          holder.current.cookies.set(name, value, options);
+        });
       },
     },
   });
