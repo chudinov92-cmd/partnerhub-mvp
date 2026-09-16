@@ -28,10 +28,7 @@ export async function insertLocation(row: {
   return supabase.from("locations").insert(row);
 }
 
-export async function claimPioneerSlot(params: {
-  p_profile_id: string;
-  p_city: string;
-}) {
+export async function claimPioneerSlot(params: { p_city: string }) {
   return supabase.rpc("claim_pioneer_slot", params);
 }
 

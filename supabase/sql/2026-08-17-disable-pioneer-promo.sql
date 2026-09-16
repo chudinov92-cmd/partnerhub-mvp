@@ -1,3 +1,8 @@
+-- УСТАРЕЛО: не запускать после 2026-09-16-pioneer-promo-admin.sql.
+-- Этот скрипт затирает claim_pioneer_slot константой v_promo_enabled и снова
+-- пишет только is_pro (без subscription_plan). Актуальный kill switch —
+-- pioneer_promo_settings.enabled из /admin/promo.
+
 -- Kill switch акции «первые 50 в городе».
 -- claim_pioneer_slot всегда false → квиз не выдаёт Pro, можно тестировать оплату.
 --

@@ -91,6 +91,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       { href: "/admin/reports", label: "Репорты", min: "support" as AdminRole },
       { href: "/admin/analytics", label: "Аналитика", min: "support" as AdminRole },
       { href: "/admin/catalogs", label: "Справочники", min: "super_admin" as AdminRole },
+      { href: "/admin/promo", label: "Акция", min: "super_admin" as AdminRole },
       { href: "/admin/admins", label: "Админы", min: "super_admin" as AdminRole },
     ];
     const rank = (r: AdminRole) =>

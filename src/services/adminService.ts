@@ -143,6 +143,34 @@ export async function adminDeleteAdminUser(authUserId: string) {
   return supabase.from("admin_users").delete().eq("auth_user_id", authUserId);
 }
 
+export async function adminFetchPioneerPromoSettings() {
+  return supabase
+    .from("pioneer_promo_settings")
+    .select("id, enabled, updated_at")
+    .eq("id", true)
+    .maybeSingle();
+}
+
+export async function adminSetPioneerPromoEnabled(enabled: boolean) {
+  return supabase
+    .from("pioneer_promo_settings")
+    .update({ enabled })
+    .eq("id", true);
+}
+
+export async function adminFetchPioneerSlots() {
+  return supabase
+    .from("city_pioneer_slots")
+    .select("city, used_count, max_count")
+    .order("city", { ascending: true });
+}
+
+export async function adminSetPioneerCityMax(city: string, maxCount: number) {
+  return supabase
+    .from("city_pioneer_slots")
+    .upsert({ city, max_count: maxCount }, { onConflict: "city" });
+}
+
 export async function adminFetchDashboardCounts(params: {
   fromIso: string;
   toIso: string;

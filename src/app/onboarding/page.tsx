@@ -47,7 +47,7 @@ import {
   isValidAge,
   parseAgeInput,
 } from "@/lib/ageInput";
-import { isPioneerPromoEnabled } from "@/lib/pioneerPromo";
+import { fetchPioneerPromoEnabled } from "@/lib/pioneerPromo";
 import { fetchPioneerSlotsRemaining } from "@/lib/pioneerSlots";
 import { CITY_VIEWS } from "@/data/cityMapViews";
 import { maskProfanity } from "@/lib/profanity";
@@ -257,6 +257,7 @@ export default function OnboardingPage() {
   const [subindustryIsOther, setSubindustryIsOther] = useState(false);
   const [interestedDraft, setInterestedDraft] = useState<string | null>(null);
   const [pioneerRemaining, setPioneerRemaining] = useState<number | null>(null);
+  const [pioneerPromoEnabled, setPioneerPromoEnabled] = useState(false);
   const [pioneerModalOpen, setPioneerModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const coordsMovedRef = useRef(false);
@@ -389,18 +390,28 @@ export default function OnboardingPage() {
   }, [router]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchPioneerPromoEnabled().then((enabled) => {
+      if (!cancelled) setPioneerPromoEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (step >= 2) {
       void import("@/components/ProfileLocationPicker");
     }
   }, [step]);
 
   useEffect(() => {
-    if (!isPioneerPromoEnabled() || !profile?.city) {
+    if (!pioneerPromoEnabled || !profile?.city) {
       setPioneerRemaining(null);
       return;
     }
     void fetchPioneerSlotsRemaining(profile.city).then(setPioneerRemaining);
-  }, [profile?.city]);
+  }, [pioneerPromoEnabled, profile?.city]);
 
   const persistStep = useCallback(
     async (nextStep: number, patch: Record<string, unknown>) => {
@@ -513,9 +524,9 @@ export default function OnboardingPage() {
 
       const city = profile.city?.trim();
       let isPioneer = false;
-      if (isPioneerPromoEnabled() && city) {
+      const promoOn = await fetchPioneerPromoEnabled();
+      if (promoOn && city) {
         const { data: claimed, error: rpcErr } = await claimPioneerSlot({
-          p_profile_id: profile.id,
           p_city: city,
         });
         if (!rpcErr && claimed === true) {
@@ -692,7 +703,7 @@ export default function OnboardingPage() {
                 />
                 {pioneerRemaining != null && pioneerRemaining > 0 ? (
                   <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs leading-snug text-[#009966]">
-                    Осталось {pioneerRemaining} бесплатных подписок на 90 дней в
+                    Осталось {pioneerRemaining} бесплатных подписок Pro+ на 90 дней в
                     вашем городе
                   </p>
                 ) : null}

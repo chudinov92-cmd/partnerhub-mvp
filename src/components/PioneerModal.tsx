@@ -43,7 +43,7 @@ export function PioneerModal({ open, onClose }: PioneerModalProps) {
             Ура! Вы один из первых в вашем городе
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-600">
-            Дарим вам бесплатную подписку на 90 дней — все функции Zeip уже
+            Дарим вам бесплатную подписку Pro+ на 90 дней — все функции Zeip уже
             доступны.
           </p>
           <button
