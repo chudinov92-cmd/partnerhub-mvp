@@ -22,7 +22,6 @@ import { reachYandexMetrikaGoal } from "@/lib/yandexMetrika";
 import {
   authFormsGetSession,
   authFormsOnAuthStateChange,
-  authFormsSignInWithPassword,
   authFormsSignUp,
   authGetSession,
   authGetUser,
@@ -702,20 +701,24 @@ export default function AuthPage() {
         });
 
         try {
-          await withAuthTimeout(
+          const userId = await withAuthTimeout(
             requestAuthLogin(email, password),
             "requestAuthLogin",
             AUTH_FORM_TIMEOUT_MS,
           );
-          const {
-            data: { session },
-          } = await withAuthTimeout(
-            authGetSession(),
-            "getSession(post-login)",
-            AUTH_OPERATION_TIMEOUT_MS,
-          );
-          if (session?.user) {
-            await finishSignIn(session.user.id);
+          if (userId) {
+            await finishSignIn(userId);
+          } else {
+            const {
+              data: { session },
+            } = await withAuthTimeout(
+              authGetSession(),
+              "getSession(post-login)",
+              AUTH_OPERATION_TIMEOUT_MS,
+            );
+            if (session?.user) {
+              await finishSignIn(session.user.id);
+            }
           }
         } catch (err: unknown) {
           if (!redirected && isAuthLoginLimitedError(err)) {

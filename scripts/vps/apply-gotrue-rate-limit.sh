@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # GoTrue rate limits + Kong rate-limiting на /auth/v1/* (10 req/min/IP).
+# Kong DB-less: лимит пишется в volumes/api/kong.yml, не через Admin API.
 #
 # Запуск на VPS:
 #   cd /root/zeip/my-app && bash scripts/vps/apply-gotrue-rate-limit.sh
@@ -8,8 +9,8 @@
 #   cd /Users/vladimirchudinov/Desktop/my-startup/my-app && bash scripts/vps/run-apply-gotrue-rate-limit-remote.sh
 set -euo pipefail
 
+THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
 STACK_DIR="${STACK_DIR:-/root/zeip/supabase-stack}"
-KONG_CONTAINER="${KONG_CONTAINER:-supabase-kong}"
 
 if [[ ! -d "${STACK_DIR}" ]]; then
   echo "ОШИБКА: нет ${STACK_DIR}"
@@ -83,65 +84,5 @@ echo "=== applied auth env ==="
 docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep GOTRUE_RATE_LIMIT || true
 
-echo "=== 4. Kong rate-limiting plugin (10/min/IP) на auth-v1 ==="
-if ! docker ps --format '{{.Names}}' | grep -qx "${KONG_CONTAINER}"; then
-  echo "WARN: контейнер ${KONG_CONTAINER} не найден — пропускаем Kong plugin"
-  exit 0
-fi
-
-docker exec "${KONG_CONTAINER}" sh -c '
-set -e
-ADMIN=http://127.0.0.1:8001
-
-service_id=""
-for name in auth-v1 auth; do
-  sid=$(curl -s "$ADMIN/services/$name" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get(\"id\") or \"\")" 2>/dev/null || true)
-  if [ -n "$sid" ]; then
-    service_id="$sid"
-    break
-  fi
-done
-
-if [ -z "$service_id" ]; then
-  service_id=$(curl -s "$ADMIN/services" | python3 -c "
-import sys, json
-data = json.load(sys.stdin).get(\"data\", [])
-for s in data:
-    if \"auth\" in (s.get(\"name\") or \"\").lower():
-        print(s[\"id\"])
-        break
-" 2>/dev/null || true)
-fi
-
-if [ -z "$service_id" ]; then
-  echo "WARN: Kong service auth-v1 не найден — добавьте rate-limiting вручную"
-  exit 0
-fi
-
-existing=$(curl -s "$ADMIN/services/$service_id/plugins" | python3 -c "
-import sys, json
-for p in json.load(sys.stdin).get(\"data\", []):
-    if p.get(\"name\") == \"rate-limiting\":
-        print(p.get(\"id\", \"\"))
-        break
-" 2>/dev/null || true)
-
-if [ -n "$existing" ]; then
-  curl -s -X PATCH "$ADMIN/plugins/$existing" \
-    -d "config.minute=10" \
-    -d "config.policy=local" \
-    -d "config.limit_by=ip" \
-    -d "config.hide_client_headers=true" >/dev/null
-  echo "Kong rate-limiting plugin updated: $existing"
-else
-  curl -s -X POST "$ADMIN/services/$service_id/plugins" \
-    -d "name=rate-limiting" \
-    -d "config.minute=10" \
-    -d "config.policy=local" \
-    -d "config.limit_by=ip" \
-    -d "config.hide_client_headers=true" >/dev/null
-  echo "Kong rate-limiting plugin created on service $service_id"
-fi
-'
-
-echo "Готово. Проверка: 15 быстрых POST /auth/v1/token — ожидаем 429 с ~11-го запроса."
+echo "=== 4. Kong declarative rate-limiting (kong.yml, 10/min/IP) ==="
+bash "${THIS_DIR}/patch-kong-auth-rate-limit.sh"

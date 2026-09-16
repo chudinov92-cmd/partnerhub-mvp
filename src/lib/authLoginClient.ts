@@ -27,6 +27,7 @@ type ApiBody = {
   retry_after_seconds?: unknown;
   message?: unknown;
   error?: unknown;
+  user_id?: unknown;
 };
 
 function resultFromBody(body: ApiBody, status: number): LoginLimitResult {
@@ -45,7 +46,10 @@ function resultFromBody(body: ApiBody, status: number): LoginLimitResult {
   };
 }
 
-export async function requestAuthLogin(email: string, password: string): Promise<void> {
+export async function requestAuthLogin(
+  email: string,
+  password: string,
+): Promise<string | null> {
   const res = await fetch("/api/v1/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -80,4 +84,6 @@ export async function requestAuthLogin(email: string, password: string): Promise
         : "Неверный логин или пароль";
     throw new Error(message);
   }
+
+  return typeof body.user_id === "string" && body.user_id ? body.user_id : null;
 }

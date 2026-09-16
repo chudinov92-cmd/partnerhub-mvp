@@ -2,12 +2,14 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   clientIpFromRequest,
+  isAuthLoginUnavailableError,
   loginLimitedJson,
   mapGoTrueLoginError,
   tryAuthLogin,
   validateLoginEmail,
 } from "@/lib/authLoginServer";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
+import { copyResponseCookies } from "@/lib/supabaseMiddlewareAuth";
 
 export const runtime = "nodejs";
 
@@ -39,12 +41,12 @@ export async function POST(req: Request) {
     }
 
     const cookieStore = await cookies();
-    const res = NextResponse.json({ ok: true });
+    const sessionResponse = NextResponse.json({ ok: true });
     const sb = createSupabaseRouteClient(cookieStore, {
-      wrapResponseCookies: res,
+      wrapResponseCookies: sessionResponse,
     });
 
-    const { error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
 
     if (error) {
       await tryAuthLogin({ email, ip, success: false, dryRun: false });
@@ -55,10 +57,20 @@ export async function POST(req: Request) {
     }
 
     await tryAuthLogin({ email, ip, success: true, dryRun: false });
+    const res = NextResponse.json({
+      ok: true,
+      user_id: data.user?.id ?? null,
+    });
+    copyResponseCookies(sessionResponse, res);
     return res;
   } catch (err) {
     console.error("[auth/login POST]", err);
-    const message = err instanceof Error ? err.message : "Server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (isAuthLoginUnavailableError(err)) {
+      return NextResponse.json({ error: err.message }, { status: 503 });
+    }
+    return NextResponse.json(
+      { error: "Не удалось войти. Попробуйте ещё раз." },
+      { status: 500 },
+    );
   }
 }

@@ -100,9 +100,9 @@ export async function loginViaUi(
   const form = page.locator("form");
   await fillSignInForm(page, email, password);
 
-  const tokenOk = page.waitForResponse(
+  const loginOk = page.waitForResponse(
     (r) =>
-      r.url().includes("/auth/v1/token") &&
+      r.url().includes("/api/v1/auth/login") &&
       r.request().method() === "POST" &&
       r.status() === 200,
     { timeout: 45_000 },
@@ -110,22 +110,22 @@ export async function loginViaUi(
 
   try {
     await Promise.all([
-      tokenOk,
+      loginOk,
       form.getByRole("button", { name: "Войти" }).click(),
     ]);
   } catch {
-    const tokenResp = await page
+    const loginResp = await page
       .waitForResponse(
         (r) =>
-          r.url().includes("/auth/v1/token") &&
+          r.url().includes("/api/v1/auth/login") &&
           r.request().method() === "POST",
         { timeout: 10_000 },
       )
       .catch(() => null);
 
-    if (tokenResp && tokenResp.status() !== 200) {
+    if (loginResp && loginResp.status() !== 200) {
       throw new Error(
-        `Auth token HTTP ${tokenResp.status()} для ${email}. Проверьте E2E_* в my-app/.env.e2e.`,
+        `Auth login HTTP ${loginResp.status()} для ${email}. Проверьте E2E_* в my-app/.env.e2e.`,
       );
     }
   }

@@ -49,6 +49,19 @@ export function parseLoginRpc(data: unknown): LoginLimitResult {
   };
 }
 
+export class AuthLoginUnavailableError extends Error {
+  constructor() {
+    super("Вход временно недоступен. Попробуйте через минуту.");
+    this.name = "AuthLoginUnavailableError";
+  }
+}
+
+export function isAuthLoginUnavailableError(
+  err: unknown,
+): err is AuthLoginUnavailableError {
+  return err instanceof AuthLoginUnavailableError;
+}
+
 export async function tryAuthLogin(params: {
   email: string;
   ip: string | null;
@@ -65,14 +78,8 @@ export async function tryAuthLogin(params: {
   if (error) {
     const text = `${error.message} ${error.code ?? ""}`;
     if (/try_auth_login|does not exist|schema cache|PGRST202/i.test(text)) {
-      console.error("[auth/login] RPC недоступен, пропускаем лимит", error);
-      return {
-        allowed: true,
-        reason: "ok",
-        retryAfterSeconds: 0,
-        emailFailsWindow: 0,
-        ipFailsWindow: 0,
-      };
+      console.error("[auth/login] RPC недоступен, вход закрыт", error);
+      throw new AuthLoginUnavailableError();
     }
     throw error;
   }

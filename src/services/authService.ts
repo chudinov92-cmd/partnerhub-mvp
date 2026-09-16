@@ -218,17 +218,6 @@ export function authUpdateUser(
   );
 }
 
-export function authSignInWithPassword(credentials: {
-  email: string;
-  password: string;
-}) {
-  return withAuthTimeout(
-    supabase.auth.signInWithPassword(credentials),
-    "signInWithPassword",
-    AUTH_FORM_TIMEOUT_MS,
-  );
-}
-
 export function authVerifyOtp(
   params: Parameters<SupabaseClient["auth"]["verifyOtp"]>[0],
 ) {
@@ -283,17 +272,6 @@ export function authFormsSignUp(
 
 export function authFormsOnAuthStateChange(cb: AuthChangeCallback) {
   return supabaseAuthForms.auth.onAuthStateChange(cb);
-}
-
-export function authFormsSignInWithPassword(credentials: {
-  email: string;
-  password: string;
-}) {
-  return withAuthTimeout(
-    supabaseAuthForms.auth.signInWithPassword(credentials),
-    "authForms.signInWithPassword",
-    AUTH_FORM_TIMEOUT_MS,
-  );
 }
 
 export function authFormsGetSession() {

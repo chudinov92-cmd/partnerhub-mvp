@@ -64,6 +64,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-11-profiles-age-1-99.sql" "profi
 run_sql_migration "${ROOT}/supabase/sql/2026-09-13-auth-otp-sends.sql" "auth-otp-sends"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-15-admin-moderation-purge.sql" "admin-moderation-purge"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-profession-catalog-label-key.sql" "profession-catalog-label-key"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-auth-login-attempts.sql" "auth-login-attempts"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"
