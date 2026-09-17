@@ -84,7 +84,7 @@ export function MobileSelectSheet({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[2050] flex flex-col justify-end bg-slate-900/50"
+      className="fixed inset-0 z-[2050] bg-slate-900/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="mobile-select-sheet-title"
@@ -101,18 +101,19 @@ export function MobileSelectSheet({
       >
         <div
           className={
-            "flex w-full flex-col overflow-hidden rounded-t-2xl border border-gray-200 bg-white shadow-xl " +
+            "fixed flex w-full flex-col overflow-hidden border-gray-200 bg-white shadow-xl " +
             (menuClassName ?? "")
           }
           style={{
-            marginTop: offsetTop,
+            top: offsetTop,
+            left: 0,
+            right: 0,
+            bottom: "auto",
             height: Math.max(height, 200),
-            maxHeight: height,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-2">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+          <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
             <div className="flex items-center justify-between gap-3">
               <h2
                 id="mobile-select-sheet-title"
