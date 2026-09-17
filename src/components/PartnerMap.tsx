@@ -283,6 +283,8 @@ export type PartnerMapProps = {
   /** Меняется при каждом «открытии» карты (вкладка map, remount). Сбрасывает hello-анимацию своего пина. */
   mapVisitKey?: string;
   currentUserProfileId?: string | null;
+  currentUserReady?: boolean;
+  ownLocationResolved?: boolean;
   center?: LngLat;
   zoom?: number;
   professionFilter?: string | null;
@@ -352,6 +354,8 @@ function PartnerMapInner({
   invalidateKey,
   mapVisitKey = "map",
   currentUserProfileId,
+  currentUserReady = true,
+  ownLocationResolved = true,
   profiles,
   center,
   zoom,
@@ -379,7 +383,7 @@ function PartnerMapInner({
   const ownPinWrapRef = useRef<HTMLElement | null>(null);
   const pinHelloPlayedRef = useRef(false);
   const ownPinCenteredRef = useRef(false);
-  const appliedCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
+  const lastCityViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(
     null,
   );
   const [mapReady, setMapReady] = useState(false);
@@ -596,57 +600,39 @@ function PartnerMapInner({
     if (!map || !mapReady) return;
 
     const [lng, lat] = effectiveCenter;
-    const prev = appliedCityViewRef.current;
+    const prevCity = lastCityViewRef.current;
     const cityChanged =
-      prev != null &&
-      (prev.lng !== lng || prev.lat !== lat || prev.zoom !== effectiveZoom);
+      prevCity != null &&
+      (prevCity.lng !== lng || prevCity.lat !== lat || prevCity.zoom !== effectiveZoom);
+
+    lastCityViewRef.current = { lng, lat, zoom: effectiveZoom };
 
     if (cityChanged) {
-      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
       ownPinCenteredRef.current = true;
       map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
-      map.resize();
-      return;
-    }
-
-    if (!ownPinCenteredRef.current && currentUserProfileId) {
-      map.resize();
-      return;
-    }
-
-    if (!ownPinCenteredRef.current && !currentUserProfileId) {
-      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
-      ownPinCenteredRef.current = true;
-      map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
-      map.resize();
-      return;
-    }
-
-    if (prev && prev.lng === lng && prev.lat === lat && prev.zoom === effectiveZoom) {
-      map.resize();
-      return;
     }
 
     map.resize();
-  }, [effectiveCenter, effectiveZoom, mapReady, currentUserProfileId]);
+  }, [effectiveCenter, effectiveZoom, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || ownPinCenteredRef.current) return;
-    if (!currentUserProfileId) return;
-    if (!ownPinTarget && points.length === 0) return;
     if (focusedProfileId) {
       ownPinCenteredRef.current = true;
       return;
     }
+    if (!currentUserReady) return;
+    if (currentUserProfileId && !ownPinTarget && !ownLocationResolved) {
+      return;
+    }
 
     if (ownPinTarget) {
-      const { lng, lat } = ownPinTarget;
-      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
-      map.jumpTo({ center: [lng, lat], zoom: effectiveZoom });
+      map.jumpTo({
+        center: [ownPinTarget.lng, ownPinTarget.lat],
+        zoom: effectiveZoom,
+      });
     } else {
-      const [lng, lat] = effectiveCenter;
-      appliedCityViewRef.current = { lng, lat, zoom: effectiveZoom };
       map.jumpTo({ center: effectiveCenter, zoom: effectiveZoom });
     }
 
@@ -654,9 +640,10 @@ function PartnerMapInner({
     map.resize();
   }, [
     mapReady,
+    currentUserReady,
     currentUserProfileId,
-    points.length,
     ownPinTarget,
+    ownLocationResolved,
     focusedProfileId,
     effectiveCenter,
     effectiveZoom,
@@ -1095,6 +1082,8 @@ export const PartnerMap = memo(PartnerMapInner, (prev, next) => {
   return (
     prev.focusedProfileId === next.focusedProfileId &&
     prev.currentUserProfileId === next.currentUserProfileId &&
+    prev.currentUserReady === next.currentUserReady &&
+    prev.ownLocationResolved === next.ownLocationResolved &&
     prev.professionFilter === next.professionFilter &&
     prev.invalidateKey === next.invalidateKey &&
     prev.center?.[0] === next.center?.[0] &&

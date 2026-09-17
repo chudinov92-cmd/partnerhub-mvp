@@ -417,6 +417,7 @@ export function useMapPageController() {
     mapLightPoints,
     mapGridClusters,
     mapOwnLocation,
+    ownLocationResolved,
     mapViewportLoading,
     mapViewportError,
     handleMapViewportChange,
@@ -545,6 +546,7 @@ export function useMapPageController() {
     contactProfileIds,
     selectedCity,
     focusedProfileId,
+    currentUser?.profileId,
     invalidateMapViewport,
   ]);
 
@@ -1126,7 +1128,8 @@ export function useMapPageController() {
     isSupportChat, showSupportAppealForm, closeChatWindow,
     mapConfig, timeZone, visiblePosts, searchedVisiblePosts,
     subindustryOptionsForFilters, filteredProfilesForMap, profilesForMapPins,
-    mapViewportMode, mapLocations, mapLightPoints, mapGridClusters, mapOwnLocation,
+    mapViewportMode, mapLocations, mapLightPoints, mapGridClusters,
+    mapOwnLocation, ownLocationResolved,
     mapViewportLoading, mapViewportError, handleMapViewportChange,
     showRecommendedEmptyBanner, showRecommendedEmptyRussiaPrompt, showRecommendedEmptyAll,
     handleToggleRecommended, filteredChatList, unreadChatsTotal, toggleBlock,

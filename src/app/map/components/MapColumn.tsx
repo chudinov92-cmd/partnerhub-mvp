@@ -57,6 +57,7 @@ function MapColumnInner(props: Props) {
     contactsOnlyMode,
     profiles,
     currentUser,
+    currentUserReady,
     loading,
     openProfileOverlay,
     contactProfileIds,
@@ -75,6 +76,7 @@ function MapColumnInner(props: Props) {
     mapLightPoints,
     mapGridClusters,
     mapOwnLocation,
+    ownLocationResolved,
     mapViewportLoading,
     handleMapViewportChange,
     showRecommendedEmptyBanner,
@@ -540,6 +542,8 @@ function MapColumnInner(props: Props) {
                   viewedProfileIds={effectiveViewedProfileIds}
                   focusedProfileId={focusedProfileId}
                   currentUserProfileId={currentUser?.profileId ?? null}
+                  currentUserReady={currentUserReady}
+                  ownLocationResolved={ownLocationResolved}
                   mapVisitKey={mobileTab}
                   invalidateKey={`${mobileTab}-${selectedCity}-${contactsOnlyMode ? 1 : 0}-${mapViewMode}-${feedFilters.recommendedContacts ? 1 : 0}-${feedFilters.profession ?? ""}-${mapViewportMode}-${mapLocations.length}-${mapLightPoints.length}-${mapGridClusters.length}`}
                   center={mapConfig.center}

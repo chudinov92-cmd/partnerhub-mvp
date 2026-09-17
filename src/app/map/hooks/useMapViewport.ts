@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedFilters, Profile } from "@/types";
 import { RUSSIA_LABEL } from "@/data/cities";
 import {
   bboxFromLngLatBounds,
   feedFiltersToMapParams,
+  fetchOwnActiveLocation,
   loadMapViewportData,
   pinRowsToLocationPoints,
   pinRowsToProfiles,
@@ -45,8 +46,12 @@ export function useMapViewport(opts: {
   const [mapOwnLocation, setMapOwnLocation] = useState<
     ReturnType<typeof pinRowsToLocationPoints>[number] | null
   >(null);
+  const [ownLocationResolvedForId, setOwnLocationResolvedForId] = useState("");
   const [mapViewportLoading, setMapViewportLoading] = useState(true);
   const [mapViewportError, setMapViewportError] = useState<string | null>(null);
+
+  const ownProfileId = opts.currentUserProfileId?.trim() ?? "";
+  const ownLocationResolved = !ownProfileId || ownLocationResolvedForId === ownProfileId;
 
   const lastBboxRef = useRef<string>("");
   const lastViewportRef = useRef<{ bbox: MapBbox; zoom: number } | null>(null);
@@ -89,9 +94,9 @@ export function useMapViewport(opts: {
         ownProfileId != null && ownProfileId !== ""
           ? pinRows.find((row) => row.user_id === ownProfileId)
           : undefined;
-      setMapOwnLocation(
-        ownRow ? (pinRowsToLocationPoints([ownRow])[0] ?? null) : null,
-      );
+      if (ownRow) {
+        setMapOwnLocation(pinRowsToLocationPoints([ownRow])[0] ?? null);
+      }
 
       if (mode === "street") {
         setMapLocations(pinRowsToLocationPoints(pinRows));
@@ -162,6 +167,35 @@ export function useMapViewport(opts: {
     ],
   );
 
+  useEffect(() => {
+    if (!ownProfileId) {
+      setMapOwnLocation(null);
+      setOwnLocationResolvedForId("");
+      return;
+    }
+
+    let cancelled = false;
+    void fetchOwnActiveLocation(ownProfileId).then((row) => {
+      if (cancelled) return;
+      setMapOwnLocation(
+        row
+          ? {
+              id: row.id,
+              user_id: row.user_id,
+              lat: row.lat,
+              lng: row.lng,
+              city: row.city,
+            }
+          : null,
+      );
+      setOwnLocationResolvedForId(ownProfileId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ownProfileId]);
+
   const mergeMapProfile = useCallback((profile: Profile) => {
     setMapProfiles((prev) =>
       prev.some((p) => p.id === profile.id) ? prev : [...prev, profile],
@@ -192,6 +226,7 @@ export function useMapViewport(opts: {
     mapLightPoints,
     mapGridClusters,
     mapOwnLocation,
+    ownLocationResolved,
     mapViewportLoading,
     mapViewportError,
     handleMapViewportChange,

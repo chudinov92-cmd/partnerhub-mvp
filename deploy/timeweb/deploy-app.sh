@@ -67,6 +67,9 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-15-admin-moderation-purge.sql" "
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-profession-catalog-label-key.sql" "profession-catalog-label-key"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-auth-login-attempts.sql" "auth-login-attempts"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-perf-hot-paths.sql" "perf-hot-paths"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-dedupe-private-chats.sql" "dedupe-private-chats"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-ensure-private-chat-latest.sql" "ensure-private-chat-latest"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-17-fetch-map-viewport-pins-own-outside-bbox.sql" "viewport-pins-own-outside-bbox"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

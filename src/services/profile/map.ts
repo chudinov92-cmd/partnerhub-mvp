@@ -83,6 +83,24 @@ export async function fetchActiveLocations(
   return [...rows, mapLocationRow(ownData as LocationPointRow)];
 }
 
+/** Активная точка текущего пользователя — без bbox и без лимита выдачи карты. */
+export async function fetchOwnActiveLocation(
+  profileId: string,
+): Promise<LocationPointRow | null> {
+  const id = profileId.trim();
+  if (!id) return null;
+
+  const { data, error } = await supabasePublic
+    .from("locations")
+    .select("id, user_id, lat, lng, city")
+    .eq("is_active", true)
+    .eq("user_id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapLocationRow(data as LocationPointRow);
+}
+
 /** profiles.id с активным пином на карте (dedupe по user_id). */
 export async function fetchActiveLocationUserIds(limit = 200): Promise<Set<string>> {
   const rows = await fetchActiveLocations(limit);

@@ -11,6 +11,7 @@ export {
 export {
   PROFILE_MAP_SELECT,
   fetchActiveLocations,
+  fetchOwnActiveLocation,
   fetchActiveLocationUserIds,
   fetchProfilesForMap,
   fetchProfileForMapById,
