@@ -32,18 +32,36 @@ function ChatsColumnInner(props: Props) {
         >
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
             <div className="flex items-center gap-2">
-              <svg
-                className="h-5 w-5 shrink-0 text-slate-900"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                <path d="M13 8H7" />
-                <path d="M17 12H7" />
-              </svg>
+              {contactsOnlyMode ? (
+                <svg
+                  className="h-5 w-5 shrink-0 text-slate-900"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-5 w-5 shrink-0 text-slate-900"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <path d="M13 8H7" />
+                  <path d="M17 12H7" />
+                </svg>
+              )}
               <h2 className="font-semibold text-slate-900">
                 {contactsOnlyMode ? "Контакты" : "Мои чаты"}
               </h2>
@@ -69,7 +87,7 @@ function ChatsColumnInner(props: Props) {
           {!loading && filteredChatList.length === 0 && (
             <p className="px-4 py-2 text-sm text-slate-500">
               {contactsOnlyMode
-                ? "У вас пока нет личных диалогов с контактами. Добавьте контакт или начните переписку."
+                ? "У вас пока нет контактов. Добавьте человека из профиля на карте."
                 : "У вас пока нет личных диалогов. Начните переписку, чтобы чат появился в списке."}
             </p>
           )}

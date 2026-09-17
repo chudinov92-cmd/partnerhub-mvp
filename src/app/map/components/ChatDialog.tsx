@@ -10,6 +10,11 @@ import { MessageLinks } from "@/components/MessageLinks";
 import { isAppealMessage } from "@/lib/support";
 import { isProfileShareMessage } from "@/lib/profileShare";
 import { isPaidGateMode } from "@/lib/accessMode";
+import { savePendingPaywallContext } from "@/lib/paywallIntent";
+import {
+  trackCheckoutStarted,
+  trackPaywallCtaBuy,
+} from "@/lib/paywallAnalytics";
 import { canSendDirectMessages } from "@/services/subscriptionService";
 import { scrollComposerIntoView, isOnline } from "../utils";
 
@@ -48,7 +53,6 @@ function ChatDialogInner(props: Props) {
     isSupportChat,
     showSupportAppealForm,
     closeChatWindow,
-    openPaywallDrawer,
     formatDateTime,
     handleSendSupportAppeal,
     handleSendChatMessage,
@@ -364,31 +368,24 @@ function ChatDialogInner(props: Props) {
                         : "На тарифе Free личные сообщения недоступны. Оформите Pro, чтобы ответить."}
                   </p>
                   {!currentUser.isBlocked ? (
-                    isPaidGateMode() ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openPaywallDrawer({
-                            intent: "dm",
-                            profileId: activeChatUser?.id,
-                            profileName: activeChatUser?.full_name,
-                            profileRole:
-                              activeChatUser?.role_title ??
-                              activeChatUser?.city,
-                          })
-                        }
-                        className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                      >
-                        Оформить Pro
-                      </button>
-                    ) : (
-                      <Link
-                        href="/subscription?reason=dm"
-                        className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                      >
-                        Оформить Pro
-                      </Link>
-                    )
+                    <Link
+                      href="/subscription?reason=dm"
+                      onClick={() => {
+                        savePendingPaywallContext({
+                          intent: "dm",
+                          profileId: activeChatUser?.id,
+                          profileName: activeChatUser?.full_name,
+                          profileRole:
+                            activeChatUser?.role_title ??
+                            activeChatUser?.city,
+                        });
+                        trackPaywallCtaBuy("dm");
+                        trackCheckoutStarted();
+                      }}
+                      className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                    >
+                      Оформить Pro
+                    </Link>
                   ) : null}
                 </div>
               ) : currentUser ? (

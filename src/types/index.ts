@@ -93,7 +93,7 @@ export type ChatMessage = {
 };
 
 export type ChatListItem = {
-  chatId: string;
+  chatId: string | null;
   profile: Profile;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;

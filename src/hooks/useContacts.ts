@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { CurrentUser } from "@/types";
+import { useCallback, useEffect, useState } from "react";
+import type { CurrentUser, Profile } from "@/types";
 import { FREE_FAVORITES_LIMIT } from "@/lib/subscriptionPlans";
 import {
   deleteContact,
   fetchBlockedProfileIds,
-  fetchContactProfileIds,
+  fetchContactProfiles,
   fetchTodayOpenedProfileIds,
   fetchViewedProfileStates,
   insertContact,
@@ -20,6 +20,7 @@ export function useContacts(
   onFavoritesLimit?: () => void,
 ) {
   const [contactProfileIds, setContactProfileIds] = useState<string[]>([]);
+  const [contactProfiles, setContactProfiles] = useState<Profile[]>([]);
   const [viewedProfileStates, setViewedProfileStates] = useState<
     Record<string, string>
   >({});
@@ -30,26 +31,31 @@ export function useContacts(
 
   const profileId = currentUser?.profileId;
 
-  useEffect(() => {
+  const reloadContacts = useCallback(async () => {
     if (!profileId) {
       setContactProfileIds([]);
+      setContactProfiles([]);
       return;
     }
+
+    const profiles = await fetchContactProfiles(profileId);
+    setContactProfiles(profiles);
+    setContactProfileIds(profiles.map((profile) => profile.id));
+  }, [profileId]);
+
+  useEffect(() => {
     let alive = true;
-    fetchContactProfileIds(profileId)
-      .then((ids) => {
-        if (!alive) return;
-        setContactProfileIds(ids);
-      })
-      .catch((error) => {
-        if (!alive) return;
-        console.error("Failed to load contacts", error);
-        setContactProfileIds([]);
-      });
+
+    reloadContacts().catch((error) => {
+      if (!alive) return;
+      console.error("Failed to load contacts", error);
+      setContactProfiles([]);
+    });
+
     return () => {
       alive = false;
     };
-  }, [profileId]);
+  }, [reloadContacts]);
 
   useEffect(() => {
     if (!profileId) {
@@ -132,6 +138,9 @@ export function useContacts(
     setContactProfileIds((prev) =>
       isIn ? prev.filter((x) => x !== pid) : [...prev, pid],
     );
+    if (isIn) {
+      setContactProfiles((prev) => prev.filter((profile) => profile.id !== pid));
+    }
 
     try {
       if (isIn) {
@@ -143,11 +152,15 @@ export function useContacts(
         });
       }
       notifyProfileContactsChanged();
+      if (!isIn) {
+        await reloadContacts();
+      }
     } catch (e) {
       console.error("Failed to toggle contact", e);
       setContactProfileIds((prev) =>
         isIn ? [...prev, pid] : prev.filter((x) => x !== pid),
       );
+      await reloadContacts();
       notifyProfileContactsChanged();
     }
   };
@@ -193,6 +206,7 @@ export function useContacts(
 
   return {
     contactProfileIds,
+    contactProfiles,
     setContactProfileIds,
     viewedProfileStates,
     blockedProfileIds,
@@ -201,4 +215,4 @@ export function useContacts(
     toggleContact,
     markProfileViewed,
   };
-}
+};

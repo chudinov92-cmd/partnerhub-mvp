@@ -260,6 +260,7 @@ export function useMapPageController() {
 
   const {
     contactProfileIds,
+    contactProfiles,
     viewedProfileStates,
     blockedProfileIds,
     setBlockedProfileIds,
@@ -622,7 +623,10 @@ export function useMapPageController() {
   }, [currentUser?.profileId, blockedProfileIds]);
 
   const knownChatIds = useMemo(
-    () => chatList.map((item) => item.chatId),
+    () =>
+      chatList
+        .map((item) => item.chatId)
+        .filter((chatId): chatId is string => chatId != null),
     [chatList],
   );
 
@@ -858,8 +862,31 @@ export function useMapPageController() {
 
   const filteredChatList = useMemo(() => {
     if (!contactsOnlyMode) return chatList;
-    return chatList.filter((item) => contactProfileIds.includes(item.profile.id));
-  }, [chatList, contactsOnlyMode, contactProfileIds]);
+
+    const chatByProfileId = new Map(
+      chatList.map((item) => [item.profile.id, item]),
+    );
+
+    return contactProfiles
+      .map((profile) => {
+        const chatItem = chatByProfileId.get(profile.id);
+        if (chatItem) return chatItem;
+        return {
+          chatId: null,
+          profile,
+          lastMessageAt: null,
+          lastMessagePreview: null,
+        };
+      })
+      .sort((a, b) => {
+        const at = a.lastMessageAt ?? "";
+        const bt = b.lastMessageAt ?? "";
+        if (at !== bt) return bt.localeCompare(at);
+        const nameA = a.profile.full_name ?? "";
+        const nameB = b.profile.full_name ?? "";
+        return nameA.localeCompare(nameB, "ru");
+      });
+  }, [chatList, contactsOnlyMode, contactProfiles]);
 
   const unreadChatsTotal = useMemo(
     () => Object.values(unreadByUser).reduce((sum, n) => sum + n, 0),
@@ -962,6 +989,7 @@ export function useMapPageController() {
     chatMembershipRef,
     suppressChatOutsideCloseUntilRef,
     setActiveProfileOverlay,
+    openProfileOverlay,
     setMobileTab,
     openPaywallDrawer,
     resetSupportComposer,
@@ -1121,7 +1149,7 @@ export function useMapPageController() {
     profiles, chatList, currentUser, currentUserReady, loading, error,
     handleMapPinOpenProfile, handleMapPinOpenChat, handleLightPointClick,
     openPaywallDrawer, openProfileOverlay, shareProfileLink, openProfileFromChatLink,
-    contactProfileIds, blockedProfileIds, toggleContact, markProfileViewed,
+    contactProfileIds, contactProfiles, blockedProfileIds, toggleContact, markProfileViewed,
     effectiveViewedProfileIds, selectedCity, setSelectedCity, isRussiaChat,
     profileReadyForMessaging, posts, postsLoading, postsLoadError,
     professionCatalog, industryCatalog, subindustryCatalog,

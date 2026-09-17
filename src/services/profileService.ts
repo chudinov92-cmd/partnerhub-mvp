@@ -78,4 +78,7 @@ export {
   upsertActiveLocation,
 } from "@/services/profile/editor";
 
-export { countContactsForOwner } from "@/services/contactService";
+export {
+  countContactsForOwner,
+  fetchContactProfiles,
+} from "@/services/contactService";

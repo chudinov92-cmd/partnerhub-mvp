@@ -14,6 +14,9 @@ describeWithUser("Фаза 6: Контакты", () => {
     await page.goto("/map");
     await openMobileTab(page, "Контакты");
     await expect(page.locator("body")).not.toContainText("Application error");
+    await expect(page.locator("body")).not.toContainText(
+      "личных диалогов с контактами",
+    );
   });
 
   test("TC-6.3 Контакты: вкладка и иконка в TopBar при наличии контактов", async ({
@@ -28,6 +31,22 @@ describeWithUser("Фаза 6: Контакты", () => {
     const count = await headerContacts.count();
     if (count > 0) {
       await expect(headerContacts.first()).toBeVisible({ timeout: 15_000 });
+
+      const badgeText = await headerContacts
+        .first()
+        .locator("span")
+        .last()
+        .textContent();
+      const contactCount = badgeText?.trim() === "9+" ? 9 : Number(badgeText);
+      if (Number.isFinite(contactCount) && contactCount > 0) {
+        await expect(page.getByRole("heading", { name: "Контакты" })).toBeVisible();
+        await expect(page.locator("body")).not.toContainText(
+          "У вас пока нет контактов",
+        );
+        await expect(
+          page.locator("aside ul li").first(),
+        ).toBeVisible({ timeout: 15_000 });
+      }
     }
   });
 });

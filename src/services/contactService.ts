@@ -7,7 +7,25 @@ import {
   FREE_PROFILE_VIEWS_LIMIT,
 } from "@/lib/subscriptionPlans";
 import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
+import { PROFILE_MAP_SELECT } from "@/services/profile/map";
 import type { Profile } from "@/types";
+
+type ContactProfileRow = Profile & { deleted_at?: string | null };
+
+function normalizeContactProfile(
+  raw: ContactProfileRow | ContactProfileRow[] | null | undefined,
+): Profile | null {
+  const prof = Array.isArray(raw) ? raw[0] : raw;
+  if (!prof?.id) return null;
+  const { deleted_at: deletedAt, ...profile } = prof;
+  if (deletedAt) {
+    return {
+      ...(profile as Profile),
+      full_name: profile.full_name?.trim() || "Удалённый пользователь",
+    };
+  }
+  return profile as Profile;
+}
 
 export async function countContactsForOwner(profileId: string): Promise<number> {
   const { count, error } = await supabase
@@ -19,15 +37,91 @@ export async function countContactsForOwner(profileId: string): Promise<number> 
 }
 
 export async function fetchContactProfileIds(ownerId: string): Promise<string[]> {
+  const profiles = await fetchContactProfiles(ownerId);
+  return profiles.map((profile) => profile.id);
+}
+
+type ContactProfileRpcRow = ContactProfileRow & {
+  contact_created_at?: string | null;
+};
+
+function buildUnavailableContactProfile(profileId: string): Profile {
+  return {
+    id: profileId,
+    full_name: "Профиль недоступен",
+    city: null,
+    industry: null,
+    subindustry: null,
+    role_title: null,
+    last_seen_at: null,
+    rating_avg: null,
+    rating_count: null,
+  };
+}
+
+function isMissingRpcError(error: unknown): boolean {
+  const code = String((error as { code?: string })?.code ?? "");
+  const msg = String((error as { message?: string })?.message ?? "");
+  return (
+    code === "PGRST202" ||
+    msg.includes("get_contact_profiles") ||
+    msg.includes("Could not find the function")
+  );
+}
+
+async function fetchContactProfilesViaRpc(
+  ownerId: string,
+): Promise<Profile[] | null> {
+  const { data, error } = await supabase.rpc("get_contact_profiles", {
+    p_owner_id: ownerId,
+  });
+  if (error) {
+    if (isMissingRpcError(error)) return null;
+    throw error;
+  }
+
+  return ((data ?? []) as ContactProfileRpcRow[])
+    .map((row) => normalizeContactProfile(row))
+    .filter((profile): profile is Profile => profile != null);
+}
+
+async function fetchContactProfilesFallback(
+  ownerId: string,
+): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("profile_contacts")
-    .select("contact_profile_id")
+    .select("created_at, contact_profile_id")
     .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false })
     .limit(MAX_RELATION_ROWS);
   if (error) throw error;
-  return (data as { contact_profile_id: string }[] | null)?.map(
-    (r) => r.contact_profile_id,
-  ) ?? [];
+
+  const orderedIds =
+    (data as { contact_profile_id: string }[] | null)?.map(
+      (row) => row.contact_profile_id,
+    ) ?? [];
+  if (orderedIds.length === 0) return [];
+
+  const { data: profileRows, error: profilesError } = await supabase
+    .from("profiles")
+    .select(`${PROFILE_MAP_SELECT}, deleted_at`)
+    .in("id", orderedIds);
+  if (profilesError) throw profilesError;
+
+  const byId = new Map<string, Profile>();
+  for (const row of (profileRows ?? []) as ContactProfileRow[]) {
+    const profile = normalizeContactProfile(row);
+    if (profile) byId.set(profile.id, profile);
+  }
+
+  return orderedIds.map((id) => byId.get(id) ?? buildUnavailableContactProfile(id));
+}
+
+/** Профили избранных контактов (без требования map_visible). */
+export async function fetchContactProfiles(ownerId: string): Promise<Profile[]> {
+  const viaRpc = await fetchContactProfilesViaRpc(ownerId);
+  if (viaRpc != null) return viaRpc;
+  return fetchContactProfilesFallback(ownerId);
 }
 
 export async function fetchTodayOpenedProfileIds(

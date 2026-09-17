@@ -5,6 +5,11 @@ import type { MapPageController } from "../hooks/useMapPageController";
 import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
 import Link from "next/link";
 import { isPaidGateMode } from "@/lib/accessMode";
+import { savePendingPaywallContext } from "@/lib/paywallIntent";
+import {
+  trackCheckoutStarted,
+  trackPaywallCtaBuy,
+} from "@/lib/paywallAnalytics";
 import { isOnline, scrollComposerIntoView } from "../utils";
 
 type Props = MapPageController;
@@ -49,7 +54,6 @@ function FeedColumnInner(props: Props) {
     currentUserReady,
     loading,
     error,
-    openPaywallDrawer,
     openProfileOverlay,
     selectedCity,
     isRussiaChat,
@@ -303,22 +307,17 @@ function FeedColumnInner(props: Props) {
                       : "На тарифе Free общий чат доступен только для чтения. Оформите Pro+, чтобы писать."}
               </p>
               {!currentUser.isBlocked ? (
-                isPaidGateMode() ? (
-                  <button
-                    type="button"
-                    onClick={() => openPaywallDrawer({ intent: "chat" })}
-                    className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    Оформить Pro+
-                  </button>
-                ) : (
-                  <Link
-                    href="/subscription?reason=chat"
-                    className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    Оформить Pro+
-                  </Link>
-                )
+                <Link
+                  href="/subscription?reason=chat"
+                  onClick={() => {
+                    savePendingPaywallContext({ intent: "chat" });
+                    trackPaywallCtaBuy("chat");
+                    trackCheckoutStarted();
+                  }}
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                >
+                  Оформить Pro+
+                </Link>
               ) : null}
             </div>
           ) : (

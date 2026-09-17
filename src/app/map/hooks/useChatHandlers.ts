@@ -69,6 +69,7 @@ export type ChatHandlerDeps = {
   chatMembershipRef: React.MutableRefObject<Set<string>>;
   suppressChatOutsideCloseUntilRef: React.MutableRefObject<number>;
   setActiveProfileOverlay: React.Dispatch<React.SetStateAction<Profile | null>>;
+  openProfileOverlay: (profile: Profile) => boolean;
   setMobileTab: (tab: MobileMainTab) => void;
   openPaywallDrawer: (ctx: PaywallIntentContext) => void;
   resetSupportComposer: () => void;
@@ -109,6 +110,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     chatMembershipRef,
     suppressChatOutsideCloseUntilRef,
     setActiveProfileOverlay,
+    openProfileOverlay,
     setMobileTab,
     openPaywallDrawer,
     resetSupportComposer,
@@ -330,7 +332,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       }
 
       if (
-        listItem &&
+        listItem?.chatId &&
         listItem.chatId !== chatId &&
         (listItem.lastMessagePreview || listItem.lastMessageAt)
       ) {
@@ -371,7 +373,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       });
       if (
         normalized.length === 0 &&
-        listItem &&
+        listItem?.chatId &&
         listItem.chatId !== readChatId &&
         (listItem.lastMessagePreview || listItem.lastMessageAt)
       ) {
@@ -382,13 +384,14 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       }
       if (
         normalized.length === 0 &&
-        listItem &&
+        listItem?.chatId &&
         listItem.chatId === readChatId &&
         (listItem.lastMessagePreview || listItem.lastMessageAt)
       ) {
         const altChatId = chatListRef.current.find(
           (x) =>
             x.profile.id === profile.id &&
+            x.chatId != null &&
             x.chatId !== readChatId &&
             (x.lastMessagePreview || x.lastMessageAt),
         )?.chatId;
@@ -457,6 +460,11 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
   };
 
   const openChatFromList = async (item: ChatListItem) => {
+    if (!item.chatId) {
+      openProfileOverlay(item.profile);
+      return;
+    }
+
     await openChatWithProfile(item.profile, { knownChatId: item.chatId });
     setUnreadByUser((prev) => ({ ...prev, [item.profile.id]: 0 }));
     setChatList((prev) => {
