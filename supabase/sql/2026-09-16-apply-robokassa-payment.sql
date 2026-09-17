@@ -157,18 +157,18 @@ begin
   end if;
 
   select count(*) into v_prior_paid
-  from public.subscription_payments
-  where profile_id = v_payment.profile_id
-    and status = 'paid'
-    and id <> v_payment.id;
+  from public.subscription_payments sp
+  where sp.profile_id = v_payment.profile_id
+    and sp.status = 'paid'
+    and sp.id <> v_payment.id;
 
-  update public.subscription_payments
+  update public.subscription_payments sp
   set
     status = 'paid',
     paid_at = v_paid_at,
-    period = coalesce(v_period, period, 'monthly'),
+    period = coalesce(v_period, sp.period, 'monthly'),
     is_renewal = v_prior_paid > 0
-  where id = v_payment.id;
+  where sp.id = v_payment.id;
 
   result := 'applied';
   return next;
@@ -180,3 +180,5 @@ grant execute on function public.apply_robokassa_payment(bigint, timestamptz) to
 
 comment on function public.apply_robokassa_payment is
   'Robokassa Result URL: активирует подписку и помечает платёж paid в одной транзакции; повтор webhook догоняет профиль.';
+
+notify pgrst, 'reload schema';
