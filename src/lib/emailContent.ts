@@ -7,6 +7,14 @@ export function emailMapLink(campaign: string): string {
   return `${base}/map?utm_source=email&utm_campaign=${encodeURIComponent(campaign)}`;
 }
 
+export function emailMapChatLink(
+  peerProfileId: string,
+  campaign: string,
+): string {
+  const base = getSiteUrl().replace(/\/$/, "");
+  return `${base}/map?chat=${encodeURIComponent(peerProfileId)}&utm_source=email&utm_campaign=${encodeURIComponent(campaign)}`;
+}
+
 export function pluralContacts(count: number): string {
   const mod10 = count % 10;
   const mod100 = count % 100;

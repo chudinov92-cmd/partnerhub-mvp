@@ -32,7 +32,7 @@ export async function fetchRecentMessages(
 
   const { data: msgsData, error: msgsError } = await q
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(50);
   if (msgsError) throw msgsError;
   return ((msgsData ?? []) as ChatMessage[]).slice().reverse();
 }

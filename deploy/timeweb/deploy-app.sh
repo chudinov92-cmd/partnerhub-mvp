@@ -70,6 +70,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-16-perf-hot-paths.sql" "perf-hot
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-dedupe-private-chats.sql" "dedupe-private-chats"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-16-ensure-private-chat-latest.sql" "ensure-private-chat-latest"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-fetch-map-viewport-pins-own-outside-bbox.sql" "viewport-pins-own-outside-bbox"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-17-email-dm-deeplink.sql" "email-dm-deeplink"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

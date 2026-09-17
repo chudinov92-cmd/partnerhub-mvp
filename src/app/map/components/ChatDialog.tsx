@@ -9,6 +9,8 @@ import { ProfileShareCard } from "@/components/ProfileShareCard";
 import { MessageLinks } from "@/components/MessageLinks";
 import { isAppealMessage } from "@/lib/support";
 import { isProfileShareMessage } from "@/lib/profileShare";
+import { isPaidGateMode } from "@/lib/accessMode";
+import { canSendDirectMessages } from "@/services/subscriptionService";
 import { scrollComposerIntoView, isOnline } from "../utils";
 
 type Props = MapPageController;
@@ -46,11 +48,20 @@ function ChatDialogInner(props: Props) {
     isSupportChat,
     showSupportAppealForm,
     closeChatWindow,
+    openPaywallDrawer,
     formatDateTime,
     handleSendSupportAppeal,
     handleSendChatMessage,
     handleDeleteChatMessage
   } = props;
+
+  const canSendDirectMessagesToPeer =
+    isSupportChat ||
+    (currentUser
+      ? isPaidGateMode()
+        ? currentUser.isPro
+        : canSendDirectMessages(currentUser.subscriptionPlan)
+      : false);
 
   return (
 <>
@@ -340,6 +351,45 @@ function ChatDialogInner(props: Props) {
                   >
                     Заполнить профиль
                   </Link>
+                </div>
+              ) : currentUser &&
+                !canSendDirectMessagesToPeer &&
+                !isSupportChat ? (
+                <div className="mt-1 shrink-0 space-y-2 border-t border-slate-200 bg-amber-50/80 px-3 py-3">
+                  <p className="text-xs text-slate-700">
+                    {currentUser.isBlocked
+                      ? "Ваш аккаунт заблокирован. Отправка сообщений недоступна."
+                      : isPaidGateMode()
+                        ? "Личные сообщения доступны на тарифе Pro. Вы можете читать переписку."
+                        : "На тарифе Free личные сообщения недоступны. Оформите Pro, чтобы ответить."}
+                  </p>
+                  {!currentUser.isBlocked ? (
+                    isPaidGateMode() ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openPaywallDrawer({
+                            intent: "dm",
+                            profileId: activeChatUser?.id,
+                            profileName: activeChatUser?.full_name,
+                            profileRole:
+                              activeChatUser?.role_title ??
+                              activeChatUser?.city,
+                          })
+                        }
+                        className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                      >
+                        Оформить Pro
+                      </button>
+                    ) : (
+                      <Link
+                        href="/subscription?reason=dm"
+                        className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+                      >
+                        Оформить Pro
+                      </Link>
+                    )
+                  ) : null}
                 </div>
               ) : currentUser ? (
                 <form

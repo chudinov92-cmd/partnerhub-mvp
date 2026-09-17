@@ -1080,6 +1080,7 @@ export function useMapPageController() {
     currentUser,
     loading,
     profiles,
+    chatList,
     chatDeepLinkNonce,
     profileDeepLinkNonce,
     supportDeepLinkNonce,

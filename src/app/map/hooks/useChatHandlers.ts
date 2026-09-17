@@ -87,6 +87,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     blockedProfileIds,
     activeChatId,
     chatList,
+    activeChatUser,
     chatInput,
     setChatInput,
     editingMessageId,
@@ -237,6 +238,12 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     }
   };
 
+  const canSendDmToPeer = (isSupportPeer: boolean): boolean => {
+    if (isSupportPeer) return true;
+    if (isPaidGateMode()) return currentUser!.isPro;
+    return canSendDirectMessages(currentUser!.subscriptionPlan);
+  };
+
   const openChatWithProfile = async (
     profile: Profile,
     opts?: { knownChatId?: string },
@@ -248,6 +255,27 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
 
     if (profile.id === currentUser.profileId) {
       setChatError("Нельзя написать самому себе.");
+      return;
+    }
+
+    const sid =
+      supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
+    const isSupportPeer = sid != null && profile.id === sid;
+    const listItem = chatListRef.current.find(
+      (x) => x.profile.id === profile.id,
+    );
+    const existingChatId =
+      resolveChatIdForPeer(profile.id, opts) ?? listItem?.chatId ?? null;
+    const hasExistingChat = Boolean(existingChatId);
+    const canSend = canSendDmToPeer(isSupportPeer);
+
+    if (!hasExistingChat && !canSend) {
+      openPaywallDrawer({
+        intent: "dm",
+        profileId: profile.id,
+        profileName: profile.full_name,
+        profileRole: profile.role_title ?? profile.city,
+      });
       return;
     }
 
@@ -264,65 +292,43 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     resetSupportComposer();
 
     try {
-      const sid =
-        supportProfileId ?? getSupportProfileIdFromEnv() ?? null;
-      const isSupportPeer = sid != null && profile.id === sid;
+      let chatId = existingChatId;
 
-      if (isPaidGateMode() && !currentUser.isPro && !isSupportPeer) {
-        openPaywallDrawer({
-          intent: "dm",
-          profileId: profile.id,
-          profileName: profile.full_name,
-          profileRole: profile.role_title ?? profile.city,
-        });
-        setChatLoading(false);
-        return;
-      }
-
-      if (
-        !isPaidGateMode() &&
-        !canSendDirectMessages(currentUser.subscriptionPlan) &&
-        !isSupportPeer
-      ) {
-        openPaywallDrawer({
-          intent: "dm",
-          profileId: profile.id,
-          profileName: profile.full_name,
-          profileRole: profile.role_title ?? profile.city,
-        });
-        setChatLoading(false);
-        return;
-      }
-
-      if (!isSupportPeer) {
-        const limit = getDmPartnersDailyLimit(currentUser.subscriptionPlan);
-        const partnersToday = await getUniqueChatPartnersToday(
-          currentUser.profileId,
-        );
-        if (isChatLoadStale(gen)) return;
-        if (
-          !partnersToday.has(profile.id) &&
-          partnersToday.size >= limit
-        ) {
-          setChatError(
-            `Лимит ${limit} уникальных собеседников в сутки исчерпан.${
-              currentUser.subscriptionPlan === "pro"
-                ? " Перейдите на Pro+ для лимита 30."
-                : ""
-            }`.trim(),
+      if (!chatId) {
+        if (!isSupportPeer) {
+          const limit = getDmPartnersDailyLimit(currentUser.subscriptionPlan);
+          const partnersToday = await getUniqueChatPartnersToday(
+            currentUser.profileId,
           );
-          setChatLoading(false);
-          return;
+          if (isChatLoadStale(gen)) return;
+          if (
+            !partnersToday.has(profile.id) &&
+            partnersToday.size >= limit
+          ) {
+            setChatError(
+              `Лимит ${limit} уникальных собеседников в сутки исчерпан.${
+                currentUser.subscriptionPlan === "pro"
+                  ? " Перейдите на Pro+ для лимита 30."
+                  : ""
+              }`.trim(),
+            );
+            setChatLoading(false);
+            return;
+          }
         }
+
+        chatId = await openOrEnsurePrivateChat(
+          currentUser.profileId,
+          profile.id,
+        );
       }
 
-      let chatId =
-        resolveChatIdForPeer(profile.id, opts) ??
-        (await openOrEnsurePrivateChat(currentUser.profileId, profile.id));
+      if (!chatId) {
+        setChatError("Не удалось открыть диалог.");
+        setChatLoading(false);
+        return;
+      }
 
-      const listItem = chatListRef.current.find(
-        (x) => x.profile.id === profile.id,
-      );
       if (
         listItem &&
         listItem.chatId !== chatId &&
@@ -331,23 +337,24 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
         chatId = listItem.chatId;
       }
 
+      const finalChatId = chatId;
       if (isChatLoadStale(gen)) return;
 
-      setActiveChatId(chatId);
-      chatMembershipRef.current.add(chatId);
+      setActiveChatId(finalChatId);
+      chatMembershipRef.current.add(finalChatId);
 
       if (isSupportPeer) {
-        setActiveChatIsClosed(await isChatClosed(chatId));
+        setActiveChatIsClosed(await isChatClosed(finalChatId));
       } else {
         setActiveChatIsClosed(false);
       }
       if (isChatLoadStale(gen)) return;
 
       setChatList((prev) => {
-        const exists = prev.some((x) => x.chatId === chatId);
+        const exists = prev.some((x) => x.chatId === finalChatId);
         if (exists) return prev;
         const item: ChatListItem = {
-          chatId,
+          chatId: finalChatId,
           profile,
           lastMessageAt: null,
           lastMessagePreview: null,
@@ -358,19 +365,39 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       const excludeSenderIds = blockedProfileIds.includes(profile.id)
         ? [profile.id]
         : undefined;
-      let normalized = await fetchRecentMessages(chatId, {
+      let readChatId = finalChatId;
+      let normalized = await fetchRecentMessages(readChatId, {
         excludeSenderIds,
       });
       if (
         normalized.length === 0 &&
         listItem &&
-        listItem.chatId !== chatId &&
-        listItem.lastMessagePreview
+        listItem.chatId !== readChatId &&
+        (listItem.lastMessagePreview || listItem.lastMessageAt)
       ) {
-        chatId = listItem.chatId;
-        setActiveChatId(chatId);
-        chatMembershipRef.current.add(chatId);
-        normalized = await fetchRecentMessages(chatId, { excludeSenderIds });
+        readChatId = listItem.chatId;
+        setActiveChatId(readChatId);
+        chatMembershipRef.current.add(readChatId);
+        normalized = await fetchRecentMessages(readChatId, { excludeSenderIds });
+      }
+      if (
+        normalized.length === 0 &&
+        listItem &&
+        listItem.chatId === readChatId &&
+        (listItem.lastMessagePreview || listItem.lastMessageAt)
+      ) {
+        const altChatId = chatListRef.current.find(
+          (x) =>
+            x.profile.id === profile.id &&
+            x.chatId !== readChatId &&
+            (x.lastMessagePreview || x.lastMessageAt),
+        )?.chatId;
+        if (altChatId) {
+          readChatId = altChatId;
+          setActiveChatId(readChatId);
+          chatMembershipRef.current.add(readChatId);
+          normalized = await fetchRecentMessages(readChatId, { excludeSenderIds });
+        }
       }
       if (isChatLoadStale(gen)) return;
 
@@ -378,7 +405,7 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
       setEditingMessageId(null);
       setChatInput("");
       setUnreadByUser((prev) => ({ ...prev, [profile.id]: 0 }));
-      void markChatAsRead(chatId, currentUser.profileId);
+      void markChatAsRead(readChatId, currentUser.profileId);
     } catch (err: unknown) {
       if (!isChatLoadStale(gen)) {
         setChatError(getChatErrorMessage(err, "Не удалось открыть диалог."));
@@ -508,6 +535,15 @@ export function useChatHandlers(deps: ChatHandlerDeps) {
     if (!currentUser || !chatInput.trim()) return;
     if (!activeChatId) {
       setChatError("Чат ещё не готов. Закройте окно и откройте диалог снова.");
+      return;
+    }
+    if (!isSupportChat && !canSendDmToPeer(false)) {
+      openPaywallDrawer({
+        intent: "dm",
+        profileId: activeChatUser?.id,
+        profileName: activeChatUser?.full_name,
+        profileRole: activeChatUser?.role_title ?? activeChatUser?.city,
+      });
       return;
     }
     if (currentUser.isBlocked) {

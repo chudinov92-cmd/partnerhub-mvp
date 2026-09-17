@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 import {
-  emailMapLink,
+  emailMapChatLink,
   wrapTransactionalEmail,
 } from "@/lib/emailContent";
 import {
@@ -14,6 +14,7 @@ import {
 type MessageEmailCandidate = {
   profile_id: string;
   auth_user_id: string;
+  peer_profile_id: string;
 };
 
 export async function POST(req: Request) {
@@ -30,7 +31,6 @@ export async function POST(req: Request) {
   }
 
   const admin = createSupabaseAdmin();
-  const mapUrl = emailMapLink("new_message");
 
   const { data: candidates, error } = await admin.rpc(
     "get_profiles_for_message_email",
@@ -46,11 +46,14 @@ export async function POST(req: Request) {
   for (const row of (candidates ?? []) as MessageEmailCandidate[]) {
     const profileId = row.profile_id;
     const authUserId = row.auth_user_id;
+    const peerProfileId = row.peer_profile_id;
 
-    if (!profileId || !authUserId) {
+    if (!profileId || !authUserId || !peerProfileId) {
       skipped += 1;
       continue;
     }
+
+    const mapUrl = emailMapChatLink(peerProfileId, "new_message");
 
     const { data: authUser, error: authErr } =
       await admin.auth.admin.getUserById(authUserId);

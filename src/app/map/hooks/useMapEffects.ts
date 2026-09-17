@@ -21,7 +21,7 @@ import {
 import { canSendDirectMessages } from "@/services/subscriptionService";
 import { fetchProfileForMapById } from "@/services/profileService";
 import type { MobileMainTab } from "@/components/MainMobileNav";
-import type { Profile, CurrentUser } from "@/types";
+import type { Profile, CurrentUser, ChatListItem } from "@/types";
 import type { PaywallIntentContext } from "@/lib/paywallIntent";
 
 export type MapEffectsDeps = {
@@ -29,11 +29,15 @@ export type MapEffectsDeps = {
   currentUser: CurrentUser | null;
   loading: boolean;
   profiles: Profile[];
+  chatList: ChatListItem[];
   chatDeepLinkNonce: number;
   profileDeepLinkNonce: number;
   supportDeepLinkNonce: number;
   setChatDeepLinkNonce: React.Dispatch<React.SetStateAction<number>>;
-  openChatWithProfile: (profile: Profile) => Promise<void>;
+  openChatWithProfile: (
+    profile: Profile,
+    opts?: { knownChatId?: string },
+  ) => Promise<void>;
   openSupportChat: () => Promise<void>;
   openProfileOverlay: (profile: Profile) => boolean;
   setPaymentToast: React.Dispatch<
@@ -59,6 +63,7 @@ export function useMapEffects(deps: MapEffectsDeps) {
     currentUser,
     loading,
     profiles,
+    chatList,
     chatDeepLinkNonce,
     profileDeepLinkNonce,
     supportDeepLinkNonce,
@@ -89,7 +94,7 @@ export function useMapEffects(deps: MapEffectsDeps) {
   }, [router, setChatDeepLinkNonce]);
 
   useEffect(() => {
-    if (!currentUser || !profiles.length || typeof window === "undefined") return;
+    if (!currentUser || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const chatProfileId = params.get("chat");
     if (!chatProfileId) return;
@@ -103,14 +108,40 @@ export function useMapEffects(deps: MapEffectsDeps) {
       router.replace(qs ? `/map?${qs}` : "/map");
     };
 
-    const p = profiles.find((pr) => pr.id === chatProfileId);
-    if (p) {
-      void openChatWithProfile(p).finally(clearChatQueryParam);
-    } else {
+    let cancelled = false;
+
+    const openFromDeepLink = async () => {
+      const listItem = chatList.find((x) => x.profile.id === chatProfileId);
+      let profile =
+        profiles.find((pr) => pr.id === chatProfileId) ??
+        listItem?.profile ??
+        null;
+      if (!profile) {
+        try {
+          profile = await fetchProfileForMapById(chatProfileId);
+        } catch (e) {
+          console.error("Failed to load chat profile", e);
+        }
+      }
+      if (cancelled) return;
+      if (profile) {
+        await openChatWithProfile(
+          profile,
+          listItem?.chatId ? { knownChatId: listItem.chatId } : undefined,
+        );
+        setMobileTab("my-chats");
+      } else {
+        setPaymentToast({ message: "Профиль не найден или недоступен" });
+      }
       clearChatQueryParam();
-    }
+    };
+
+    void openFromDeepLink();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- nonce-driven deeplink
-  }, [currentUser, profiles, chatDeepLinkNonce]);
+  }, [currentUser, profiles, chatList, chatDeepLinkNonce]);
 
   useEffect(() => {
     if (!currentUser || typeof window === "undefined") return;
