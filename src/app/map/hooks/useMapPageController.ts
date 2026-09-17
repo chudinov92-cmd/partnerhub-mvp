@@ -68,7 +68,6 @@ import {
   getProfessionLabelsForSelect,
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
-import { DropdownSelect } from "@/components/DropdownSelect";
 import {
   getIndustryLabelsForSelect,
   getSubindustryLabelsForSelect,

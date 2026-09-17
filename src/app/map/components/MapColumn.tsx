@@ -206,6 +206,7 @@ function MapColumnInner(props: Props) {
                       </label>
                       <DropdownSelect
                         value={feedFilters.profession}
+                        title="Профессия"
                         placeholder="Любой"
                         searchable
                         searchPlaceholder="Найти профессию"
@@ -236,6 +237,7 @@ function MapColumnInner(props: Props) {
                       </label>
                       <DropdownSelect
                         value={feedFilters.industry}
+                        title="Отрасль"
                         placeholder="Любой"
                         searchable
                         searchPlaceholder="Найти отрасль"
@@ -269,6 +271,7 @@ function MapColumnInner(props: Props) {
                       </label>
                       <DropdownSelect
                         value={feedFilters.subindustry}
+                        title="Подотрасль"
                         disabled={!feedFilters.industry}
                         placeholder={
                           feedFilters.industry ? "Любой" : "Сначала выберите отрасль"
@@ -300,6 +303,7 @@ function MapColumnInner(props: Props) {
                       </label>
                       <DropdownSelect
                         value={feedFilters.current_status}
+                        title="Текущий статус"
                         placeholder="Любой"
                         options={[
                           { value: "", label: "Любой" },
@@ -361,6 +365,7 @@ function MapColumnInner(props: Props) {
                       </label>
                       <DropdownSelect
                         value={feedFilters.online_status ?? ""}
+                        title="Онлайн / оффлайн"
                         placeholder="Любой"
                         options={[
                           { value: "", label: "Любой" },

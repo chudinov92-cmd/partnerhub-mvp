@@ -794,6 +794,7 @@ export default function OnboardingPage() {
                 <DropdownSelect
                   variant="profile"
                   value={profile.industry}
+                  title="Отрасль"
                   placeholder="Выберите отрасль"
                   options={(industryCatalog.length > 0
                     ? getIndustryLabelsForSelect(industryCatalog)
@@ -816,6 +817,7 @@ export default function OnboardingPage() {
                     value={
                       subindustryIsOther ? "Другое" : profile.subindustry
                     }
+                    title="Подотрасль"
                     placeholder="Выберите подотрасль"
                     options={subindustryOptions.map((s) => ({
                       value: s,
@@ -899,6 +901,7 @@ export default function OnboardingPage() {
                     <DropdownSelect
                       variant="profile"
                       value={interestedDraft}
+                      title="Интересующие профессии"
                       placeholder="Выберите профессию"
                       searchable
                       options={professionCatalog.map((p) => ({

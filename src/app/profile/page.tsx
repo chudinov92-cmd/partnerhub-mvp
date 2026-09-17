@@ -1242,6 +1242,7 @@ export default function ProfilePage() {
                     <DropdownSelect
                       variant="profile"
                       value={profile.current_status ?? null}
+                      title="Текущий статус"
                       placeholder="Выберите статус"
                       options={SORTED_CURRENT_STATUS_OPTIONS.map((s) => ({
                         value: s,
@@ -1338,6 +1339,7 @@ export default function ProfilePage() {
                   <DropdownSelect
                     variant="profile"
                     value={industryValue}
+                    title="Отрасль"
                     placeholder="Выберите отрасль"
                     disabled={catalogLoading}
                     options={(industryCatalog.length > 0
@@ -1390,6 +1392,7 @@ export default function ProfilePage() {
                     <DropdownSelect
                       variant="profile"
                       value={isSubOther ? "Другое" : b.subindustry}
+                      title="Подотрасль"
                       placeholder="Выберите подотрасль"
                       disabled={catalogLoading}
                       options={subOptions.map((s) => ({ value: s, label: s }))}
@@ -1578,6 +1581,7 @@ export default function ProfilePage() {
             <DropdownSelect
               variant="profile"
               value={interestedProfessionDraft}
+              title="Интересующие профессии"
               placeholder="Выберите профессию"
               searchable
               searchPlaceholder="Найти профессию"
