@@ -127,6 +127,8 @@ export async function POST(req: Request) {
       outSum: pricing.outSum,
       invId,
       description: pricing.description,
+      receiptName: pricing.receiptName,
+      email: user.email ?? undefined,
       siteUrl,
     });
 

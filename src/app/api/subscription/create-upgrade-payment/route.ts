@@ -8,6 +8,7 @@ import {
 import { getPaymentReturnSiteUrl } from "@/lib/paymentReturn";
 import {
   buildUpgradeDescription,
+  buildUpgradeReceiptName,
   calculateUpgradePrice,
   formatUpgradeOutSum,
   isActiveProProfile,
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
     const upgradePrice = calculateUpgradePrice(remainingDays);
     const outSum = formatUpgradeOutSum(upgradePrice);
     const description = buildUpgradeDescription(remainingDays);
+    const receiptName = buildUpgradeReceiptName(remainingDays);
 
     const invId = allocRobokassaInvId();
 
@@ -148,6 +150,8 @@ export async function POST(req: Request) {
       outSum,
       invId,
       description,
+      receiptName,
+      email: user.email ?? undefined,
       siteUrl,
     });
 

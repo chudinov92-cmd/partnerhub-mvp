@@ -97,6 +97,10 @@ export function buildUpgradeDescription(_remainingDays: number): string {
   return "Тариф Pro+";
 }
 
+export function buildUpgradeReceiptName(_remainingDays: number): string {
+  return "Доплата за переход на тариф Pro+";
+}
+
 export function isUpgradePaymentPlan(planId: string): boolean {
   return planId === UPGRADE_PLAN_ID;
 }
@@ -114,6 +118,7 @@ export function parsePaymentPlanId(planId: string): {
   days: number;
   outSum: string;
   description: string;
+  receiptName: string;
 } | null {
   const map: Record<
     PaymentPlanId,
@@ -123,6 +128,7 @@ export function parsePaymentPlanId(planId: string): {
       days: number;
       outSum: string;
       description: string;
+      receiptName: string;
     }
   > = {
     pro_monthly: {
@@ -131,6 +137,7 @@ export function parsePaymentPlanId(planId: string): {
       days: 30,
       outSum: "249.00",
       description: "Тариф Pro",
+      receiptName: "Подписка Pro на 30 дней",
     },
     pro_yearly: {
       subscriptionPlan: "pro",
@@ -138,6 +145,7 @@ export function parsePaymentPlanId(planId: string): {
       days: 365,
       outSum: "2390.00",
       description: "Тариф Pro",
+      receiptName: "Подписка Pro на 365 дней",
     },
     pro_plus_monthly: {
       subscriptionPlan: "pro_plus",
@@ -145,6 +153,7 @@ export function parsePaymentPlanId(planId: string): {
       days: 30,
       outSum: "449.00",
       description: "Тариф Pro+",
+      receiptName: "Подписка Pro+ на 30 дней",
     },
     pro_plus_yearly: {
       subscriptionPlan: "pro_plus",
@@ -152,6 +161,7 @@ export function parsePaymentPlanId(planId: string): {
       days: 365,
       outSum: "4310.00",
       description: "Тариф Pro+",
+      receiptName: "Подписка Pro+ на 365 дней",
     },
   };
 
