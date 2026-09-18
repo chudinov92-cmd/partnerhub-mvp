@@ -50,12 +50,16 @@ export function useProfessionOtherResolver(catalog: ProfessionCatalogRow[]) {
         return Promise.resolve(preview);
       }
 
-      return new Promise((resolve) => {
-        pendingRef.current = resolve;
-        setModalInput(preview.input);
-        setModalSuggestion(preview.label);
-        setModalOpen(true);
-      });
+      if (preview.action === "suggest") {
+        return new Promise((resolve) => {
+          pendingRef.current = resolve;
+          setModalInput(preview.input);
+          setModalSuggestion(preview.label);
+          setModalOpen(true);
+        });
+      }
+
+      return Promise.resolve({ action: "cancel" });
     },
     [catalog, dismissedKeys],
   );

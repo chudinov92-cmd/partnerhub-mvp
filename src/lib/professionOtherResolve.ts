@@ -7,6 +7,17 @@ import {
   type ProfessionCatalogRow,
 } from "@/lib/professionCatalog";
 
+export type ProfessionSuggestResult = {
+  action: "suggest";
+  label: string;
+  input: string;
+};
+
+export type ProfessionSavePreview =
+  | { action: "canonical"; label: string }
+  | { action: "custom"; label: string }
+  | ProfessionSuggestResult;
+
 export type ProfessionResolveResult =
   | { action: "canonical"; label: string }
   | { action: "custom"; label: string }
@@ -16,7 +27,7 @@ export function getProfessionResolvePreview(
   catalog: ProfessionCatalogRow[],
   input: string | null | undefined,
   opts?: { dismissedKeys?: ReadonlySet<string> },
-): ProfessionResolveResult | { action: "suggest"; label: string; input: string } | null {
+): ProfessionSavePreview | null {
   const trimmed = (input ?? "").trim();
   if (!trimmed) return null;
 
@@ -43,7 +54,7 @@ export function resolveProfessionForSave(
   catalog: ProfessionCatalogRow[],
   input: string | null | undefined,
   opts?: { dismissedKeys?: ReadonlySet<string> },
-): ProfessionResolveResult | { action: "suggest"; label: string; input: string } {
+): ProfessionSavePreview {
   const preview = getProfessionResolvePreview(catalog, input, opts);
   if (!preview) {
     return { action: "custom", label: (input ?? "").trim() };
