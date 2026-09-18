@@ -75,6 +75,12 @@ export function useProfessionOtherResolver(catalog: ProfessionCatalogRow[]) {
     pendingRef.current = null;
   }, [closeModal, dismissSuggestion, modalInput]);
 
+  const dismissModal = useCallback(() => {
+    closeModal();
+    pendingRef.current?.({ action: "cancel" });
+    pendingRef.current = null;
+  }, [closeModal]);
+
   return {
     modalOpen,
     modalInput,
@@ -84,6 +90,7 @@ export function useProfessionOtherResolver(catalog: ProfessionCatalogRow[]) {
     resolveForSave,
     confirmCanonical,
     confirmCustom,
+    dismissModal,
     closeModal,
   };
 }

@@ -546,6 +546,7 @@ export default function OnboardingPage() {
         let roleTitle = profile.role_title ?? "";
         if (professionIsOther && roleTitle.trim()) {
           const resolved = await professionResolver.resolveForSave(roleTitle);
+          if (resolved.action === "cancel") return;
           if (resolved.action === "canonical") {
             setProfessionIsOther(false);
             roleTitle = resolved.label;
@@ -1022,6 +1023,7 @@ export default function OnboardingPage() {
         suggestion={professionResolver.modalSuggestion}
         onConfirm={professionResolver.confirmCanonical}
         onReject={professionResolver.confirmCustom}
+        onDismiss={professionResolver.dismissModal}
       />
       <QuizCompleteModal
         open={completeModalOpen}

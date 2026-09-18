@@ -9,6 +9,7 @@ type ProfessionDidYouMeanModalProps = {
   suggestion: string;
   onConfirm: () => void;
   onReject: () => void;
+  onDismiss: () => void;
 };
 
 export function ProfessionDidYouMeanModal({
@@ -17,15 +18,16 @@ export function ProfessionDidYouMeanModal({
   suggestion,
   onConfirm,
   onReject,
+  onDismiss,
 }: ProfessionDidYouMeanModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onReject();
+      if (event.key === "Escape") onDismiss();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onReject]);
+  }, [open, onDismiss]);
 
   if (!open) return null;
 
@@ -35,7 +37,7 @@ export function ProfessionDidYouMeanModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="profession-did-you-mean-title"
-      onClick={onReject}
+      onClick={onDismiss}
     >
       <FocusTrap
         active={open}

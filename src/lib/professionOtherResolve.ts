@@ -9,7 +9,8 @@ import {
 
 export type ProfessionResolveResult =
   | { action: "canonical"; label: string }
-  | { action: "custom"; label: string };
+  | { action: "custom"; label: string }
+  | { action: "cancel" };
 
 export function getProfessionResolvePreview(
   catalog: ProfessionCatalogRow[],
@@ -50,6 +51,15 @@ export function resolveProfessionForSave(
   return preview;
 }
 
+export type FinalizeProfessionLabelResult =
+  | {
+      cancelled: false;
+      label: string;
+      catalog: ProfessionCatalogRow[];
+      usedCanonical: boolean;
+    }
+  | { cancelled: true };
+
 export async function finalizeProfessionLabel(
   catalog: ProfessionCatalogRow[],
   input: string,
@@ -57,22 +67,36 @@ export async function finalizeProfessionLabel(
     value: string,
     catalogOverride?: ProfessionCatalogRow[],
   ) => Promise<ProfessionResolveResult>,
-): Promise<{
-  label: string;
-  catalog: ProfessionCatalogRow[];
-  usedCanonical: boolean;
-}> {
+): Promise<FinalizeProfessionLabelResult> {
   const trimmed = input.trim();
   const existing = findProfessionByKey(catalog, trimmed);
   if (existing) {
-    return { label: existing.label, catalog, usedCanonical: true };
+    return {
+      cancelled: false,
+      label: existing.label,
+      catalog,
+      usedCanonical: true,
+    };
   }
 
   const resolved = await resolveForSave(trimmed, catalog);
+  if (resolved.action === "cancel") {
+    return { cancelled: true };
+  }
   if (resolved.action === "canonical") {
-    return { label: resolved.label, catalog, usedCanonical: true };
+    return {
+      cancelled: false,
+      label: resolved.label,
+      catalog,
+      usedCanonical: true,
+    };
   }
 
   const nextCatalog = await syncCustomProfessionToCatalog(catalog, resolved.label);
-  return { label: resolved.label, catalog: nextCatalog, usedCanonical: false };
+  return {
+    cancelled: false,
+    label: resolved.label,
+    catalog: nextCatalog,
+    usedCanonical: false,
+  };
 }

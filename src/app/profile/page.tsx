@@ -666,6 +666,7 @@ export default function ProfilePage() {
           profile.role_title ?? "",
           professionResolver.resolveForSave,
         );
+        if (finalized.cancelled) return;
         nextProfessionCatalog = finalized.catalog;
         resolvedRoleTitle = finalized.label;
         if (finalized.usedCanonical) {
@@ -707,6 +708,7 @@ export default function ProfilePage() {
             roleRaw,
             professionResolver.resolveForSave,
           );
+          if (finalized.cancelled) return;
           nextProfessionCatalog = finalized.catalog;
           resolvedWorkBlocks[i] = { ...wb, role_title: finalized.label };
         }
@@ -1693,6 +1695,7 @@ export default function ProfilePage() {
           suggestion={professionResolver.modalSuggestion}
           onConfirm={professionResolver.confirmCanonical}
           onReject={professionResolver.confirmCustom}
+          onDismiss={professionResolver.dismissModal}
         />
 
         {deleteBlockConfirmOpen && (

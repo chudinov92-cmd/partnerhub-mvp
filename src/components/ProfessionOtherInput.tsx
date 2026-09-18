@@ -116,7 +116,7 @@ export function ProfessionOtherInput({
           {" · "}
           <button
             type="button"
-            className="text-slate-500 underline-offset-2 hover:underline"
+            className="font-medium text-[#009966] underline-offset-2 hover:underline"
             onMouseDown={(e) => e.preventDefault()}
             onClick={dismissSuggestion}
           >

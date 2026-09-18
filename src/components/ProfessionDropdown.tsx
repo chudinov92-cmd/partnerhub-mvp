@@ -97,7 +97,7 @@ export function ProfessionDropdown({
             );
             if (hasCatalogMatch) return null;
             return (
-              <p className="px-3 py-2 text-sm leading-snug text-slate-500 lg:px-2 lg:py-1.5 lg:text-[11px]">
+              <p className="px-3 py-2 text-sm leading-snug text-red-600 lg:px-2 lg:py-1.5 lg:text-[11px]">
                 Нет вашей профессии? Выберите «Другое» и впишите её — мы добавим
                 её в базу в течение суток.
               </p>
