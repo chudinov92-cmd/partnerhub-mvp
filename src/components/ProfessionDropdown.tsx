@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { SelectOverlay } from "@/components/select/SelectOverlay";
-import type { SelectOption } from "@/components/select/types";
+import { SelectOverlay } from "@my-startup/ui";
+import type { SelectOption } from "@my-startup/ui";
 import {
   OTHER_PROFESSION_LABEL,
   type ProfessionCatalogRow,

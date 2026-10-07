@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
-import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
+import { useVisualViewportLayout } from "@my-startup/hooks";
 import Link from "next/link";
 import { SupportAppealCard } from "@/components/SupportAppealCard";
 import { ProfileShareCard } from "@/components/ProfileShareCard";

@@ -364,7 +364,7 @@ export function useMapPageController() {
       let profile = profiles.find((p) => p.id === profileId) ?? null;
       if (!profile) {
         try {
-          profile = await fetchProfileForMapById(profileId);
+          profile = await fetchProfileForMapById(profileId, { includeHidden: true });
         } catch (e) {
           console.error("Failed to load profile from chat link", e);
         }

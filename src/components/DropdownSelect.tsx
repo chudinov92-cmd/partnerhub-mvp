@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { SelectOverlay } from "@/components/select/SelectOverlay";
+import { SelectOverlay } from "@my-startup/ui";
 
 export type DropdownSelectOption = {
   value: string;

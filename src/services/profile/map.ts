@@ -124,18 +124,23 @@ export async function fetchProfilesForMap(limit = 50): Promise<Profile[]> {
   return ((data ?? []) as ProfileMapRow[]).map(normalizeMapProfile);
 }
 
-export async function fetchProfileForMapById(id: string): Promise<Profile | null> {
+export async function fetchProfileForMapById(
+  id: string,
+  options?: { includeHidden?: boolean },
+): Promise<Profile | null> {
   const profileId = id.trim();
   if (!profileId) return null;
 
   const select = `${PROFILE_MAP_SELECT}, profile_work(id, role_title, industry, subindustry, experience_years, sort_order)`;
-  const { data, error } = await supabasePublic
+  let query = supabasePublic
     .from("profiles")
     .select(select)
     .eq("id", profileId)
-    .is("deleted_at", null)
-    .eq("map_visible", true)
-    .maybeSingle();
+    .is("deleted_at", null);
+  if (!options?.includeHidden) {
+    query = query.eq("map_visible", true);
+  }
+  const { data, error } = await query.maybeSingle();
 
   if (error) throw error;
   if (!data) return null;

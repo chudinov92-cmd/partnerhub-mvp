@@ -3,8 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { RUSSIA_LABEL, SORTED_CITY_OPTIONS } from "@/data/cities";
-import { SelectOverlay } from "@/components/select/SelectOverlay";
-import type { SelectOption } from "@/components/select/types";
+import { SelectOverlay } from "@my-startup/ui";
+import type { SelectOption } from "@my-startup/ui";
 
 type TopBarCitySelectProps = {
   onCityChosen?: (city: string) => void;

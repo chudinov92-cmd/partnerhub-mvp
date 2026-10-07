@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
-import { useVisualViewportLayout } from "@/hooks/useMobileKeyboardInset";
+import { useVisualViewportLayout } from "@my-startup/hooks";
 import Link from "next/link";
 import { isPaidGateMode } from "@/lib/accessMode";
 import { savePendingPaywallContext } from "@/lib/paywallIntent";
@@ -65,7 +65,8 @@ function FeedColumnInner(props: Props) {
     formatDateTime,
     canWriteGeneralChat,
     handleCreatePost,
-    handleDeletePost
+    handleDeletePost,
+    openProfileFromChatLink
   } = props;
 
   return (
@@ -178,7 +179,9 @@ function FeedColumnInner(props: Props) {
                   const p = profiles.find((pr) => pr.id === post.author_id);
                   if (p) {
                     openProfileOverlay(p);
+                    return;
                   }
+                  void openProfileFromChatLink(post.author_id);
                 };
 
                 return (

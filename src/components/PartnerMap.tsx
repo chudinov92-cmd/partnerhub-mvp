@@ -13,6 +13,16 @@ import {
 } from "@/services/profileService";
 import { comparePlanRank, getPinColorForPlan, planRank } from "@/lib/subscriptionPlans";
 import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import {
+  createPinElement,
+  markerVisualKey,
+  obfuscateLatLngWithinRadius,
+  pinInitial,
+  PIN_BORDER_COLOR,
+  PIN_FILL_COLOR,
+  scheduleOwnPinHello,
+  setMarkerTooltip,
+} from "@/lib/map";
 
 type LocationPoint = {
   id: string;
@@ -25,8 +35,7 @@ type LocationPoint = {
 const PERM_CENTER: LngLat = [56.25, 58.01];
 const DEFAULT_ZOOM = 12;
 const GEO_PRIVACY_RADIUS_M = 250;
-const PIN_FILL_COLOR = "#10B981";
-const PIN_BORDER_COLOR = "#FFFFFF";
+// PIN_FILL_COLOR, PIN_BORDER_COLOR → @/lib/map/pinElement
 const PIN_VIEWED_BORDER_COLOR = "#9CA3AF";
 const PIN_FOCUSED_BORDER_COLOR = "#F59E0B";
 const Z_PIN_FOCUSED = 10_000_000;
@@ -70,200 +79,19 @@ function upsertGeoJsonLayer(
   });
 }
 
-function hashToSeed(str: string) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number) {
-  let a = seed;
-  return function next() {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function obfuscateLatLngWithinRadius(
-  lat: number,
-  lng: number,
-  seedStr: string,
-  radiusM: number,
-) {
-  const seed = hashToSeed(seedStr);
-  const rnd = mulberry32(seed);
-
-  const u = rnd();
-  const v = rnd();
-  const r = radiusM * Math.sqrt(u);
-  const theta = 2 * Math.PI * v;
-
-  const R = 6378137;
-  const latRad = (lat * Math.PI) / 180;
-
-  const dNorth = r * Math.cos(theta);
-  const dEast = r * Math.sin(theta);
-
-  const dLat = dNorth / R;
-  const dLng = dEast / (R * Math.cos(latRad));
-
-  return {
-    lat: lat + (dLat * 180) / Math.PI,
-    lng: lng + (dLng * 180) / Math.PI,
-  };
-}
-
-function escapeHtmlChar(char: string) {
-  if (char === "&") return "&amp;";
-  if (char === "<") return "&lt;";
-  if (char === ">") return "&gt;";
-  if (char === '"') return "&quot;";
-  return char;
-}
-
-function pinInitial(fullName: string | null | undefined) {
-  const c = fullName?.trim()?.[0];
-  if (!c) return "?";
-  return escapeHtmlChar(c.toLocaleUpperCase("ru-RU"));
-}
-
-function markerVisualKey(row: {
-  isOwn: boolean;
-  isViewed: boolean;
-  isFocused: boolean;
-  subscriptionPlan: string;
-  initial: string;
-}) {
-  return `${row.isOwn}:${row.isFocused}:${row.isViewed}:${row.subscriptionPlan}:${row.initial}`;
-}
-
-function escapeHtmlColor(hex: string, fallback: string) {
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return fallback;
-  return hex;
-}
-
-function escapeHtmlText(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+// hashToSeed, mulberry32, obfuscateLatLngWithinRadius → @/lib/map/geoPrivacy
+// escapeHtmlChar, pinInitial, markerVisualKey, escapeHtmlColor, escapeHtmlText → @/lib/map/pinElement
 
 function toLngLat(center: LngLat | undefined): LngLat {
   if (!center || center.length < 2) return PERM_CENTER;
   return [Number(center[0]), Number(center[1])];
 }
 
-function createPinElement(
-  letter: string,
-  fillHex: string,
-  borderColorHex: string,
-  options?: { letterColorHex?: string; stemHex?: string },
-): HTMLElement {
-  const safeFill = escapeHtmlColor(fillHex, PIN_FILL_COLOR);
-  const safeBorderColor = escapeHtmlColor(borderColorHex, PIN_BORDER_COLOR);
-  const letterColorHex = options?.letterColorHex ?? "#FFFFFF";
-  const safeLetterColor = escapeHtmlColor(letterColorHex, "#FFFFFF");
-  const stemHex = options?.stemHex ?? fillHex;
-  const safeStem = escapeHtmlColor(stemHex, safeFill);
+// createPinElement → @/lib/map/pinElement
 
-  const root = document.createElement("div");
-  root.className = "partner-map-marker-root";
-  root.innerHTML = `<div class="partner-map-pin-wrap">
-    <div class="partner-map-pin-head" style="background-color:${safeFill};border-color:${safeBorderColor}">
-      <span class="partner-map-pin-letter" style="color:${safeLetterColor}">${letter}</span>
-    </div>
-    <div class="partner-map-pin-stem" style="background-color:${safeStem}"></div>
-  </div>`;
-  return root;
-}
+// PIN_HELLO_WRAP_CLASS, prefersReducedMotion, triggerOwnPinHello, scheduleOwnPinHello → @/lib/map/pinElement
 
-const PIN_HELLO_WRAP_CLASS = "partner-map-pin-wrap--hello";
-
-function prefersReducedMotion() {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function triggerOwnPinHello(
-  wrap: HTMLElement,
-  playedRef: { current: boolean },
-) {
-  if (playedRef.current || prefersReducedMotion()) {
-    playedRef.current = true;
-    return;
-  }
-
-  playedRef.current = true;
-  wrap.classList.add(PIN_HELLO_WRAP_CLASS);
-
-  const head = wrap.querySelector<HTMLElement>(".partner-map-pin-head");
-  if (!head) {
-    wrap.classList.remove(PIN_HELLO_WRAP_CLASS);
-    return;
-  }
-
-  const onAnimationEnd = (event: AnimationEvent) => {
-    if (event.target !== head) return;
-    wrap.classList.remove(PIN_HELLO_WRAP_CLASS);
-    head.removeEventListener("animationend", onAnimationEnd);
-  };
-
-  head.addEventListener("animationend", onAnimationEnd);
-}
-
-function scheduleOwnPinHello(
-  map: mmrgl.Map,
-  wrap: HTMLElement,
-  playedRef: { current: boolean },
-) {
-  if (playedRef.current || prefersReducedMotion()) {
-    playedRef.current = true;
-    return;
-  }
-
-  const onIdle = () => {
-    map.off("idle", onIdle);
-    if (!wrap.isConnected || playedRef.current) return;
-    triggerOwnPinHello(wrap, playedRef);
-  };
-
-  map.once("idle", onIdle);
-  return () => {
-    map.off("idle", onIdle);
-  };
-}
-
-function setMarkerTooltip(
-  root: HTMLElement,
-  fullName: string,
-  roleTitle: string | null | undefined,
-  online: boolean,
-) {
-  let tooltip = root.querySelector<HTMLElement>(".partner-map-hover-tooltip");
-  if (!tooltip) {
-    tooltip = document.createElement("div");
-    tooltip.className = "partner-map-hover-tooltip";
-    root.appendChild(tooltip);
-  }
-  tooltip.innerHTML = `<div class="font-semibold">
-    <span class="inline-flex items-center gap-2">
-      <span>${escapeHtmlText(fullName)}</span>
-      <span class="partner-map-online-dot ${online ? "is-online" : "is-offline"}" title="${online ? "Онлайн" : "Оффлайн"}"></span>
-    </span>
-  </div>${
-    roleTitle
-      ? `<div class="partner-map-tooltip-role">${escapeHtmlText(roleTitle)}</div>`
-      : ""
-  }`;
-}
+// setMarkerTooltip → @/lib/map/pinElement
 
 export type LightPointClickPayload = {
   lng: number;

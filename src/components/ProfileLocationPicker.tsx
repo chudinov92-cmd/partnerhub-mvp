@@ -4,11 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import mmrgl from "mmr-gl";
 import "mmr-gl/dist/mmr-gl.css";
 import type { LngLat } from "@/data/cityMapViews";
+import { escapeHtmlText, PIN_BORDER_COLOR, PIN_FILL_COLOR } from "@/lib/map";
 
 const PERM_CENTER: LngLat = [56.25, 58.01];
 const DEFAULT_ZOOM = 12;
-const PIN_FILL_COLOR = "#10B981";
-const PIN_BORDER_COLOR = "#FFFFFF";
 const VK_MAP_STYLE = "mmr://api/styles/main_style.json";
 
 type Props = {
@@ -17,14 +16,6 @@ type Props = {
   className?: string;
   markerLabel?: string;
 };
-
-function escapeHtmlText(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function createProfilePinElement(letter: string): HTMLElement {
   const safeLetter = escapeHtmlText(letter.slice(0, 1).toUpperCase() || "Я");
