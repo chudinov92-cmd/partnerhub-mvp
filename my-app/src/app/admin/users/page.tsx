@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { buildProfileMapSharePath } from "@/lib/profileShare";
+import { buildProfileMapSharePath } from "@my-startup/chat";
 import { adminFetchProfilesList } from "@/services/adminService";
 import { AdminShell } from "@/app/admin/AdminShell";
 import { getErrorMessage } from "@/lib/errors";

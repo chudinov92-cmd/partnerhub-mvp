@@ -4,11 +4,11 @@ import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
 import { useVisualViewportLayout } from "@my-startup/hooks";
 import Link from "next/link";
-import { SupportAppealCard } from "@/components/SupportAppealCard";
-import { ProfileShareCard } from "@/components/ProfileShareCard";
-import { MessageLinks } from "@/components/MessageLinks";
-import { isAppealMessage } from "@/lib/support";
-import { isProfileShareMessage } from "@/lib/profileShare";
+import { SupportAppealCard } from "@my-startup/chat";
+import { ProfileShareCard } from "@my-startup/chat";
+import { MessageLinks } from "@my-startup/chat";
+import { isAppealMessage } from "@my-startup/chat";
+import { isProfileShareMessage } from "@my-startup/chat";
 import { isPaidGateMode } from "@my-startup/auth";
 import { savePendingPaywallContext } from "@/lib/paywallIntent";
 import {

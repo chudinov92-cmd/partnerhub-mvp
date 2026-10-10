@@ -3,7 +3,7 @@
 import { memo } from "react";
 import type { MapPageController } from "../hooks/useMapPageController";
 import { PushOptInBanner } from "@/components/PushOptInBanner";
-import { formatChatListPreview } from "@/services/chatService";
+import { formatChatListPreview } from "@my-startup/chat";
 import { isOnline } from "../utils";
 
 type Props = MapPageController;

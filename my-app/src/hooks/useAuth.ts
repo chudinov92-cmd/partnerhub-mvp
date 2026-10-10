@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { authGetUser, authOnAuthStateChange } from "@my-startup/auth";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
-import { loadPrivateChatSidebar } from "@/services/chatService";
+import { loadPrivateChatSidebar } from "@my-startup/chat";
 import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@my-startup/subscription";
-import type { ChatListItem, CurrentUser, Profile } from "@/types";
+import type { ChatListItem } from "@my-startup/chat";
+import type { CurrentUser, Profile } from "@/types";
 
 /**
  * Стартовая загрузка: карта профилей, текущий пользователь, сайдбар личных чатов.

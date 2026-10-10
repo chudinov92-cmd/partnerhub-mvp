@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
+import { OPEN_SUPPORT_CHAT_EVENT } from "@my-startup/chat";
 import { authGetUser, authOnAuthStateChange, authSignOut } from "@my-startup/auth";
 import {
   countContactsForOwner,

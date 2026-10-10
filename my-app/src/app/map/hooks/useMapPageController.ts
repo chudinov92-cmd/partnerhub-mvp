@@ -10,19 +10,19 @@ import {
   getSupportProfileId,
   isChatClosed,
   loadDmUnreadCounts,
-} from "@/services/chatService";
+} from "@my-startup/chat";
 import {
   getSupportProfileIdFromEnv,
   isAppealMessage,
-} from "@/lib/support";
-import { SupportAppealCard } from "@/components/SupportAppealCard";
-import { ProfileShareCard } from "@/components/ProfileShareCard";
-import { MessageLinks } from "@/components/MessageLinks";
+} from "@my-startup/chat";
+import { SupportAppealCard } from "@my-startup/chat";
+import { ProfileShareCard } from "@my-startup/chat";
+import { MessageLinks } from "@my-startup/chat";
 import {
   buildProfileMapShareUrl,
   buildProfileShortUrl,
   isProfileShareMessage,
-} from "@/lib/profileShare";
+} from "@my-startup/chat";
 import {
   getSubscriptionStatus,
   getEffectiveSubscriptionPlan,
@@ -85,7 +85,7 @@ import { useContacts } from "@/hooks/useContacts";
 import { useMobileNav } from "@/hooks/useMobileNav";
 import { useFeed } from "@/hooks/useFeed";
 import { useProfiles } from "@/hooks/useProfiles";
-import { useChatMessagesRealtime } from "@/hooks/useChat";
+import { useChatMessagesRealtime } from "@my-startup/chat";
 import { useAutoResizeTextarea } from "@/hooks/useAutoResizeTextarea";
 import { usePreventBodyScroll, isOnline, scrollComposerIntoView } from "../utils";
 import { useMapPageState } from "./useMapPageState";

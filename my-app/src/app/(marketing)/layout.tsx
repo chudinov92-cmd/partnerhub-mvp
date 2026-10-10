@@ -1,24 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, DM_Sans, Space_Grotesk } from "next/font/google";
 import "../landing/landing.css";
-
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-landing-inter",
-  display: "swap",
-});
-
-const dmSans = DM_Sans({
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-landing-dmsans",
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-landing-spacegrotesk",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Zeip — место, где идеи становятся реальностью",
@@ -28,10 +9,6 @@ export const metadata: Metadata = {
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className={`${inter.variable} ${dmSans.variable} ${spaceGrotesk.variable} bg-white text-slate-900`}
-    >
-      {children}
-    </div>
+    <div className="bg-white text-slate-900">{children}</div>
   );
 }

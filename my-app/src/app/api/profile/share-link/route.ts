@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
-import { buildProfileShortUrl } from "@/lib/profileShare";
+import { buildProfileShortUrl } from "@my-startup/chat";
 
 export const runtime = "nodejs";
 

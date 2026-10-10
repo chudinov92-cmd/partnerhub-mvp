@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { buildProfileMapSharePath } from "@/lib/profileShare";
+import { buildProfileMapSharePath } from "@my-startup/chat";
 
 type PageProps = {
   params: Promise<{ id: string }>;

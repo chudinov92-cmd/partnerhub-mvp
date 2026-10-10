@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SUPPORT_AUTH_USER_ID,
   getSupportProfileIdFromEnv,
-} from "@/lib/support";
+} from "@my-startup/chat";
 
 export async function resolveSupportProfileId(
   adminSb: SupabaseClient,

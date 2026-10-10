@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   experimental: {},
-  transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/subscription"],
+  transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription"],
   // CSP и HSTS — в middleware (nonce per-request). Здесь только fallback для путей вне matcher.
   async headers() {
     const securityHeaders = [

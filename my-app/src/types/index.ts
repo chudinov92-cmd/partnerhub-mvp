@@ -84,17 +84,4 @@ export type CurrentUser = {
   onboardingStep: number;
 };
 
-export type ChatMessage = {
-  id: string;
-  content: string;
-  sender_id: string;
-  created_at: string;
-  edited_at?: string | null;
-};
-
-export type ChatListItem = {
-  chatId: string | null;
-  profile: Profile;
-  lastMessageAt: string | null;
-  lastMessagePreview: string | null;
-};
+export type { ChatMessage, ChatListItem } from "@my-startup/chat";

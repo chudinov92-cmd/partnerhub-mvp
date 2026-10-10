@@ -3,12 +3,12 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "./dist/libs/subscription/src/index.js",
-  "types": "./dist/libs/subscription/src/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./dist/libs/subscription/src/index.js",
-      "default": "./dist/libs/subscription/src/index.js"
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "dependencies": {

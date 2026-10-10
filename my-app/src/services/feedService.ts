@@ -1,6 +1,6 @@
 "use client";
 
-import type { PostCommentRow } from "@/components/PostComments";
+import type { PostCommentRow } from "@my-startup/chat";
 import { supabase } from "@my-startup/auth";
 import type { Post } from "@/types";
 import { MAX_COMMENTS_FETCH } from "@/services/constants";

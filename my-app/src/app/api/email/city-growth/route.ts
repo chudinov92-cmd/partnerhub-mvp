@@ -11,7 +11,7 @@ import {
   sendTransactionalEmail,
   verifyInternalEmailSecret,
 } from "@/lib/emailServer";
-import { SUPPORT_AUTH_USER_ID } from "@/lib/support";
+import { SUPPORT_AUTH_USER_ID } from "@my-startup/chat";
 
 type CityGrowthBatch = {
   city: string;

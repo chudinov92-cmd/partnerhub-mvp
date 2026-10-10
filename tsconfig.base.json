@@ -32,6 +32,9 @@
       ],
       "@my-startup/subscription": [
         "./libs/subscription/src/index.ts"
+      ],
+      "@my-startup/chat": [
+        "./libs/chat/src/index.ts"
       ]
     }
   },

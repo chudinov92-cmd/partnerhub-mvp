@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { getSupportProfileIdFromEnv } from "@/lib/support";
+import { getSupportProfileIdFromEnv } from "@my-startup/chat";
 import type { PaywallIntentContext } from "@/lib/paywallIntent";
-import type { ChatMessage, FeedFilters, Profile } from "@/types";
+import type { ChatMessage } from "@my-startup/chat";
+import type { FeedFilters, Profile } from "@/types";
 import { DEFAULT_FEED_FILTERS } from "@/types";
 
 export function useMapPageState() {

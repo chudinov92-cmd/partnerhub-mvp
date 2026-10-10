@@ -10,7 +10,7 @@ import {
   parseMapSearchParams,
   readPendingPaywallContext,
 } from "@/lib/paywallIntent";
-import { OPEN_SUPPORT_CHAT_EVENT } from "@/lib/support";
+import { OPEN_SUPPORT_CHAT_EVENT } from "@my-startup/chat";
 import {
   markWelcomeOnboardingShown,
   shouldShowWelcomeOnboarding,
@@ -19,7 +19,8 @@ import { trackPaymentSuccessAha } from "@my-startup/analytics";
 import { canSendDirectMessages } from "@my-startup/subscription";
 import { fetchProfileForMapById } from "@/services/profileService";
 import type { MobileMainTab } from "@/components/MainMobileNav";
-import type { Profile, CurrentUser, ChatListItem } from "@/types";
+import type { ChatListItem } from "@my-startup/chat";
+import type { Profile, CurrentUser } from "@/types";
 import type { PaywallIntentContext } from "@/lib/paywallIntent";
 
 export type MapEffectsDeps = {

@@ -15,11 +15,15 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "test:e2e:install": "PLAYWRIGHT_BROWSERS_PATH=./node_modules/.playwright-browsers playwright install chromium",
-    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=./node_modules/.playwright-browsers playwright install chromium || true; mkdir -p node_modules/@my-startup && cp -r ../libs/analytics node_modules/@my-startup/analytics && ln -sfn ../libs/hooks node_modules/@my-startup/hooks && ln -sfn ../libs/ui node_modules/@my-startup/ui && ln -sfn ../../libs/auth node_modules/@my-startup/auth"
+    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=./node_modules/.playwright-browsers playwright install chromium || true; ROOT=..; sh $ROOT/scripts/setup-myapp-libs.sh"
   },
   "dependencies": {
+    "@my-startup/analytics": "file:../libs/analytics",
     "@my-startup/auth": "file:../libs/auth",
+    "@my-startup/chat": "file:../libs/chat",
+    "@my-startup/hooks": "file:../libs/hooks",
     "@my-startup/subscription": "file:../libs/subscription",
+    "@my-startup/ui": "file:../libs/ui",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.99.1",
     "focus-trap-react": "^12.0.3",

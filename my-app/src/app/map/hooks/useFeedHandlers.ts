@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { isPaidGateMode } from "@my-startup/auth";
 import { maskProfanity } from "@/lib/profanity";
-import { getErrorMessage } from "@/lib/support";
+import { getErrorMessage } from "@my-startup/chat";
 import {
   countTodayChatPosts,
   deletePost,
@@ -17,7 +17,7 @@ import {
   PRO_PLUS_CHAT_LIMIT,
 } from "@my-startup/subscription";
 import type { CurrentUser, FeedFilters, Post } from "@/types";
-import type { PostCommentRow } from "@/components/PostComments";
+import type { PostCommentRow } from "@my-startup/chat";
 import { persistFeedFilters } from "../utils";
 
 type FeedHandlerDeps = {

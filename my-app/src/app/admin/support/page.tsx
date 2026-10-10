@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/app/admin/AdminShell";
 import type { AdminSupportChatRow } from "@/app/api/admin/support/route";
-import type { ChatMessage } from "@/types";
-import { SupportAppealCard } from "@/components/SupportAppealCard";
-import { MessageLinks } from "@/components/MessageLinks";
-import { isAppealMessage } from "@/lib/support";
+import type { ChatMessage } from "@my-startup/chat";
+import { SupportAppealCard } from "@my-startup/chat";
+import { MessageLinks } from "@my-startup/chat";
+import { isAppealMessage } from "@my-startup/chat";
 
 type MessagesResponse = {
   messages: ChatMessage[];

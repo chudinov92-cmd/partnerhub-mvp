@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PostCommentRow } from "@/components/PostComments";
+import type { PostCommentRow } from "@my-startup/chat";
 import {
   fetchCommentsForPostIds,
   fetchPostsForCity,

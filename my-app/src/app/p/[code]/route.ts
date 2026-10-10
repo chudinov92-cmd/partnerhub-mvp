@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "@my-startup/auth";
 import {
   buildProfileMapSharePath,
   PROFILE_SHARE_CODE_REGEX,
-} from "@/lib/profileShare";
+} from "@my-startup/chat";
 
 export const runtime = "nodejs";
 

@@ -6,7 +6,7 @@ import {
   generateCspNonce,
   isCspReportOnly,
 } from "@/lib/csp";
-import { PROFILE_MAP_QUERY_PARAM } from "@/lib/profileShare";
+import { PROFILE_MAP_QUERY_PARAM } from "@my-startup/chat";
 import {
   hasSupabaseAuthCookie,
   isAuthUnavailableError,

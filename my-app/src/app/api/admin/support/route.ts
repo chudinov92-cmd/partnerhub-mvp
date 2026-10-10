@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@my-startup/auth";
 import { requireMinRole } from "@/app/api/admin/_lib/requireAdmin";
 import { resolveSupportProfileId } from "@/app/api/admin/support/_lib/supportProfile";
-import { appealPreviewText } from "@/lib/support";
+import { appealPreviewText } from "@my-startup/chat";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 export type AdminSupportChatRow = {

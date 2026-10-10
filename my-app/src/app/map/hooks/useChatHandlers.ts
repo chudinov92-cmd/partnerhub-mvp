@@ -10,7 +10,7 @@ import {
   getChatErrorMessage,
   getErrorMessage,
   SUPPORT_STUB_PROFILE,
-} from "@/lib/support";
+} from "@my-startup/chat";
 import { notifyUsefulContactsChanged } from "@/lib/usefulContactEvents";
 import {
   formatChatListPreview,
@@ -26,13 +26,14 @@ import {
   isChatClosed,
   reopenChat,
   markChatAsRead,
-} from "@/services/chatService";
+} from "@my-startup/chat";
 import {
   getDmPartnersDailyLimit,
   canSendDirectMessages,
 } from "@my-startup/subscription";
 import type { MobileMainTab } from "@/components/MainMobileNav";
-import type { ChatListItem, ChatMessage, CurrentUser, Profile } from "@/types";
+import type { ChatListItem, ChatMessage } from "@my-startup/chat";
+import type { CurrentUser, Profile } from "@/types";
 
 export type ChatHandlerDeps = {
   router: ReturnType<typeof useRouter>;
