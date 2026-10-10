@@ -36,7 +36,7 @@ export async function loadPrivateChatSidebar(
   if (memberErr) throw memberErr;
   if (!memberRows?.length) return { chatMembership, items: [] };
 
-  const chatIds = Array.from(
+  const chatIds: string[] = Array.from(
     new Set(memberRows.map((m) => (m as { chat_id: string }).chat_id)),
   );
   chatIds.forEach((id) => chatMembership.add(id));

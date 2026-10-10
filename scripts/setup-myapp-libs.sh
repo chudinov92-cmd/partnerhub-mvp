@@ -20,6 +20,7 @@ cp -r "$ROOT/libs/ui" "$APPS/ui"
 if [ -f "$ROOT/dist/libs/chat/package.json" ]; then
   rm -rf "$APPS/chat"
   cp -r "$ROOT/dist/libs/chat" "$APPS/chat"
+  fix_pkg "$APPS/chat/package.json" 2>/dev/null || true
 else
   cp -r "$ROOT/libs/chat" "$APPS/chat"
 fi
@@ -27,6 +28,7 @@ fi
 if [ -f "$ROOT/dist/libs/subscription/package.json" ]; then
   rm -rf "$APPS/subscription"
   cp -r "$ROOT/dist/libs/subscription" "$APPS/subscription"
+  fix_pkg "$APPS/subscription/package.json" 2>/dev/null || true
 else
   cp -r "$ROOT/libs/subscription" "$APPS/subscription"
 fi
@@ -44,8 +46,5 @@ p["exports"] = { ".": { "import": "./src/index.js", "default": "./src/index.js" 
 json.dump(p, open(path, "w"), indent=2)
 PY
 }
-
-fix_pkg "$APPS/chat/package.json" 2>/dev/null || true
-fix_pkg "$APPS/subscription/package.json" 2>/dev/null || true
 
 echo "setup-myapp-libs: done"

@@ -25,7 +25,7 @@ export type ChatsColumnProps = {
   loading: boolean;
   filteredChatList: ChatListItem[];
   resetContactsMode: () => void;
-  setMobileTab: (tab: MobileTab) => void;
+  setMobileTab: (tab: string) => void;
   openProfileOverlay: (profile: Profile) => void;
   openChatFromList: (item: ChatListItem) => void | Promise<void>;
   /** Слот баннера (app передаёт <PushOptInBanner hasSession />). */
