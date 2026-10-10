@@ -1,12 +1,11 @@
 "use client";
 
 import { memo } from "react";
-import type { MapPageController } from "../hooks/useMapPageController";
-import { PushOptInBanner } from "@/components/PushOptInBanner";
-import { formatChatListPreview } from "@my-startup/chat";
+import type { ChatsColumnProps } from "./chatWindows.types";
+import { formatChatListPreview } from "../services";
 import { isOnline } from "../utils";
 
-type Props = MapPageController;
+type Props = ChatsColumnProps;
 
 function ChatsColumnInner(props: Props) {
   const {
@@ -20,7 +19,8 @@ function ChatsColumnInner(props: Props) {
     openProfileOverlay,
     filteredChatList,
     openChatFromList,
-    showChatsColumn
+    showChatsColumn,
+    renderPushBanner,
   } = props;
 
   return (
@@ -81,7 +81,7 @@ function ChatsColumnInner(props: Props) {
           </div>
 
           {currentUser && !contactsOnlyMode ? (
-            <PushOptInBanner hasSession />
+            renderPushBanner?.()
           ) : null}
 
           {!loading && filteredChatList.length === 0 && (

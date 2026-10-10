@@ -73,3 +73,7 @@ export { MessageLinks } from './lib/components/MessageLinks';
 export { SupportAppealCard } from './lib/components/SupportAppealCard';
 export { ProfileShareCard } from './lib/components/ProfileShareCard';
 export { PostComments } from './lib/components/PostComments';
+export { ChatDialog } from './lib/components/ChatDialog';
+export { ChatsColumn } from './lib/components/ChatsColumn';
+export type { ChatDialogProps, ChatsColumnProps, CurrentUserLite, SupportFieldErrors, MobileTab, PaywallCtaContext } from './lib/components/chatWindows.types';
+export { isOnline, scrollComposerIntoView, ONLINE_WINDOW_MS } from './lib/utils';

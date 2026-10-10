@@ -1,73 +1,40 @@
 "use client";
 
 import { memo } from "react";
-import type { MapPageController } from "../hooks/useMapPageController";
+import type { ChatDialogProps } from "./chatWindows.types";
 import { useVisualViewportLayout } from "@my-startup/hooks";
 import Link from "next/link";
-import { SupportAppealCard } from "@my-startup/chat";
-import { ProfileShareCard } from "@my-startup/chat";
-import { MessageLinks } from "@my-startup/chat";
-import { isAppealMessage } from "@my-startup/chat";
-import { isProfileShareMessage } from "@my-startup/chat";
-import { isPaidGateMode } from "@my-startup/auth";
-import { savePendingPaywallContext } from "@/lib/paywallIntent";
-import {
-  trackCheckoutStarted,
-  trackPaywallCtaBuy,
-} from "@my-startup/analytics";
-import { canSendDirectMessages } from "@my-startup/subscription";
+import { SupportAppealCard } from "./SupportAppealCard";
+import { ProfileShareCard } from "./ProfileShareCard";
+import { MessageLinks } from "./MessageLinks";
+import { isAppealMessage } from "../support";
+import { isProfileShareMessage } from "../profileShare";
 import { scrollComposerIntoView, isOnline } from "../utils";
 
-type Props = MapPageController;
+type Props = ChatDialogProps;
 
 function ChatDialogInner(props: Props) {
   const { offsetTop: vvTop, height: vvHeight } = useVisualViewportLayout();
   const {
     isMobileLayout,
-    activeChatUser,
-    chatMessages,
-    chatInput,
-    setChatInput,
-    editingMessageId,
-    setEditingMessageId,
-    deletingMessageId,
-    chatLoading,
-    chatError,
-    chatSending,
-    supportSubject,
-    setSupportSubject,
-    supportDescription,
-    setSupportDescription,
-    supportFieldErrors,
-    setSupportFieldErrors,
+    activeChatUser, chatMessages, chatInput, setChatInput,
+    editingMessageId, setEditingMessageId, deletingMessageId,
+    chatLoading, chatError, chatSending,
+    supportSubject, setSupportSubject,
+    supportDescription, setSupportDescription,
+    supportFieldErrors, setSupportFieldErrors,
     activeChatIsClosed,
-    chatScrollRef,
-    chatWindowRef,
-    chatInputRef,
-    supportDescriptionRef,
-    profiles,
-    currentUser,
-    openProfileOverlay,
-    openProfileFromChatLink,
-    profileReadyForMessaging,
-    isSupportChat,
-    showSupportAppealForm,
-    closeChatWindow,
+    chatScrollRef, chatWindowRef, chatInputRef, supportDescriptionRef,
+    profiles, currentUser,
+    openProfileOverlay, openProfileFromChatLink,
+    profileReadyForMessaging, canSendDirectMessagesToPeer,
+    isSupportChat, showSupportAppealForm, closeChatWindow,
     formatDateTime,
-    handleSendSupportAppeal,
-    handleSendChatMessage,
-    handleDeleteChatMessage
+    handleSendSupportAppeal, handleSendChatMessage, handleDeleteChatMessage,
+    onPaywallCta,
   } = props;
 
-  const canSendDirectMessagesToPeer =
-    isSupportChat ||
-    (currentUser
-      ? isPaidGateMode()
-        ? currentUser.isPro
-        : canSendDirectMessages(currentUser.subscriptionPlan)
-      : false);
-
-  return (
+return (
 <>
         {activeChatUser && (
           <div
@@ -76,13 +43,7 @@ function ChatDialogInner(props: Props) {
             className="pointer-events-auto fixed inset-x-0 top-0 bottom-0 z-[1600] flex h-dvh flex-col overflow-hidden bg-white lg:inset-auto lg:top-[calc(var(--zeip-topbar-height,3.5rem)+env(safe-area-inset-top,0px))] lg:right-[336px] lg:left-auto lg:bottom-auto lg:h-[760px] lg:max-h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-top,0px)-1rem)] lg:w-[min(48rem,calc(100vw-20rem-336px-1rem))] lg:rounded-2xl lg:border lg:border-slate-200/80 lg:shadow-[0_20px_50px_rgba(15,23,42,0.15)] lg:ring-1 lg:ring-slate-900/5"
             style={
               isMobileLayout
-                ? {
-                    top: vvTop,
-                    height: vvHeight,
-                    left: 0,
-                    right: 0,
-                    bottom: "auto",
-                  }
+                ? { top: vvTop, height: vvHeight, left: 0, right: 0, bottom: "auto" }
                 : undefined
             }
           >
@@ -159,10 +120,7 @@ function ChatDialogInner(props: Props) {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]">
-              <div
-                ref={chatScrollRef}
-                className="mb-2 min-h-0 flex-1 overflow-y-auto space-y-2"
-              >
+              <div ref={chatScrollRef} className="mb-2 min-h-0 flex-1 overflow-y-auto space-y-2">
                 {chatLoading ? (
                   <p className="text-xs text-slate-500">
                     Загружаем сообщения...
@@ -182,10 +140,8 @@ function ChatDialogInner(props: Props) {
                     {(() => {
                       let appealCounter = 0;
                       return chatMessages.map((m) => {
-                        const isOwn =
-                          m.sender_id === currentUser?.profileId;
-                        const isAppeal =
-                          isSupportChat && isAppealMessage(m.content);
+                        const isOwn = m.sender_id === currentUser?.profileId;
+                        const isAppeal = isSupportChat && isAppealMessage(m.content);
                         const isProfileShare = isProfileShareMessage(m.content);
                         if (isAppeal) appealCounter += 1;
                         return (
@@ -198,34 +154,15 @@ function ChatDialogInner(props: Props) {
                             }`}
                           >
                             {isProfileShare ? (
-                              <ProfileShareCard
-                                content={m.content}
-                                isOwn={isOwn}
-                              />
+                              <ProfileShareCard content={m.content} isOwn={isOwn} />
                             ) : isAppeal ? (
-                              <SupportAppealCard
-                                content={m.content}
-                                appealIndex={appealCounter}
-                                isOwn={isOwn}
-                              />
+                              <SupportAppealCard content={m.content} appealIndex={appealCounter} isOwn={isOwn} />
                             ) : (
-                              <MessageLinks
-                                content={m.content ?? ""}
-                                isOwn={isOwn}
-                                onOpenProfile={openProfileFromChatLink}
-                              />
+                              <MessageLinks content={m.content ?? ""} isOwn={isOwn} onOpenProfile={openProfileFromChatLink} />
                             )}
-                            <div
-                              className={`mt-1 flex flex-col items-start gap-1 text-xs ${
-                                isOwn
-                                  ? "text-white/80"
-                                  : "text-slate-400"
-                              }`}
-                            >
+                            <div className={`mt-1 flex flex-col items-start gap-1 text-xs ${isOwn ? "text-white/80" : "text-slate-400"}`}>
                               <span>
-                                {m.created_at
-                                  ? formatDateTime(m.created_at)
-                                  : ""}
+                                {m.created_at ? formatDateTime(m.created_at) : ""}
                                 {m.edited_at ? " · изменено" : ""}
                               </span>
                               {isOwn && !isAppeal ? (
@@ -233,27 +170,16 @@ function ChatDialogInner(props: Props) {
                                   {!isProfileShare ? (
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        setEditingMessageId(m.id);
-                                        setChatInput(m.content ?? "");
-                                      }}
+                                      onClick={() => { setEditingMessageId(m.id); setChatInput(m.content ?? ""); }}
                                       className="underline-offset-2 hover:underline"
-                                    >
-                                      Изменить
-                                    </button>
+                                    >Изменить</button>
                                   ) : null}
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      void handleDeleteChatMessage(m);
-                                    }}
+                                    onClick={() => { void handleDeleteChatMessage(m); }}
                                     disabled={deletingMessageId === m.id}
                                     className="underline-offset-2 hover:underline disabled:opacity-60"
-                                  >
-                                    {deletingMessageId === m.id
-                                      ? "Удаляем…"
-                                      : "Удалить"}
-                                  </button>
+                                  >{deletingMessageId === m.id ? "Удаляем…" : "Удалить"}</button>
                                 </div>
                               ) : null}
                             </div>
@@ -272,179 +198,101 @@ function ChatDialogInner(props: Props) {
                 )}
               </div>
 
-              {chatError && (
-                <p className="mb-1 text-[11px] text-red-600">{chatError}</p>
-              )}
-
-              {currentUser && showSupportAppealForm ? (
-                <form
-                  onSubmit={handleSendSupportAppeal}
-                  className="mt-1 shrink-0 space-y-2 border-t border-slate-200 bg-white pt-2 pb-1"
-                >
+              {chatError && <p className="mb-1 text-[11px] text-red-600">{chatError}</p>}
+{currentUser && showSupportAppealForm ? (
+                <form onSubmit={handleSendSupportAppeal} className="mt-1 shrink-0 space-y-2 border-t border-slate-200 bg-white pt-2 pb-1">
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-slate-600">
-                      Тема обращения
-                    </label>
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">Тема обращения</label>
                     <input
                       type="text"
                       value={supportSubject}
                       onChange={(e) => {
                         setSupportSubject(e.target.value.slice(0, 200));
-                        setSupportFieldErrors((prev) => ({
-                          ...prev,
-                          subject: undefined,
-                        }));
+                        setSupportFieldErrors((prev) => ({ ...prev, subject: undefined }));
                       }}
                       placeholder="Кратко опишите суть"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                      onFocus={(e) => {
-                        if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
-                      }}
+                      onFocus={(e) => { if (!isMobileLayout) scrollComposerIntoView(e.currentTarget); }}
                     />
-                    {supportFieldErrors.subject ? (
-                      <p className="mt-1 text-[11px] text-red-600">
-                        {supportFieldErrors.subject}
-                      </p>
-                    ) : null}
+                    {supportFieldErrors.subject ? <p className="mt-1 text-[11px] text-red-600">{supportFieldErrors.subject}</p> : null}
                   </div>
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-slate-600">
-                      Описание проблемы
-                    </label>
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">Описание проблемы</label>
                     <textarea
                       ref={supportDescriptionRef}
                       value={supportDescription}
                       onChange={(e) => {
                         setSupportDescription(e.target.value.slice(0, 2000));
-                        setSupportFieldErrors((prev) => ({
-                          ...prev,
-                          description: undefined,
-                        }));
+                        setSupportFieldErrors((prev) => ({ ...prev, description: undefined }));
                       }}
                       placeholder="Подробности, шаги, что ожидали увидеть"
                       className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-2 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                      onFocus={(e) => {
-                        if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
-                      }}
+                      onFocus={(e) => { if (!isMobileLayout) scrollComposerIntoView(e.currentTarget); }}
                     />
-                    {supportFieldErrors.description ? (
-                      <p className="mt-1 text-[11px] text-red-600">
-                        {supportFieldErrors.description}
-                      </p>
-                    ) : null}
+                    {supportFieldErrors.description ? <p className="mt-1 text-[11px] text-red-600">{supportFieldErrors.description}</p> : null}
                   </div>
                   <div className="flex justify-end">
                     <button
                       type="submit"
                       disabled={chatSending}
                       className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
-                    >
-                      {chatSending ? "Отправляем..." : "Отправить обращение"}
-                    </button>
+                    >{chatSending ? "Отправляем..." : "Отправить обращение"}</button>
                   </div>
                 </form>
-              ) : currentUser && !profileReadyForMessaging ? (
+) : currentUser && !profileReadyForMessaging ? (
                 <div className="mt-1 shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-slate-700">
-                  <p>
-                    Заполните город и профессию в профиле, чтобы отправлять
-                    сообщения.
-                  </p>
+                  <p>Заполните город и профессию в профиле, чтобы отправлять сообщения.</p>
                   <Link
                     href="/profile"
                     className="mt-3 inline-flex rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    Заполнить профиль
-                  </Link>
+                  >Заполнить профиль</Link>
                 </div>
-              ) : currentUser &&
-                !canSendDirectMessagesToPeer &&
-                !isSupportChat ? (
+              ) : currentUser && !canSendDirectMessagesToPeer && !isSupportChat ? (
                 <div className="mt-1 shrink-0 space-y-2 border-t border-slate-200 bg-amber-50/80 px-3 py-3">
                   <p className="text-xs text-slate-700">
                     {currentUser.isBlocked
                       ? "Ваш аккаунт заблокирован. Отправка сообщений недоступна."
-                      : isPaidGateMode()
-                        ? "Личные сообщения доступны на тарифе Pro. Вы можете читать переписку."
-                        : "На тарифе Free личные сообщения недоступны. Оформите Pro, чтобы ответить."}
+                      : "Личные сообщения недоступны на вашем тарифе. Вы можете читать переписку."}
                   </p>
                   {!currentUser.isBlocked ? (
                     <Link
                       href="/subscription?reason=dm"
                       onClick={() => {
-                        savePendingPaywallContext({
-                          intent: "dm",
-                          profileId: activeChatUser?.id,
-                          profileName: activeChatUser?.full_name,
-                          profileRole:
-                            activeChatUser?.role_title ??
-                            activeChatUser?.city,
-                        });
-                        trackPaywallCtaBuy("dm");
-                        trackCheckoutStarted();
+                        onPaywallCta?.({ profileId: activeChatUser?.id, profileName: activeChatUser?.full_name, profileRole: activeChatUser?.role_title ?? activeChatUser?.city });
                       }}
                       className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
-                    >
-                      Оформить Pro
-                    </Link>
+                    >Оформить Pro</Link>
                   ) : null}
                 </div>
               ) : currentUser ? (
-                <form
-                  onSubmit={handleSendChatMessage}
-                  className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1"
-                >
+                <form onSubmit={handleSendChatMessage} className="mt-1 shrink-0 space-y-1 border-t border-slate-200 bg-white pt-2 pb-1">
                   <textarea
                     ref={chatInputRef}
                     value={chatInput}
-                    onChange={(e) =>
-                      setChatInput(e.target.value.slice(0, 1000))
-                    }
+                    onChange={(e) => setChatInput(e.target.value.slice(0, 1000))}
                     placeholder="Напишите сообщение…"
                     className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-base text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                    onFocus={(e) => {
-                      if (!isMobileLayout) scrollComposerIntoView(e.currentTarget);
-                    }}
+                    onFocus={(e) => { if (!isMobileLayout) scrollComposerIntoView(e.currentTarget); }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        if (!chatSending && chatInput.trim()) {
-                          handleSendChatMessage(e as React.FormEvent);
-                        }
+                        if (!chatSending && chatInput.trim()) handleSendChatMessage(e as React.FormEvent);
                       }
                     }}
                   />
                   {editingMessageId ? (
                     <div className="flex items-center justify-between">
-                      <p className="text-[11px] text-amber-600">
-                        Режим редактирования
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingMessageId(null);
-                          setChatInput("");
-                        }}
-                        className="text-[11px] font-medium text-slate-600 hover:underline"
-                      >
-                        Отмена
-                      </button>
+                      <p className="text-[11px] text-amber-600">Режим редактирования</p>
+                      <button type="button" onClick={() => { setEditingMessageId(null); setChatInput(""); }} className="text-[11px] font-medium text-slate-600 hover:underline">Отмена</button>
                     </div>
                   ) : null}
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400">
-                      {chatInput.length}/1000
-                    </span>
+                    <span className="text-[10px] text-slate-400">{chatInput.length}/1000</span>
                     <button
                       type="submit"
                       disabled={chatSending || !chatInput.trim()}
                       className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm transition hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-60"
-                    >
-                      {chatSending
-                        ? "Отправляем..."
-                        : editingMessageId
-                          ? "Сохранить"
-                          : "Отправить"}
-                    </button>
+                    >{chatSending ? "Отправляем..." : editingMessageId ? "Сохранить" : "Отправить"}</button>
                   </div>
                 </form>
               ) : null}

@@ -17,6 +17,7 @@
     "react": "^19.0.0",
     "@my-startup/subscription": "^0.0.1",
     "next": "^16.1.6",
-    "@my-startup/auth": "^0.0.1"
+    "@my-startup/auth": "^0.0.1",
+    "@my-startup/hooks": "^0.0.1"
   }
 }
