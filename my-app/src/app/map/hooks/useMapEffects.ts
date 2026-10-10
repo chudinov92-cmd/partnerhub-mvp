@@ -16,7 +16,7 @@ import {
   shouldShowWelcomeOnboarding,
 } from "@/lib/welcomeOnboarding";
 import { trackPaymentSuccessAha } from "@my-startup/analytics";
-import { canSendDirectMessages } from "@/services/subscriptionService";
+import { canSendDirectMessages } from "@my-startup/subscription";
 import { fetchProfileForMapById } from "@/services/profileService";
 import type { MobileMainTab } from "@/components/MainMobileNav";
 import type { Profile, CurrentUser, ChatListItem } from "@/types";

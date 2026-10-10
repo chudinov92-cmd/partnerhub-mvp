@@ -15,7 +15,7 @@ import { fetchProfilesInterestedIn } from "@/services/profileService";
 import {
   canWriteGeneralChat as userCanWriteGeneralChat,
   PRO_PLUS_CHAT_LIMIT,
-} from "@/services/subscriptionService";
+} from "@my-startup/subscription";
 import type { CurrentUser, FeedFilters, Post } from "@/types";
 import type { PostCommentRow } from "@/components/PostComments";
 import { persistFeedFilters } from "../utils";

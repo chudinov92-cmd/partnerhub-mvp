@@ -11,9 +11,9 @@ import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
 import { getProfessionLabelsForSelect } from "@/lib/professionCatalog";
 import { getIndustryLabelsForSelect } from "@/lib/industryCatalog";
 import { logMapSearchEvent } from "@/services/analyticsService";
-import { comparePlanRank } from "@/lib/subscriptionPlans";
+import { comparePlanRank } from "@my-startup/subscription";
 import { getProfessionMatchIndex } from "@/services/profileService";
-import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import { getEffectiveSubscriptionPlan } from "@my-startup/subscription";
 import {
   AGE_MAX,
   AGE_MIN,

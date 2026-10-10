@@ -1,7 +1,7 @@
 import {
   getRobokassaPassword2,
   signResultWebhook,
-} from "@/lib/robokassa";
+} from "@my-startup/subscription";
 import { createSupabaseAdmin } from "@my-startup/auth";
 
 type ApplyPaymentRow = {

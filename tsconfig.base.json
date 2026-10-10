@@ -29,6 +29,9 @@
       ],
       "@my-startup/auth": [
         "./libs/auth/src/index.ts"
+      ],
+      "@my-startup/subscription": [
+        "./libs/subscription/src/index.ts"
       ]
     }
   },

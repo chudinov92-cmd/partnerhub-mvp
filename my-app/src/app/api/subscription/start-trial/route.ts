@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@my-startup/auth";
-import { TRIAL_ENABLED } from "@/lib/subscriptionTrial";
-import { isActiveProProfile } from "@/lib/subscriptionPlans";
+import { TRIAL_ENABLED } from "@my-startup/subscription";
+import { isActiveProProfile } from "@my-startup/subscription";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 const TRIAL_DAYS = 3;

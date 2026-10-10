@@ -14,7 +14,7 @@ import {
   type ProProfileFields,
   type SubscriptionPeriod,
   type SubscriptionPlan,
-} from "@/lib/subscriptionPlans";
+} from "./subscriptionPlans";
 
 export type { SubscriptionPlan, PaidSubscriptionPlan, SubscriptionPeriod };
 export type { ProProfileFields };
@@ -26,7 +26,7 @@ export type SubscriptionStatus = {
   trialUsed: boolean;
 };
 
-export { PIN_COLOR_PRO as PRO_PIN_COLOR } from "@/lib/subscriptionPlans";
+export { PIN_COLOR_PRO as PRO_PIN_COLOR } from "./subscriptionPlans";
 
 export {
   FREE_DM_LIMIT,
@@ -38,7 +38,7 @@ export {
   isActiveProProfile,
   isProActive,
   getEffectiveSubscriptionPlan,
-} from "@/lib/subscriptionPlans";
+} from "./subscriptionPlans";
 
 export function getDmPartnersDailyLimit(plan: SubscriptionPlan): number {
   switch (plan) {

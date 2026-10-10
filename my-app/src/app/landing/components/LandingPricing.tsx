@@ -15,7 +15,7 @@ import {
   PRO_PLUS_PLAN_FEATURES,
   PRO_PLUS_PLAN_PIN_FEATURE,
   SUBSCRIPTION_PRICING,
-} from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
 import { authGetUser } from "@my-startup/auth";
 
 function IconCheck() {

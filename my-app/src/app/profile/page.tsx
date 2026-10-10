@@ -55,8 +55,8 @@ import {
 import {
   getEffectiveSubscriptionPlan,
   isActiveProProfile,
-} from "@/services/subscriptionService";
-import { getPlanLabel, getPlanTextColor } from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
+import { getPlanLabel, getPlanTextColor } from "@my-startup/subscription";
 import { isPaidGateMode } from "@my-startup/auth";
 import {
   ProfileSaveFeedbackBar,

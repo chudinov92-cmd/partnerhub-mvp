@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@my-startup/auth";
-import { isActiveProProfile } from "@/lib/subscriptionPlans";
+import { isActiveProProfile } from "@my-startup/subscription";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 export async function GET(req: Request) {

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
 import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
-import { isRobokassaReturnUrl } from "@/lib/paymentReturn";
+import { isRobokassaReturnUrl } from "@my-startup/subscription";
 import { requestAuthLogin } from "@my-startup/auth";
 import {
   authGetUser,
@@ -19,7 +19,7 @@ import {
 import {
   getSubscriptionStatus,
   isActiveProProfile,
-} from "@/services/subscriptionService";
+} from "@my-startup/subscription";
 import { isPaidGateMode } from "@my-startup/auth";
 
 function getEmailRedirectOrigin(): string {

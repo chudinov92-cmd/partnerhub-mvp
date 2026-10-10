@@ -15,7 +15,7 @@ import {
   trackCheckoutStarted,
   trackPaywallCtaBuy,
 } from "@my-startup/analytics";
-import { canSendDirectMessages } from "@/services/subscriptionService";
+import { canSendDirectMessages } from "@my-startup/subscription";
 import { scrollComposerIntoView, isOnline } from "../utils";
 
 type Props = MapPageController;

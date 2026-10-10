@@ -4,8 +4,8 @@ import {
   allocRobokassaInvId,
   buildRobokassaPaymentUrl,
   getRobokassaPassword1,
-} from "@/lib/robokassa";
-import { getPaymentReturnSiteUrl } from "@/lib/paymentReturn";
+} from "@my-startup/subscription";
+import { getPaymentReturnSiteUrl } from "@my-startup/subscription";
 import {
   buildPaymentPlanId,
   getEffectiveSubscriptionPlan,
@@ -14,7 +14,7 @@ import {
   planRank,
   type PaidSubscriptionPlan,
   type SubscriptionPeriod,
-} from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
 import { createSupabaseAdmin } from "@my-startup/auth";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CurrentUser, Profile } from "@/types";
-import { FREE_FAVORITES_LIMIT } from "@/lib/subscriptionPlans";
+import { FREE_FAVORITES_LIMIT } from "@my-startup/subscription";
 import {
   deleteContact,
   fetchBlockedProfileIds,

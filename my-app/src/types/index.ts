@@ -1,4 +1,4 @@
-import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
+import type { SubscriptionPlan } from "@my-startup/subscription";
 
 /** Общие доменные типы (вынесены из page.tsx для переиспользования). */
 

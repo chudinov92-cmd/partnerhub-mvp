@@ -20,8 +20,8 @@ import {
   shouldShowCityOnboarding,
 } from "@/lib/cityOnboarding";
 import { isPaidGateMode } from "@my-startup/auth";
-import { getPlanLabel, getPlanTextColor } from "@/lib/subscriptionPlans";
-import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import { getPlanLabel, getPlanTextColor } from "@my-startup/subscription";
+import { getEffectiveSubscriptionPlan } from "@my-startup/subscription";
 import Image from "next/image";
 
 const LAST_SEEN_PING_MS = 60000;

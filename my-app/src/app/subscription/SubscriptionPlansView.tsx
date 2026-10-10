@@ -9,13 +9,13 @@ import {
   getSubscriptionStatus,
   initRobokassaPayment,
   initUpgradePayment,
-} from "@/services/subscriptionService";
+} from "@my-startup/subscription";
 import {
   buildPaymentSuccessPath,
   saveAuthSessionBackup,
   savePendingPaymentInvId,
   shouldRedirectRobokassaReturnFromSubscription,
-} from "@/lib/paymentReturn";
+} from "@my-startup/subscription";
 import {
   calculateUpgradePrice,
   FREE_PLAN_FEATURES,
@@ -37,7 +37,7 @@ import {
   type PaidSubscriptionPlan,
   type SubscriptionPeriod,
   type SubscriptionPlan,
-} from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
 import { isPaidGateMode } from "@my-startup/auth";
 import {
   isPaywallIntent,

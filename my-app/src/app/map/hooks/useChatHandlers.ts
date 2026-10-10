@@ -30,7 +30,7 @@ import {
 import {
   getDmPartnersDailyLimit,
   canSendDirectMessages,
-} from "@/services/subscriptionService";
+} from "@my-startup/subscription";
 import type { MobileMainTab } from "@/components/MainMobileNav";
 import type { ChatListItem, ChatMessage, CurrentUser, Profile } from "@/types";
 

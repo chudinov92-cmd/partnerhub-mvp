@@ -5,8 +5,8 @@ import { MAX_RELATION_ROWS } from "@/services/constants";
 import {
   FREE_FAVORITES_LIMIT,
   FREE_PROFILE_VIEWS_LIMIT,
-} from "@/lib/subscriptionPlans";
-import type { SubscriptionPlan } from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
+import type { SubscriptionPlan } from "@my-startup/subscription";
 import { PROFILE_MAP_SELECT } from "@/services/profile/map";
 import type { Profile } from "@/types";
 

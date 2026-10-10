@@ -26,8 +26,8 @@ import {
 import {
   getSubscriptionStatus,
   getEffectiveSubscriptionPlan,
-} from "@/services/subscriptionService";
-import { comparePlanRank, FREE_PROFILE_VIEWS_LIMIT } from "@/lib/subscriptionPlans";
+} from "@my-startup/subscription";
+import { comparePlanRank, FREE_PROFILE_VIEWS_LIMIT } from "@my-startup/subscription";
 import { isPaidGateMode } from "@my-startup/auth";
 import {
   canUnpaidOpenPinPopup,

@@ -9,7 +9,7 @@ import {
   savePendingPaywallContext,
   type PaywallIntentContext,
 } from "@/lib/paywallIntent";
-import { formatRub, SUBSCRIPTION_PRICING } from "@/lib/subscriptionPlans";
+import { formatRub, SUBSCRIPTION_PRICING } from "@my-startup/subscription";
 import {
   trackCheckoutStarted,
   trackPaywallCtaBuy,

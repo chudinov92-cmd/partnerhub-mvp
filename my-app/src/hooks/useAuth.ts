@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { authGetUser, authOnAuthStateChange } from "@my-startup/auth";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
 import { loadPrivateChatSidebar } from "@/services/chatService";
-import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@my-startup/subscription";
 import type { ChatListItem, CurrentUser, Profile } from "@/types";
 
 /**

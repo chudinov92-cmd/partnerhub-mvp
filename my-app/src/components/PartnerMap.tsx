@@ -11,8 +11,8 @@ import {
   type MapLightPoint,
   type MapViewportMode,
 } from "@/services/profileService";
-import { comparePlanRank, getPinColorForPlan, planRank } from "@/lib/subscriptionPlans";
-import { getEffectiveSubscriptionPlan } from "@/services/subscriptionService";
+import { comparePlanRank, getPinColorForPlan, planRank } from "@my-startup/subscription";
+import { getEffectiveSubscriptionPlan } from "@my-startup/subscription";
 import {
   createPinElement,
   markerVisualKey,

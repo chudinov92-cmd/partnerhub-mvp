@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authGetUser, authSetSession } from "@my-startup/auth";
 import { fetchCurrentUserProfileRow } from "@/services/profileService";
-import { getSubscriptionStatus } from "@/services/subscriptionService";
-import { fetchPaymentStatusByInvId } from "@/services/paymentStatusService";
+import { getSubscriptionStatus } from "@my-startup/subscription";
+import { fetchPaymentStatusByInvId } from "@my-startup/subscription";
 import {
   buildPaymentSuccessLoginRedirect,
   clearAuthSessionBackup,
@@ -14,7 +14,7 @@ import {
   parseRobokassaReturnParams,
   readAuthSessionBackup,
   resolvePaymentInvId,
-} from "@/lib/paymentReturn";
+} from "@my-startup/subscription";
 import {
   trackPaymentSuccessActivated,
   trackPaymentSuccessNeedLogin,

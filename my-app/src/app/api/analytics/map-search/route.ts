@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createSupabaseAdminClient } from "@my-startup/auth";
 import { createSupabaseRouteClient } from "@/lib/supabaseServer";
-import { isActiveProProfile } from "@/services/subscriptionService";
+import { isActiveProProfile } from "@my-startup/subscription";
 
 export const runtime = "nodejs";
 

@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { useRouter } from "next/navigation";
-import { PIN_COLOR_PRO_PLUS } from "@/lib/subscriptionPlans";
+import { PIN_COLOR_PRO_PLUS } from "@my-startup/subscription";
 import { reachYandexMetrikaGoal } from "@my-startup/analytics";
 
 const PAYWALL_BANNER_HEIGHT_VAR = "--zeip-paywall-banner-height";
