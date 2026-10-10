@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../libs/**/*.{ts,tsx}";
 
 :root {
   --background: #ffffff;
@@ -17,6 +18,41 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Кастомные цвета Zeip — реплика slate/amber/sky/emerald Tailwind v3 */
+  --color-slate-50: #f1f5f9;
+  --color-slate-100: #e2e8f0;
+  --color-slate-200: #cbd5e1;
+  --color-slate-300: #94a3b8;
+  --color-slate-400: #64748b;
+  --color-slate-500: #475569;
+  --color-slate-600: #334155;
+  --color-slate-700: #1e293b;
+  --color-slate-800: #0f172a;
+  --color-slate-900: #020617;
+  --color-emerald-50: #e6f7ec;
+  --color-emerald-100: #c6f0d8;
+  --color-emerald-200: #a6e8c4;
+  --color-emerald-300: #86e0b0;
+  --color-emerald-400: #66d89c;
+  --color-emerald-500: #009966;
+  --color-emerald-600: #008055;
+  --color-emerald-700: #006a44;
+  --color-emerald-800: #005033;
+  --color-emerald-900: #003822;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fff3d6;
+  --color-amber-200: #ffe4a8;
+  --color-amber-400: #ffb347;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-sky-200: #b8dcf5;
+  --color-sky-300: #8cd4f8;
+  --color-sky-400: #5bcef5;
+  --color-sky-500: #3ac4f2;
+  --color-sky-600: #26b8e8;
+  --color-sky-700: #1da0d0;
+  --color-red-500: #ef4444;
 }
 
 @media (prefers-color-scheme: dark) {

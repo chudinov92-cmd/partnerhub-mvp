@@ -3,17 +3,9 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: __dirname,
   transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription"],
   webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "@my-startup/analytics": path.resolve(__dirname, "../libs/analytics/src/index.ts"),
-      "@my-startup/auth": path.resolve(__dirname, "../libs/auth/src/index.ts"),
-      "@my-startup/hooks": path.resolve(__dirname, "../libs/hooks/src/index.ts"),
-      "@my-startup/chat": path.resolve(__dirname, "../libs/chat/src/index.ts"),
-      "@my-startup/subscription": path.resolve(__dirname, "../libs/subscription/src/index.ts"),
-      "@my-startup/ui": path.resolve(__dirname, "../libs/ui/src/index.ts"),
-    };
     config.resolve.modules = [
       ...(config.resolve.modules || []),
       path.resolve(__dirname, "node_modules"),

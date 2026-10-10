@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Настраивает монорепо-зависимости в my-app/node_modules/@my-startup.
-# Для библиотек с dist-компиляцией (chat, subscription) копирует dist (Turbopack-friendly),
-# для остальных — исходники (transpilePackages в next.config.ts).
+# Копирует библиотеки в my-app/node_modules/@my-startup как исходники (TS).
+# Все библиотеки копируются как libs/<name> (исходный TS-код, без project.json),
+# т.к. Next.js использует transpilePackages для их компиляции на лету.
+# Nx сборка библиотек в dist/ — только для валидации/публикации.
 
 set -euo pipefail
 
@@ -10,41 +11,36 @@ APPS="$ROOT/my-app/node_modules/@my-startup"
 
 mkdir -p "$APPS"
 
-# analytics, auth, hooks, ui — собираются как src (transpilePackages)
-cp -r "$ROOT/libs/analytics" "$APPS/analytics"
-cp -r "$ROOT/libs/auth" "$APPS/auth"
-cp -r "$ROOT/libs/hooks" "$APPS/hooks"
-cp -r "$ROOT/libs/ui" "$APPS/ui"
+for lib in analytics auth chat hooks subscription ui; do
+  SRC="$ROOT/libs/$lib"
+  DST="$APPS/$lib"
 
-# chat, subscription — компилируются tsc в dist (Turbopack читает dist/*.js)
-if [ -f "$ROOT/dist/libs/chat/package.json" ]; then
-  rm -rf "$APPS/chat"
-  cp -r "$ROOT/dist/libs/chat" "$APPS/chat"
-  fix_pkg "$APPS/chat/package.json" 2>/dev/null || true
-else
-  cp -r "$ROOT/libs/chat" "$APPS/chat"
-fi
+  if [ ! -d "$SRC" ]; then
+    echo "WARNING: libs/$lib not found, skipping" >&2
+    continue
+  fi
 
-if [ -f "$ROOT/dist/libs/subscription/package.json" ]; then
-  rm -rf "$APPS/subscription"
-  cp -r "$ROOT/dist/libs/subscription" "$APPS/subscription"
-  fix_pkg "$APPS/subscription/package.json" 2>/dev/null || true
-else
-  cp -r "$ROOT/libs/subscription" "$APPS/subscription"
-fi
+  rm -rf "$DST"
+  mkdir -p "$DST"
 
-# Зафиксировать exports для dist-версий: экстернально должны указывать на ./src/index.js
-fix_pkg() {
-  local pkg="$1"
-  python3 - "$pkg" <<'PY'
-import json, sys
-path = sys.argv[1]
-p = json.load(open(path))
-p["main"] = "./src/index.js"
-p["types"] = "./src/index.d.ts"
-p["exports"] = { ".": { "import": "./src/index.js", "default": "./src/index.js" } }
-json.dump(p, open(path, "w"), indent=2)
-PY
-}
+  # Копируем только нужные файлы: src, package.json, README, tsconfig*
+  # Исключаем project.json (Nx-артефакт) и вложенные копии
+  if [ -f "$SRC/package.json" ]; then
+    cp "$SRC/package.json" "$DST/package.json"
+  fi
+  if [ -d "$SRC/src" ]; then
+    cp -r "$SRC/src" "$DST/src"
+  fi
+  if [ -f "$SRC/README.md" ]; then
+    cp "$SRC/README.md" "$DST/README.md"
+  fi
+  for tsc in tsconfig.json tsconfig.lib.json; do
+    if [ -f "$SRC/$tsc" ]; then
+      cp "$SRC/$tsc" "$DST/$tsc"
+    fi
+  done
+
+  # Фикс package.json: удаляем project.json
+done
 
 echo "setup-myapp-libs: done"
