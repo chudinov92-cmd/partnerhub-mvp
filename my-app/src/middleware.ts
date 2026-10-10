@@ -82,52 +82,7 @@ export async function middleware(request: NextRequest) {
   } = await sb.auth.getUser();
 
   if (pathname === "/map" || pathname.startsWith("/map/")) {
-    if (user) {
-      return finalizeResponse(holder.current, nonce, request);
-    }
-
-    const hasAuthCookie = hasSupabaseAuthCookie(request);
-    const profileId = request.nextUrl.searchParams.get("profile")?.trim();
-    const mapRedirectTarget = profileId
-      ? `${request.nextUrl.pathname}?${PROFILE_MAP_QUERY_PARAM}=${encodeURIComponent(profileId)}`
-      : "/map";
-
-    if (hasAuthCookie) {
-      if (authError && isAuthUnavailableError(authError)) {
-        return finalizeResponse(holder.current, nonce, request);
-      }
-
-      const url = request.nextUrl.clone();
-      url.pathname = "/auth";
-      url.search = "";
-      url.searchParams.set("redirect", mapRedirectTarget);
-      return finalizeResponse(
-        redirectPreservingCookies(holder.current, url),
-        nonce,
-        request,
-      );
-    }
-
-    if (profileId) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/auth";
-      url.search = "";
-      url.searchParams.set("redirect", mapRedirectTarget);
-      return finalizeResponse(
-        redirectPreservingCookies(holder.current, url),
-        nonce,
-        request,
-      );
-    }
-
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.search = "";
-    return finalizeResponse(
-      redirectPreservingCookies(holder.current, url),
-      nonce,
-      request,
-    );
+    return finalizeResponse(holder.current, nonce, request);
   }
 
   if (pathname === "/payment/success" || pathname === "/payment/fail") {

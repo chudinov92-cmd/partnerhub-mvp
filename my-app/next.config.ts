@@ -3,10 +3,6 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* turbopack: {
-    root: __dirname,
-  }, */
-  experimental: {},
   transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription"],
   webpack: (config) => {
     config.resolve.alias = {

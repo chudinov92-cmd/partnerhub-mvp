@@ -13,17 +13,10 @@ import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import { useMapPageController } from "./hooks/useMapPageController";
 import { FeedColumn } from "./components/FeedColumn";
 import { MapColumn } from "./components/MapColumn";
-import { ChatDialog, ChatsColumn, isOnline } from "@my-startup/chat";
-import type { PaywallCtaContext } from "@my-startup/chat";
-import { savePendingPaywallContext } from "@/lib/paywallIntent";
-import {
-  trackCheckoutStarted,
-  trackPaywallCtaBuy,
-} from "@my-startup/analytics";
-import { canSendDirectMessages } from "@my-startup/subscription";
-import { isPaidGateMode } from "@my-startup/auth";
-import { PushOptInBanner } from "@/components/PushOptInBanner";
+import { ChatsColumn } from "./components/ChatsColumn";
+import { ChatDialog } from "./components/ChatDialog";
 import { persistFeedFilters } from "./utils";
+import { isOnline } from "./utils";
 
 const MainMobileNav = dynamic(
   () => import("@/components/MainMobileNav").then((m) => m.MainMobileNav),
@@ -47,20 +40,6 @@ export default function Home() {
     !!c.activeProfileOverlay &&
     c.currentUser.profileId !== c.activeProfileOverlay.id;
 
-  const canSendDirectMessagesToPeer =
-    c.isSupportChat ||
-    (c.currentUser
-      ? isPaidGateMode()
-        ? c.currentUser.isPro
-        : canSendDirectMessages(c.currentUser.subscriptionPlan)
-      : false);
-
-  const handlePaywallCta = (ctx: PaywallCtaContext) => {
-    savePendingPaywallContext({ intent: "dm", ...ctx });
-    trackPaywallCtaBuy("dm");
-    trackCheckoutStarted();
-  };
-
   return (
     <div className="zeip-main-stack flex flex-col overflow-hidden bg-gray-100">
       {c.welcomeBannerVisible ? (
@@ -80,61 +59,9 @@ export default function Home() {
       >
         <FeedColumn {...c} />
         <MapColumn {...c} />
-        <ChatsColumn
-          hideMobileMainStack={c.hideMobileMainStack}
-          showChatsColumn={c.showChatsColumn}
-          unreadByUser={c.unreadByUser}
-          contactsOnlyMode={c.contactsOnlyMode}
-          currentUser={c.currentUser}
-          loading={c.loading}
-          filteredChatList={c.filteredChatList}
-          resetContactsMode={c.resetContactsMode}
-          setMobileTab={c.setMobileTab}
-          openProfileOverlay={c.openProfileOverlay}
-          openChatFromList={c.openChatFromList}
-          renderPushBanner={() => <PushOptInBanner hasSession />}
-        />
+        <ChatsColumn {...c} />
 
-        {c.activeChatUser ? (
-          <ChatDialog
-            isMobileLayout={c.isMobileLayout}
-            activeChatUser={c.activeChatUser}
-            isSupportChat={c.isSupportChat}
-            activeChatIsClosed={c.activeChatIsClosed}
-            showSupportAppealForm={c.showSupportAppealForm}
-            chatMessages={c.chatMessages}
-            chatInput={c.chatInput}
-            setChatInput={c.setChatInput}
-            editingMessageId={c.editingMessageId}
-            setEditingMessageId={c.setEditingMessageId}
-            deletingMessageId={c.deletingMessageId}
-            chatLoading={c.chatLoading}
-            chatError={c.chatError}
-            chatSending={c.chatSending}
-            supportSubject={c.supportSubject}
-            setSupportSubject={c.setSupportSubject}
-            supportDescription={c.supportDescription}
-            setSupportDescription={c.setSupportDescription}
-            supportFieldErrors={c.supportFieldErrors}
-            setSupportFieldErrors={c.setSupportFieldErrors}
-            chatScrollRef={c.chatScrollRef}
-            chatWindowRef={c.chatWindowRef}
-            chatInputRef={c.chatInputRef}
-            supportDescriptionRef={c.supportDescriptionRef}
-            profiles={c.profiles}
-            currentUser={c.currentUser}
-            profileReadyForMessaging={c.profileReadyForMessaging}
-            canSendDirectMessagesToPeer={canSendDirectMessagesToPeer}
-            openProfileOverlay={c.openProfileOverlay}
-            openProfileFromChatLink={c.openProfileFromChatLink}
-            closeChatWindow={c.closeChatWindow}
-            handleSendSupportAppeal={c.handleSendSupportAppeal}
-            handleSendChatMessage={c.handleSendChatMessage}
-            handleDeleteChatMessage={c.handleDeleteChatMessage}
-            formatDateTime={c.formatDateTime}
-            onPaywallCta={handlePaywallCta}
-          />
-        ) : null}
+        {c.activeChatUser ? <ChatDialog {...c} /> : null}
 
         {c.activeProfileOverlay ? (
           <ProfilePreviewCard
