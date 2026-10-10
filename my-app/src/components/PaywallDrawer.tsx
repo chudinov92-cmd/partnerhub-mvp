@@ -1,0 +1,155 @@
+"use client";
+
+import { useCallback, useEffect } from "react";
+import Link from "next/link";
+import FocusTrap from "focus-trap-react";
+import {
+  paywallIntentSubtitle,
+  paywallIntentTitle,
+  savePendingPaywallContext,
+  type PaywallIntentContext,
+} from "@/lib/paywallIntent";
+import { formatRub, SUBSCRIPTION_PRICING } from "@/lib/subscriptionPlans";
+import {
+  trackCheckoutStarted,
+  trackPaywallCtaBuy,
+} from "@my-startup/analytics";
+import { recordPaywallDismiss } from "@/lib/paywallFrequency";
+
+type PaywallDrawerProps = {
+  open: boolean;
+  onClose: () => void;
+  context: PaywallIntentContext;
+};
+
+export function PaywallDrawer({
+  open,
+  onClose,
+  context,
+}: PaywallDrawerProps) {
+  const handleDismiss = useCallback(() => {
+    recordPaywallDismiss(context.intent);
+    onClose();
+  }, [context.intent, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") handleDismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, handleDismiss]);
+
+  if (!open) return null;
+
+  const subscriptionHref = `/subscription?reason=${encodeURIComponent(context.intent)}`;
+  const needsProPlus = context.intent === "chat";
+  const ctaPrice = needsProPlus
+    ? formatRub(SUBSCRIPTION_PRICING.pro_plus.monthly)
+    : formatRub(SUBSCRIPTION_PRICING.pro.monthly);
+  const ctaPlan = needsProPlus ? "Pro+" : "Pro";
+
+  const handleChoosePlan = () => {
+    trackPaywallCtaBuy(context.intent);
+    trackCheckoutStarted();
+    savePendingPaywallContext(context);
+    // Задержка даёт Метрике время отправить beacon до перехода (hard navigation).
+    setTimeout(() => {
+      window.location.href = subscriptionHref;
+    }, 300);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[2100] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="paywall-drawer-title"
+      onClick={handleDismiss}
+    >
+      <FocusTrap
+        active={open}
+        focusTrapOptions={{
+          initialFocus: "#paywall-drawer-title",
+          fallbackFocus: "#paywall-drawer-title",
+          allowOutsideClick: true,
+          clickOutsideDeactivates: false,
+          escapeDeactivates: false,
+          returnFocusOnDeactivate: true,
+        }}
+      >
+        <div
+          className="w-full max-w-md rounded-t-2xl border border-emerald-100 bg-white p-6 shadow-xl sm:rounded-2xl"
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2
+            id="paywall-drawer-title"
+            tabIndex={-1}
+            className="text-lg font-semibold text-slate-900 outline-none"
+          >
+            {paywallIntentTitle(context)}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {paywallIntentSubtitle(context)}
+          </p>
+          <p className="mt-4 text-2xl font-bold text-slate-900">
+            {needsProPlus ? (
+              <>
+                {ctaPrice}
+                <span className="text-sm font-normal text-slate-500"> / мес</span>
+              </>
+            ) : (
+              <>
+                от {formatRub(SUBSCRIPTION_PRICING.pro.monthly)}
+                <span className="text-sm font-normal text-slate-500"> / мес</span>
+              </>
+            )}
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+            {needsProPlus ? (
+              <>
+                <li>· Общий чат — до 10 сообщений в сутки</li>
+                <li>· Личные сообщения — до 30 человек в сутки</li>
+                <li>· Приоритет на карте и в фильтрах выше всех</li>
+              </>
+            ) : (
+              <>
+                <li>· Профили и избранное без лимита</li>
+                <li>· Личные сообщения — до 10 человек в сутки</li>
+                <li>· Приоритет на карте и в фильтрах выше Free</li>
+              </>
+            )}
+          </ul>
+          <p className="mt-3 text-xs leading-relaxed text-slate-400">
+            {`Тариф ${ctaPlan} · без автопродления · `}
+            <Link
+              href="/terms/oferta"
+              target="_blank"
+              className="underline hover:text-slate-600"
+            >
+              Условия
+            </Link>
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={handleChoosePlan}
+              className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700"
+            >
+              Выбрать тариф
+            </button>
+            <button
+              type="button"
+              onClick={handleDismiss}
+              className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-gray-50"
+            >
+              Не сейчас
+            </button>
+          </div>
+        </div>
+      </FocusTrap>
+    </div>
+  );
+}

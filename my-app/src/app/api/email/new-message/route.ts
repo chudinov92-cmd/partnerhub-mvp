@@ -1,0 +1,102 @@
+import { NextResponse } from "next/server";
+import { createSupabaseAdmin } from "@my-startup/auth";
+import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
+import {
+  emailMapChatLink,
+  wrapTransactionalEmail,
+} from "@/lib/emailContent";
+import {
+  isSmtpConfigured,
+  sendTransactionalEmail,
+  verifyInternalEmailSecret,
+} from "@/lib/emailServer";
+
+type MessageEmailCandidate = {
+  profile_id: string;
+  auth_user_id: string;
+  peer_profile_id: string;
+};
+
+export async function POST(req: Request) {
+  try {
+  if (!verifyInternalEmailSecret(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!isSmtpConfigured()) {
+    return NextResponse.json(
+      { error: "SMTP is not configured" },
+      { status: 503 },
+    );
+  }
+
+  const admin = createSupabaseAdmin();
+
+  const { data: candidates, error } = await admin.rpc(
+    "get_profiles_for_message_email",
+  );
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  let sent = 0;
+  let skipped = 0;
+
+  for (const row of (candidates ?? []) as MessageEmailCandidate[]) {
+    const profileId = row.profile_id;
+    const authUserId = row.auth_user_id;
+    const peerProfileId = row.peer_profile_id;
+
+    if (!profileId || !authUserId || !peerProfileId) {
+      skipped += 1;
+      continue;
+    }
+
+    const mapUrl = emailMapChatLink(peerProfileId, "new_message");
+
+    const { data: authUser, error: authErr } =
+      await admin.auth.admin.getUserById(authUserId);
+    if (authErr || !authUser.user?.email) {
+      skipped += 1;
+      continue;
+    }
+
+    const email = authUser.user.email;
+    const result = await sendTransactionalEmail({
+      to: email,
+      subject: "У вас новое сообщение",
+      text: `У вас новое личное сообщение. Войдите, чтобы ответить: ${mapUrl}`,
+      html: wrapTransactionalEmail({
+        title: "У вас новое сообщение",
+        lead: "У вас новое личное сообщение. Войдите, чтобы ответить.",
+        ctaLabel: "Открыть сообщения",
+        ctaHref: mapUrl,
+      }),
+    });
+
+    if (!result.ok) {
+      console.error("[email/new-message] send failed", profileId, result.error);
+      skipped += 1;
+      continue;
+    }
+
+    const { error: updateErr } = await admin
+      .from("profiles")
+      .update({ last_message_email_at: new Date().toISOString() })
+      .eq("id", profileId);
+
+    if (updateErr) {
+      console.error("[email/new-message] update flag", profileId, updateErr);
+      skipped += 1;
+      continue;
+    }
+
+    sent += 1;
+  }
+
+  return NextResponse.json({ ok: true, sent, skipped });
+  } catch (e) {
+    return jsonRouteError("[email/new-message]", e);
+  }
+}

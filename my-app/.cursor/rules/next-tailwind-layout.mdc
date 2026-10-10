@@ -1,0 +1,20 @@
+---
+description: Next.js App Router + Tailwind component patterns
+globs: **/*.{ts,tsx,js,jsx}
+alwaysApply: false
+---
+
+## Next.js patterns
+- Default to **Server Components**; use `'use client'` only when needed (state, effects, events).
+- Data loading: server-side fetch in page/layout when possible; client fetch only for live interactions.
+- Keep pages thin: move UI into `components/` and logic into hooks/utilities.
+
+## Tailwind patterns
+- Prefer composition: `clsx`/`cn` helper (if exists) over long ternaries.
+- Use semantic class groupings: layout → spacing → typography → color → effects.
+- Avoid inline arbitrary values unless there is a clear reason.
+
+## Component structure
+- One component = one responsibility; extract subcomponents when JSX > ~120 lines.
+- Props: prefer explicit props over passing large objects; type props строго.
+- Accessibility: interactive elements must be `button/a/input` (not `div` with onClick).

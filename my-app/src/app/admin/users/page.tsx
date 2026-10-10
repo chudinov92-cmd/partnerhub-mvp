@@ -1,0 +1,331 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { buildProfileMapSharePath } from "@/lib/profileShare";
+import { adminFetchProfilesList } from "@/services/adminService";
+import { AdminShell } from "@/app/admin/AdminShell";
+import { getErrorMessage } from "@/lib/errors";
+import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
+
+type AdminUserRow = {
+  id: string;
+  full_name: string | null;
+  city: string | null;
+  role_title: string | null;
+  rating_count: number | null;
+  last_seen_at: string | null;
+  is_blocked: boolean | null;
+};
+
+function isOnline(lastSeenAt: string | null) {
+  if (!lastSeenAt) return false;
+  const t = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= 2 * 60 * 1000;
+}
+
+export default function AdminUsersPage() {
+  const { isSuperAdmin } = useIsSuperAdmin();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [q, setQ] = useState("");
+  const [city, setCity] = useState("");
+  const [blocked, setBlocked] = useState<"" | "blocked" | "active">("");
+  const [online, setOnline] = useState<"" | "online" | "offline">("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeQuery, setPurgeQuery] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await adminFetchProfilesList();
+      if (res.error) throw res.error;
+      setRows((res.data ?? []) as AdminUserRow[]);
+    } catch (e: unknown) {
+      console.error("[admin/users] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить пользователей."));
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const query = q.trim().toLocaleLowerCase("ru-RU");
+    return rows.filter((r) => {
+      if (query) {
+        const name = String(r.full_name ?? "").toLocaleLowerCase("ru-RU");
+        const id = String(r.id ?? "").toLocaleLowerCase("ru-RU");
+        if (!name.includes(query) && !id.includes(query)) return false;
+      }
+      if (city.trim()) {
+        const c = String(r.city ?? "").toLocaleLowerCase("ru-RU");
+        if (!c.includes(city.trim().toLocaleLowerCase("ru-RU"))) return false;
+      }
+      if (blocked) {
+        const isBlocked = !!r.is_blocked;
+        if (blocked === "blocked" && !isBlocked) return false;
+        if (blocked === "active" && isBlocked) return false;
+      }
+      if (online) {
+        const o = isOnline(r.last_seen_at ?? null);
+        if (online === "online" && !o) return false;
+        if (online === "offline" && o) return false;
+      }
+      return true;
+    });
+  }, [rows, q, city, blocked, online]);
+
+  const toggleBlock = async (u: AdminUserRow) => {
+    if (busyId) return;
+    setBusyId(u.id);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          profile_id: u.id,
+          is_blocked: !u.is_blocked,
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "Не удалось изменить блокировку пользователя.");
+
+      setRows((prev) =>
+        prev.map((x) => (x.id === u.id ? { ...x, is_blocked: !x.is_blocked } : x)),
+      );
+    } catch (e: unknown) {
+      console.error("[admin/users] toggleBlock", e);
+      setError(getErrorMessage(e, "Не удалось изменить блокировку пользователя."));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <AdminShell>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Пользователи</h1>
+            <p className="text-sm text-slate-600">
+              Поиск, просмотр и блокировка профилей.
+              {isSuperAdmin ? " Hard purge — для super_admin." : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {isSuperAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPurgeQuery("");
+                  setPurgeOpen(true);
+                }}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-800 hover:bg-rose-100"
+              >
+                Удалить нарушителя
+              </button>
+            ) : null}
+            <button
+            type="button"
+            onClick={() => load()}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+            disabled={loading}
+          >
+            Обновить
+          </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Поиск
+              </label>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value.slice(0, 60))}
+                placeholder="Имя или id профиля…"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Город
+              </label>
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value.slice(0, 40))}
+                placeholder="Например, Пермь"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Статус
+              </label>
+              <select
+                value={blocked}
+                onChange={(e) =>
+                  setBlocked(e.target.value as "" | "blocked" | "active")
+                }
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="">Любой</option>
+                <option value="active">Активен</option>
+                <option value="blocked">Заблокирован</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Онлайн
+              </label>
+              <select
+                value={online}
+                onChange={(e) =>
+                  setOnline(e.target.value as "" | "online" | "offline")
+                }
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="">Любой</option>
+                <option value="online">Онлайн</option>
+                <option value="offline">Оффлайн</option>
+              </select>
+            </div>
+          </div>
+
+          {error ? (
+            <p className="mt-3 text-sm font-medium text-rose-700">{error}</p>
+          ) : null}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900">
+            Результаты: {filtered.length}
+          </div>
+
+          {loading ? (
+            <p className="px-4 py-4 text-sm text-slate-500">Загрузка…</p>
+          ) : filtered.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-slate-500">Ничего не найдено.</p>
+          ) : (
+            <div className="max-h-[70vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white text-left text-xs text-slate-500">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-4 py-2">Имя</th>
+                    <th className="px-4 py-2">Город</th>
+                    <th className="px-4 py-2">Профессия</th>
+                    <th className="px-4 py-2">Рейтинг</th>
+                    <th className="px-4 py-2">Онлайн</th>
+                    <th className="px-4 py-2">Статус</th>
+                    <th className="px-4 py-2">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => {
+                    const onlineNow = isOnline(u.last_seen_at ?? null);
+                    return (
+                      <tr key={u.id} className="border-b border-slate-100">
+                        <td className="px-4 py-2">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-900">
+                              {u.full_name || "Без имени"}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {u.id}
+                            </span>
+                            <Link
+                              href={buildProfileMapSharePath(u.id)}
+                              className="mt-1 text-xs font-semibold text-emerald-600 hover:underline"
+                            >
+                              Открыть профиль на карте
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">{u.city || "-"}</td>
+                        <td className="px-4 py-2">{u.role_title || "-"}</td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {u.rating_count ?? 0}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={`inline-flex items-center gap-2 text-xs font-semibold ${
+                              onlineNow ? "text-emerald-700" : "text-slate-500"
+                            }`}
+                            title={onlineNow ? "Онлайн" : "Оффлайн"}
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                onlineNow ? "bg-emerald-500" : "bg-slate-400"
+                              }`}
+                              aria-hidden
+                            />
+                            {onlineNow ? "Онлайн" : "Оффлайн"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          {u.is_blocked ? (
+                            <span className="text-rose-700">Заблокирован</span>
+                          ) : (
+                            <span className="text-emerald-700">Активен</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleBlock(u)}
+                              disabled={busyId === u.id}
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              {u.is_blocked ? "Разблокировать" : "Заблокировать"}
+                            </button>
+                            {isSuperAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPurgeQuery(u.id);
+                                  setPurgeOpen(true);
+                                }}
+                                className="inline-flex min-h-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-800 hover:bg-rose-100"
+                              >
+                                Удалить
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ModerationPurgeDialog
+        open={purgeOpen}
+        initialQuery={purgeQuery}
+        onClose={() => setPurgeOpen(false)}
+        onSuccess={() => {
+          void load();
+        }}
+      />
+    </AdminShell>
+  );
+}
+

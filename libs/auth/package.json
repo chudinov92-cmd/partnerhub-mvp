@@ -1,0 +1,19 @@
+{
+  "name": "@my-startup/auth",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/libs/auth/index.js",
+  "types": "./dist/libs/auth/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.1",
+    "@supabase/ssr": "^0.5.2",
+    "tslib": "^2.3.0"
+  }
+}

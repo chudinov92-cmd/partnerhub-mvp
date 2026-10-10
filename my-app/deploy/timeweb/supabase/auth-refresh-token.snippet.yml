@@ -1,0 +1,16 @@
+# Фрагмент для /root/zeip/supabase-stack/docker-compose.yml
+# Сервис auth → environment (добавить рядом с GOTRUE_JWT_EXP):
+
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: ${REFRESH_TOKEN_ROTATION_ENABLED:-true}
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: ${REFRESH_TOKEN_REUSE_INTERVAL:-10}
+
+# И в /root/zeip/supabase-stack/.env:
+
+REFRESH_TOKEN_ROTATION_ENABLED=true
+REFRESH_TOKEN_REUSE_INTERVAL=10
+
+# Применить:
+#   cd /root/zeip/supabase-stack
+#   docker compose up -d --force-recreate auth
+#   docker compose restart kong
+#   docker inspect supabase-auth --format '{{range .Config.Env}}{{println .}}{{end}}' | grep REFRESH_TOKEN

@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Проверка DNS для доставляемости auth-писем zeip.ru (SPF, DKIM, DMARC, MX).
+# Папка:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+#   bash scripts/check-email-dns.sh
+#
+set -euo pipefail
+
+DOMAIN="${1:-zeip.ru}"
+
+check_txt() {
+  local name="$1"
+  local label="$2"
+  echo "=== ${label} (${name}) ==="
+  local out
+  out="$(dig +short TXT "$name" 2>/dev/null | tr -d '"' || true)"
+  if [[ -z "$out" ]]; then
+    echo "MISSING or empty"
+    return 1
+  fi
+  echo "$out"
+  return 0
+}
+
+echo "Email DNS check for ${DOMAIN}"
+echo ""
+
+ok=0
+fail=0
+
+if check_txt "$DOMAIN" "SPF"; then
+  if grep -q 'spf1' <<< "$(dig +short TXT "$DOMAIN")"; then ok=$((ok + 1)); else fail=$((fail + 1)); fi
+else fail=$((fail + 1)); fi
+
+echo ""
+if check_txt "_dmarc.${DOMAIN}" "DMARC"; then ok=$((ok + 1)); else fail=$((fail + 1)); fi
+
+echo ""
+# Timeweb: selector dkim._domainkey (проверено для zeip.ru)
+dkim_found=0
+for sel in "dkim._domainkey" "mail._domainkey" "default._domainkey" "timeweb._domainkey" "_domainkey"; do
+  for resolver in "" "@8.8.8.8"; do
+    if out="$(dig +short TXT "${sel}.${DOMAIN}" ${resolver} 2>/dev/null)" && [[ -n "$out" ]]; then
+      echo "=== DKIM (${sel}.${DOMAIN}${resolver:+ via ${resolver#@}}) ==="
+      echo "$out" | tr -d '"'
+      dkim_found=1
+      ok=$((ok + 1))
+      break 2
+    fi
+  done
+done
+if [[ "$dkim_found" -eq 0 ]]; then
+  echo "=== DKIM ==="
+  echo "MISSING — добавьте DKIM в панели Timeweb для почты ${DOMAIN}"
+  fail=$((fail + 1))
+fi
+
+echo ""
+echo "=== MX ==="
+dig +short MX "$DOMAIN" 2>/dev/null || echo "MISSING"
+
+MAIL_HOST="mail.${DOMAIN}"
+VPS_IP="${VPS_IP:-186.246.2.104}"
+
+echo ""
+echo "=== A ${MAIL_HOST} (HELO) ==="
+A_MAIL="$(dig +short A "${MAIL_HOST}" 2>/dev/null | head -1 || true)"
+if [[ -z "$A_MAIL" ]]; then
+  echo "MISSING — Timeweb DNS: A mail → ${VPS_IP}"
+  fail=$((fail + 1))
+elif [[ "$A_MAIL" != "$VPS_IP" ]]; then
+  echo "MISMATCH: ${A_MAIL} (ожидалось ${VPS_IP})"
+  fail=$((fail + 1))
+else
+  echo "OK: ${A_MAIL}"
+  ok=$((ok + 1))
+fi
+
+echo ""
+echo "=== PTR ${VPS_IP} (HELO reverse) ==="
+PTR="$(dig +short -x "${VPS_IP}" 2>/dev/null | sed 's/\.$//' | head -1 || true)"
+if [[ -z "$PTR" ]]; then
+  echo "MISSING — Timeweb VPS: PTR ${VPS_IP} → ${MAIL_HOST}"
+  fail=$((fail + 1))
+elif [[ "$PTR" != "$MAIL_HOST" ]]; then
+  echo "MISMATCH: ${PTR} (ожидалось ${MAIL_HOST})"
+  fail=$((fail + 1))
+else
+  echo "OK: ${PTR}"
+  ok=$((ok + 1))
+fi
+
+echo ""
+echo "--- Summary ---"
+echo "OK checks: ${ok}, issues: ${fail}"
+if dig +short TXT "_dmarc.${DOMAIN}" 2>/dev/null | grep -q 'p=quarantine'; then
+  echo "Note: DMARC p=quarantine — Yandex/Gmail могут задерживать первые письма."
+  echo "      Для мгновенной доставки на время прогрева IP: p=none в Timeweb DNS (_dmarc.${DOMAIN})."
+  echo "      Значение: v=DMARC1; p=none; rua=mailto:dmarc@${DOMAIN}"
+elif dig +short TXT "_dmarc.${DOMAIN}" 2>/dev/null | grep -q 'p=none'; then
+  echo "Note: DMARC p=none — мягкая политика, подходит для прогрева репутации отправителя."
+fi
+if dig +short TXT "$DOMAIN" 2>/dev/null | grep -q '~all'; then
+  echo "Note: SPF ~all (softfail) — Timeweb обычно так; при проблемах уточните в поддержке Timeweb."
+fi
