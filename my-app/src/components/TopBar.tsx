@@ -67,7 +67,7 @@ export function TopBar() {
   const [contactsActive, setContactsActive] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { selectedCity, setSelectedCity } = useSelectedCity();
+  const { selectedCity, setSelectedCityFromProfile } = useSelectedCity();
 
   const showCityOnboarding =
     pathname === "/map" &&
@@ -107,12 +107,12 @@ export function TopBar() {
       setProfileCity(p.city ?? null);
 
       if (opts?.resetMapCityFromProfile && p.city?.trim()) {
-        setSelectedCity(p.city.trim());
+        setSelectedCityFromProfile(p.city.trim());
       }
 
       return p;
     },
-    [setSelectedCity],
+    [setSelectedCityFromProfile],
   );
 
   const openSupport = () => {

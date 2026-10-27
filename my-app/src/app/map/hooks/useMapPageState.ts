@@ -70,7 +70,6 @@ export function useMapPageState() {
   const feedFiltersRef = useRef<HTMLDivElement | null>(null);
   const recommendedEmptyBannerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const cityInitializedRef = useRef(false);
   const [blockBusyByProfileId, setBlockBusyByProfileId] = useState<
     Record<string, boolean>
   >({});
@@ -178,7 +177,6 @@ export function useMapPageState() {
     feedFiltersRef,
     recommendedEmptyBannerRef,
     mapContainerRef,
-    cityInitializedRef,
     blockBusyByProfileId,
     setBlockBusyByProfileId,
     chatDeepLinkNonce,

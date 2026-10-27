@@ -79,6 +79,7 @@ import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
 import { logDailyActivity, logMapSearchEvent } from "@/services/analyticsService";
 import { RUSSIA_LABEL } from "@/data/cities";
+import { shouldApplyProfileCity } from "@/lib/profileCitySelection";
 import { useAuth } from "@/hooks/useAuth";
 import { useContacts } from "@/hooks/useContacts";
 import { useMobileNav } from "@/hooks/useMobileNav";
@@ -194,7 +195,6 @@ export function useMapPageController() {
     feedFiltersRef,
     recommendedEmptyBannerRef,
     mapContainerRef,
-    cityInitializedRef,
     blockBusyByProfileId,
     setBlockBusyByProfileId,
     chatDeepLinkNonce,
@@ -406,7 +406,8 @@ export function useMapPageController() {
     [viewedProfileStates, profiles],
   );
 
-  const { selectedCity, setSelectedCity } = useSelectedCity();
+  const { selectedCity, setSelectedCity, setSelectedCityFromProfile, userPickedCity } =
+    useSelectedCity();
   const isRussiaChat = selectedCity === RUSSIA_LABEL;
 
   const {
@@ -556,21 +557,22 @@ export function useMapPageController() {
     }
   }, [currentUser, loading, router]);
 
+  // Применяем город из профиля как город на карте при каждом обновлении
+  // currentUser, пока пользователь сам не выбрал город вручную.
+  // Раньше это делалось один раз через cityInitializedRef: если эффект
+  // отрабатывал до загрузки currentUser (асинхронной) или до появления
+  // города, профильный город не применялся, и карта оставалась на «России»
+  // (getMapConfigForCity -> fallback [90, 61], zoom 3). Теперь синхронизация
+  // идемпотентна и срабатывает независимо от порядка прихода данных.
+  const profileCity = currentUser?.city?.trim();
   useEffect(() => {
-    if (cityInitializedRef.current) return;
-    if (!currentUser?.city) return;
-
-    const savedCity =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("selected_city")
-        : null;
-
-    if (!savedCity) {
-      setSelectedCity(currentUser.city);
+    if (!shouldApplyProfileCity({ profileCity, selectedCity, userPickedCity })) {
+      return;
     }
-
-    cityInitializedRef.current = true;
-  }, [currentUser, setSelectedCity]);
+    if (profileCity) {
+      setSelectedCityFromProfile(profileCity);
+    }
+  }, [profileCity, selectedCity, userPickedCity, setSelectedCityFromProfile]);
 
   // подгружаем сохранённые фильтры ленты
   useEffect(() => {
