@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchRevenueMetrics,
   type RevenueMetricsData,
-} from "@/services/analyticsService";
+} from "../services/analyticsService";
 
 type RevenueAnalyticsProps = {
   refreshKey: number;

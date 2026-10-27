@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchPaywallFunnel,
   type PaywallFunnelData,
-} from "@/services/analyticsService";
+} from "../services/analyticsService";
 
 const EVENT_LABELS: Record<string, string> = {
   shown: "Показ пейвола",

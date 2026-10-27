@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MODERATION_PURGE_REASONS } from "@/app/api/admin/users/_lib/moderationPurgeEmail";
+import { MODERATION_PURGE_REASONS } from "../api-contracts";
 
 export type ModerationPreview = {
   found: boolean;

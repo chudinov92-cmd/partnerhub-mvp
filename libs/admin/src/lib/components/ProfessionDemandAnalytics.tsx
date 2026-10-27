@@ -5,7 +5,7 @@ import {
   fetchMapSearchMatrix,
   fetchProfileDemandMatrix,
   type DemandMatrixRow,
-} from "@/services/analyticsService";
+} from "../services/analyticsService";
 
 function toDateInputValue(d: Date) {
   const yyyy = d.getFullYear();

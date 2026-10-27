@@ -5,15 +5,9 @@ import { resolveSupportProfileId } from "@/app/api/admin/support/_lib/supportPro
 import { appealPreviewText } from "@my-startup/chat";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
-export type AdminSupportChatRow = {
-  chatId: string;
-  isClosed: boolean;
-  userProfileId: string;
-  userFullName: string | null;
-  userCity: string | null;
-  lastMessageAt: string | null;
-  lastMessagePreview: string | null;
-};
+import type { AdminSupportChatRow } from "@my-startup/admin";
+
+export type { AdminSupportChatRow };
 
 /** Список чатов поддержки или сообщения одного чата (?chatId=). */
 export async function GET(req: Request) {

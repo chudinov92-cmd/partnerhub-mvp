@@ -1,25 +1,11 @@
 import { getSiteUrl, wrapTransactionalEmail } from "@my-startup/notifications";
+import { MODERATION_PURGE_REASONS, moderationReasonLabel, type ModerationPurgeReason } from "@my-startup/admin";
+
+export { MODERATION_PURGE_REASONS, moderationReasonLabel };
+export type { ModerationPurgeReason };
 
 const USER_AGREEMENT_URL = `${getSiteUrl().replace(/\/$/, "")}/terms/user-agreement`;
 const SUPPORT_EMAIL = "support@zeip.ru";
-
-export const MODERATION_PURGE_REASONS = [
-  { value: "spam", label: "Спам и навязчивая реклама" },
-  { value: "harassment", label: "Оскорбления и угрозы" },
-  { value: "fraud", label: "Мошенничество" },
-  { value: "impersonation", label: "Выдача себя за другое лицо" },
-  { value: "illegal", label: "Незаконный контент" },
-  { value: "other", label: "Другое нарушение правил" },
-] as const;
-
-export type ModerationPurgeReason =
-  (typeof MODERATION_PURGE_REASONS)[number]["value"];
-
-export function moderationReasonLabel(reason: string): string {
-  return (
-    MODERATION_PURGE_REASONS.find((r) => r.value === reason)?.label ?? reason
-  );
-}
 
 export function buildModerationPurgeEmail(params: {
   reason: string;

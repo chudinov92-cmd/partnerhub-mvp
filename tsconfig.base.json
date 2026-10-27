@@ -44,6 +44,9 @@
       ],
       "@my-startup/map-ui": [
         "./libs/map-ui/src/index.ts"
+      ],
+      "@my-startup/admin": [
+        "./libs/admin/src/index.ts"
       ]
     }
   },

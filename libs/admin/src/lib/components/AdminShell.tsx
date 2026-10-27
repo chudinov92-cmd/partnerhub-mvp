@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { adminGetAdminRow, adminGetAuthUser, adminInsertAuditLog, adminSignOut } from "@/services/adminService";
-import { getErrorMessage } from "@/lib/errors";
+import { adminGetAdminRow, adminGetAuthUser, adminSignOut } from "../services/adminService";
+import { getErrorMessage } from "../errors";
 
 type AdminRole = "super_admin" | "moderator" | "support";
 
@@ -51,10 +51,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
       try {
-        const {
-          data: { user },
-          error: userErr,
-        } = await adminGetAuthUser();
+        const { data: { user }, error: userErr } = await adminGetAuthUser();
         if (userErr) throw userErr;
         if (!user) {
           setError("Нужно войти в аккаунт.");
@@ -144,12 +141,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">
-              Zeip Admin
-            </p>
-            <p className="truncate text-xs text-slate-500">
-              Роль: {admin?.role ?? "-"}
-            </p>
+            <p className="truncate text-sm font-semibold text-slate-900">Zeip Admin</p>
+            <p className="truncate text-xs text-slate-500">Роль: {admin?.role ?? "-"}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -193,4 +186,3 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-

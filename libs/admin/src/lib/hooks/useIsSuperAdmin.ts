@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { adminGetAdminRow, adminGetAuthUser } from "@/services/adminService";
+import { adminGetAdminRow, adminGetAuthUser } from "../services/adminService";
 
 let cachedIsSuperAdmin: boolean | null = null;
 let resolveSuperAdminPromise: Promise<boolean> | null = null;
