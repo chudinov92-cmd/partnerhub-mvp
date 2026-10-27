@@ -18,10 +18,10 @@
     "skipDefaultLibCheck": true,
     "strict": false,
     "paths": {
-      "ui": [
+      "@my-startup/ui": [
         "./libs/ui/src/index.ts"
       ],
-      "hooks": [
+      "@my-startup/hooks": [
         "./libs/hooks/src/index.ts"
       ],
       "@my-startup/analytics": [

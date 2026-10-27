@@ -67,19 +67,19 @@ export function useOtpSendCooldown(email: string, enabled: boolean) {
   useEffect(() => {
     if (!ticking) return;
     const timer = window.setInterval(() => {
-      setRetryAfter((prev) => Math.max(0, prev - 1));
+      setRetryAfter((prev) => {
+        if (prev <= 1) {
+          setMessage(null);
+          return 0;
+        }
+        const next = prev - 1;
+        const displayReason = reason === "ok" ? "email_cooldown" : reason;
+        setMessage(otpSendLimitMessage(displayReason, next));
+        return next;
+      });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [ticking]);
-
-  useEffect(() => {
-    if (retryAfter <= 0) {
-      setMessage(null);
-      return;
-    }
-    const displayReason = reason === "ok" ? "email_cooldown" : reason;
-    setMessage(otpSendLimitMessage(displayReason, retryAfter));
-  }, [retryAfter, reason]);
+  }, [ticking, reason]);
 
   const countdownLabel =
     retryAfter > 0 ? `Повторно запросить код можно через ${formatOtpRetryAfter(retryAfter)}.` : null;

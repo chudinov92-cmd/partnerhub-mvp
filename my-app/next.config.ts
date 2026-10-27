@@ -1,19 +1,22 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: __dirname,
-  transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription", "@my-startup/notifications", "@my-startup/profile", "@my-startup/map-ui"],
+  transpilePackages: [
+    "@my-startup/ui",
+    "@my-startup/hooks",
+    "@my-startup/analytics",
+    "@my-startup/auth",
+    "@my-startup/chat",
+    "@my-startup/subscription",
+    "@my-startup/notifications",
+    "@my-startup/profile",
+    "@my-startup/map-ui",
+    "@my-startup/admin",
+  ],
   // web-push и nodemailer — серверные пакеты (fs/net только в Node): не бандлим в клиент.
   serverExternalPackages: ["web-push", "nodemailer"],
-  webpack: (config) => {
-    config.resolve.modules = [
-      ...(config.resolve.modules || []),
-      path.resolve(__dirname, "node_modules"),
-    ];
-    return config;
-  },
   // CSP и HSTS — в middleware (nonce per-request). Здесь только fallback для путей вне matcher.
   async headers() {
     const securityHeaders = [

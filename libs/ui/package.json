@@ -9,5 +9,9 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     }
+  },
+  "dependencies": {
+    "focus-trap-react": "^12.0.3",
+    "react": "^19.0.0"
   }
 }

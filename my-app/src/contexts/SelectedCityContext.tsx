@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -21,14 +20,10 @@ const SelectedCityContext = createContext<SelectedCityContextValue | null>(
 );
 
 export function SelectedCityProvider({ children }: { children: ReactNode }) {
-  const [selectedCity, setSelectedCityState] = useState(RUSSIA_LABEL);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem("selected_city");
-    if (saved) setSelectedCityState(saved);
-    else setSelectedCityState(RUSSIA_LABEL);
-  }, []);
+  const [selectedCity, setSelectedCityState] = useState(() => {
+    if (typeof window === "undefined") return RUSSIA_LABEL;
+    return window.localStorage.getItem("selected_city") || RUSSIA_LABEL;
+  });
 
   const setSelectedCity = useCallback((city: string) => {
     setSelectedCityState(city);

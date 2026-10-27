@@ -20,12 +20,12 @@ export function PaymentSuccessToast({
   showCloseButton = true,
 }: PaymentSuccessToastProps) {
   const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
 
   useEffect(() => {
+    onDismissRef.current = onDismiss;
     const t = window.setTimeout(() => onDismissRef.current(), durationMs);
     return () => window.clearTimeout(t);
-  }, [message, durationMs]);
+  }, [message, onDismiss, durationMs]);
 
   const hasAction = Boolean(actionLabel && onAction);
   const hasButtons = hasAction || showCloseButton;

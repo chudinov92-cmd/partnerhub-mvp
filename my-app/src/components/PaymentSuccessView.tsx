@@ -136,6 +136,10 @@ export function PaymentSuccessView({
     [outSum],
   );
 
+  const pollActivationRef = useRef<((id: string, inv: string | null) => void) | null>(
+    null,
+  );
+
   const pollActivation = useCallback(
     async (profileId: string, paymentInvId: string | null) => {
       pollAttemptRef.current += 1;
@@ -169,11 +173,15 @@ export function PaymentSuccessView({
       }
 
       pollTimerRef.current = setTimeout(() => {
-        void pollActivation(profileId, paymentInvId);
+        void pollActivationRef.current?.(profileId, paymentInvId);
       }, POLL_INTERVAL_MS);
     },
     [finishSuccess],
   );
+
+  useEffect(() => {
+    pollActivationRef.current = pollActivation;
+  }, [pollActivation]);
 
   useEffect(() => {
     if (!openedTrackedRef.current) {

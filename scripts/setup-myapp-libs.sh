@@ -11,7 +11,7 @@ APPS="$ROOT/my-app/node_modules/@my-startup"
 
 mkdir -p "$APPS"
 
-for lib in analytics auth chat hooks subscription ui notifications profile map-ui; do
+for lib in analytics auth chat hooks map-ui notifications profile subscription ui admin; do
   SRC="$ROOT/libs/$lib"
   DST="$APPS/$lib"
 
@@ -39,8 +39,6 @@ for lib in analytics auth chat hooks subscription ui notifications profile map-u
       cp "$SRC/$tsc" "$DST/$tsc"
     fi
   done
-
-  # Фикс package.json: удаляем project.json
 done
 
 echo "setup-myapp-libs: done"
