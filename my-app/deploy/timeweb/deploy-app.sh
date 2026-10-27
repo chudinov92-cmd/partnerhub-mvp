@@ -3,7 +3,7 @@
 #   bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh
 set -euo pipefail
 
-ROOT="/root/zeip/my-app"
+ROOT="/root/zeip/my-app/my-app"
 ENV_FILE="${ROOT}/deploy/timeweb/.env.app"
 COMPOSE_FILE="${ROOT}/deploy/timeweb/docker-compose.app.yml"
 
