@@ -30,9 +30,9 @@ ENV NEXT_PUBLIC_SUPPORT_PROFILE_ID=$NEXT_PUBLIC_SUPPORT_PROFILE_ID
 ENV NEXT_PUBLIC_VK_MAPS_API_KEY=$NEXT_PUBLIC_VK_MAPS_API_KEY
 ENV NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN=$NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN
 ENV NEXT_PUBLIC_ACCESS_MODE=$NEXT_PUBLIC_ACCESS_MODE
-# Собираем в my-app: node_modules из deps + исходники приложения.
-COPY --from=deps /workspace/my-app/node_modules ./my-app/node_modules
+# Собираем в my-app: исходники приложения, затем node_modules из deps (чтобы COPY не затёр их).
 COPY my-app ./my-app
+COPY --from=deps /workspace/my-app/node_modules ./my-app/node_modules
 WORKDIR /app/my-app
 RUN npm run build
 
