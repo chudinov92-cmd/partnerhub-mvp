@@ -25,6 +25,8 @@
     "@my-startup/subscription": "file:../libs/subscription",
     "@my-startup/ui": "file:../libs/ui",
     "@my-startup/notifications": "file:../libs/notifications",
+    "@my-startup/profile": "file:../libs/profile",
+    "@my-startup/map-ui": "file:../libs/map-ui",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.99.1",
     "focus-trap-react": "^12.0.3",

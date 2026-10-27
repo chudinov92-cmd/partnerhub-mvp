@@ -38,6 +38,12 @@
       ],
       "@my-startup/notifications": [
         "./libs/notifications/src/index.ts"
+      ],
+      "@my-startup/profile": [
+        "./libs/profile/src/index.ts"
+      ],
+      "@my-startup/map-ui": [
+        "./libs/map-ui/src/index.ts"
       ]
     }
   },

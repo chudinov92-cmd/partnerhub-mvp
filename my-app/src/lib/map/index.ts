@@ -1,10 +1,9 @@
+// Гео-модули вынесены в библиотеку @my-startup/map-ui.
+// Этот файл остаётся для обратной совместимости импортов `@/lib/map`.
 export {
   hashToSeed,
   mulberry32,
   obfuscateLatLngWithinRadius,
-} from "./geoPrivacy";
-
-export {
   createPinElement,
   escapeHtmlChar,
   escapeHtmlColor,
@@ -19,4 +18,4 @@ export {
   scheduleOwnPinHello,
   setMarkerTooltip,
   triggerOwnPinHello,
-} from "./pinElement";
+} from "@my-startup/map-ui";

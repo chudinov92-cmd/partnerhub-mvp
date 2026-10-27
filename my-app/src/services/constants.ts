@@ -1,4 +1,3 @@
-/** Лимиты и интервалы, общие для фида и чатов. */
-export const MAX_RELATION_ROWS = 500;
-export const MAX_COMMENTS_FETCH = 200;
-export const POSTS_POLL_INTERVAL_MS = 15000;
+// Константы вынесены в библиотеку @my-startup/profile.
+// Этот файл остаётся для обратной совместимости импортов `@/services/constants`.
+export { MAX_RELATION_ROWS, MAX_COMMENTS_FETCH, POSTS_POLL_INTERVAL_MS } from "@my-startup/profile";

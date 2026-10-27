@@ -1,4 +1,4 @@
-export const RUSSIA_LABEL = "Россия";
+export { RUSSIA_LABEL } from "@my-startup/profile";
 
 /** Города РФ с населением свыше 100 тыс. человек (справочник для выбора в UI). */
 export const CITY_OPTIONS = [

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { isPaidGateMode } from "@my-startup/auth";
-import { PROFILE_MAP_QUERY_PARAM } from "@/lib/profileShare";
+import { PROFILE_MAP_QUERY_PARAM } from "@my-startup/chat";
 import {
   clearPaywallQueryParams,
   clearPendingPaywallContext,

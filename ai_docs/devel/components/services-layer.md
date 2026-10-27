@@ -16,12 +16,27 @@
 
 ## Структура
 
-| Barrel | Модули | Назначение |
-|---|---|---|
-| `chatService.ts` | `chat/support`, `sidebar`, `ensure`, `messages`, `quota` | ЛС, realtime, квота собеседников/день |
-| `profileService.ts` | `profile/match`, `map`, `session`, `likes`, `editor` | Карта, сессия, лайки, онбординг/редактор профиля |
-| `adminService.ts` | (один файл, именованные функции) | Списки и мутации админки через RLS |
-| `contactService.ts` | — | Контакты, блокировки, просмотры, `countContactsForOwner` |
+> Движок профилей, справочников и карты вынесен в Nx-библиотеки. В `src/services/`
+> остаются только тонкие barrel-реэкспорты для обратной совместимости импортов
+> `@/services/*`.
+
+| Barrel | Модули | Назначение | Источник |
+|---|---|---|---|
+| `profileService.ts` | `profile/match`, `map`, `session`, `likes`, `editor` | Карта, сессия, лайки, онбординг/редактор профиля | `@my-startup/profile` |
+| `contactService.ts` | контакты, блокировки, просмотры | Контакты, блокировки, просмотры, `countContactsForOwner` | `@my-startup/profile` |
+| `chatService.ts` | `chat/support`, `sidebar`, `ensure`, `messages`, `quota` | ЛС, realtime, квота собеседников/день | `@my-startup/chat` |
+| `adminService.ts` | (один файл, именованные функции) | Списки и мутации админки через RLS | приложение |
+
+Библиотека `@my-startup/profile` (в `libs/profile/src/lib/`) содержит:
+- `services/` — `match`, `map`, `viewport`, `session`, `likes`, `editor`, `contacts`
+- `hooks/` — `useProfiles`, `useContacts`
+- `catalogs/` — справочники профессий/отраслей + `catalogCache`, `profanity`, сиды
+- `components/` — `ProfilePreviewCard`
+
+Библиотека `@my-startup/map-ui` (в `libs/map-ui/src/lib/`) содержит:
+- `components/` — `PartnerMap`, `ProfileLocationPicker`
+- `map/` — `geoPrivacy`, `pinElement`
+- `data/` — `cityMapViews` (`LngLat`, `getMapConfigForCity`)
 
 ## Онбординг / профиль
 
@@ -30,7 +45,7 @@
 - `fetchOrCreateOnboardingProfile` / `fetchOrCreateEditorProfile`
 - `fetchProfileLastName`, `fetchProfileWorkBlocks`, `fetchLocationForProfile`
 - `updateProfileById`, `upsertActiveLocation`, `fetchMapVisible`
-- справочники профессий/отраслей — хук [`useProfiles`](../../../my-app/src/hooks/useProfiles.ts) (кэш в [`catalogCache.ts`](../../../my-app/src/lib/catalogCache.ts))
+- справочники профессий/отраслей — хук [`useProfiles`](../../../libs/profile/src/lib/hooks/useProfiles.ts) (кэш в [`catalogCache.ts`](../../../libs/profile/src/lib/catalogs/catalogCache.ts))
 
 Маскирование и валидация остаются в UI.
 

@@ -1,12 +1,15 @@
 "use client";
 
+// Сервисы профиля вынесены в библиотеку @my-startup/profile.
+// Этот файл остаётся для обратной совместимости импортов `@/services/profileService`.
+
 export {
   getProfessionMatchIndex,
   profileMatchesProfession,
   parseInterestedProfessions,
   serializeInterestedProfessions,
   profileInterestedInProfession,
-} from "@/services/profile/match";
+} from "@my-startup/profile";
 
 export {
   PROFILE_MAP_SELECT,
@@ -17,7 +20,7 @@ export {
   fetchProfileForMapById,
   fetchProfilesInterestedIn,
   type LocationPointRow,
-} from "@/services/profile/map";
+} from "@my-startup/profile";
 
 export {
   loadMapViewportData,
@@ -41,7 +44,7 @@ export {
   type MapViewportPinRow,
   type MapViewportMode,
   type MapViewportFilterParams,
-} from "@/services/profile/viewport";
+} from "@my-startup/profile";
 
 export {
   fetchCurrentUserProfileRow,
@@ -51,7 +54,7 @@ export {
   fetchMapVisible,
   type CurrentProfileRow,
   type TopBarProfileRow,
-} from "@/services/profile/session";
+} from "@my-startup/profile";
 
 export {
   fetchProfileLikeCount,
@@ -59,7 +62,7 @@ export {
   removeProfileLike,
   insertProfileLike,
   resolveProfileShareCode,
-} from "@/services/profile/likes";
+} from "@my-startup/profile";
 
 export {
   upsertProfilePrivate,
@@ -76,9 +79,9 @@ export {
   fetchLocationCoordsForProfile,
   updateProfileById,
   upsertActiveLocation,
-} from "@/services/profile/editor";
+} from "@my-startup/profile";
 
 export {
   countContactsForOwner,
   fetchContactProfiles,
-} from "@/services/contactService";
+} from "@my-startup/profile";
