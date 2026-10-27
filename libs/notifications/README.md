@@ -11,7 +11,7 @@
 |---|---|---|
 | `push/client.ts` | браузерная подписка / отписка / состояние | корневой `index.ts` |
 | `push/dispatchServer.ts` | `dispatchPushForMessage` (web-push) | `@my-startup/notifications/server` |
-| `email/content.ts` | ссылки, склонения, HTML-шаблон | корневой `index.ts` |
+| `email/content.ts` | ссылки, склонения, HTML-шаблон, превью сообщения | корневой `index.ts` |
 | `email/server.ts` | SMTP-отправка (`nodemailer`) | `@my-startup/notifications/server` |
 | `components/` | `PushBootstrap`, `PushOptInBanner`, `PushNotificationsSettings` | корневой `index.ts` |
 

@@ -73,6 +73,7 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-16-apply-robokassa-payment.sql" 
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-fetch-map-viewport-pins-own-outside-bbox.sql" "viewport-pins-own-outside-bbox"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-email-dm-deeplink.sql" "email-dm-deeplink"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-contact-profiles-rpc.sql" "contact-profiles-rpc"
+run_sql_migration "${ROOT}/supabase/sql/2026-10-27-email-dm-message-preview.sql" "email-dm-message-preview"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

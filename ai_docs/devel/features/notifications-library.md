@@ -15,7 +15,8 @@ libs/notifications/src/
     push/client.ts        ← enable/disable/getState, localStorage-dismiss
     push/dispatchServer.ts← dispatchPushForMessage (web-push, RLS-логика блоков)
     email/server.ts       ← SMTP send/isConfigured/verifyInternalEmailSecret
-    email/content.ts      ← getSiteUrl, emailMapLink/ChatLink, pluralContacts, wrapper
+    email/content.ts      ← getSiteUrl, emailMapLink/ChatLink, pluralContacts,
+                            escapeEmailHtml, truncateEmailText, messagePreviewHtml, wrapper
     components/           ← PushBootstrap, PushOptInBanner, PushNotificationsSettings
 ```
 

@@ -23,16 +23,62 @@ export function pluralContacts(count: number): string {
   return "контактов";
 }
 
+/** Экранирует пользовательский контент перед вставкой в HTML-шаблон письма. */
+export function escapeEmailHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Обрезает текст сообщения до max символов и добавляет многоточие. */
+export function truncateEmailText(text: string, max = 200): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max).trimEnd()}\u2026`;
+}
+
+/** HTML-блок с именем отправителя, его профессией (если указана) и текстом сообщения. */
+export function messagePreviewHtml(params: {
+  senderName: string;
+  senderRoleTitle?: string | null;
+  messageText: string;
+}): string {
+  const name = escapeEmailHtml(params.senderName);
+  const role = params.senderRoleTitle
+    ? escapeEmailHtml(params.senderRoleTitle)
+    : null;
+  const text = escapeEmailHtml(params.messageText);
+
+  const roleLine = role
+    ? ` <span style="color:#888;font-weight:normal;">&mdash; ${role}</span>`
+    : "";
+
+  return `
+        <div style="margin:0 0 24px;padding:16px 18px;border:1px solid #e5e5e5;border-radius:10px;background:#fafafa;">
+          <p style="margin:0 0 10px;font-size:15px;font-weight:600;color:#111;">${name}${roleLine}</p>
+          <p style="margin:0;font-size:15px;color:#333;white-space:pre-wrap;">${text}</p>
+        </div>`;
+}
+
 export function wrapTransactionalEmail(params: {
   title: string;
   lead: string;
   ctaLabel: string;
   ctaHref: string;
   footer?: string;
+  /** Дополнительный HTML-блок, вставляется перед кнопкой (например, превью сообщения). */
+  extraHtml?: string;
 }): string {
   const footer =
     params.footer ??
     "Это письмо отправлено автоматически. Ответы на noreply@zeip.ru не читаются.";
+
+  const extra = params.extraHtml
+    ? `\n${params.extraHtml}\n`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -47,8 +93,7 @@ export function wrapTransactionalEmail(params: {
       <td style="background:#fff;border-radius:12px;padding:32px 28px;">
         <p style="margin:0 0 8px;font-size:13px;color:#666;letter-spacing:0.04em;text-transform:uppercase;">Zeip</p>
         <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;">${params.title}</h1>
-        <p style="margin:0 0 24px;font-size:16px;color:#333;">${params.lead}</p>
-        <p style="margin:0 0 24px;">
+        <p style="margin:0 0 24px;font-size:16px;color:#333;">${params.lead}</p>${extra}        <p style="margin:0 0 24px;">
           <a href="${params.ctaHref}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
             ${params.ctaLabel}
           </a>

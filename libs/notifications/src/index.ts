@@ -16,6 +16,9 @@ export {
   emailMapLink,
   emailMapChatLink,
   pluralContacts,
+  escapeEmailHtml,
+  truncateEmailText,
+  messagePreviewHtml,
   wrapTransactionalEmail,
 } from './lib/email/content';
 
