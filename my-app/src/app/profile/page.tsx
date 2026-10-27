@@ -1,0 +1,1754 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import {
+  upsertProfilePrivate,
+  deleteProfileWork,
+  insertProfileWork,
+  fetchOrCreateEditorProfile,
+  fetchProfileLastName,
+  fetchProfileWorkBlocks,
+  fetchLocationForProfile,
+  updateProfileById,
+  fetchMapVisible,
+  upsertActiveLocation,
+} from "@/services/profileService";
+import { authGetUser } from "@my-startup/auth";
+import {
+  OTHER_PROFESSION_LABEL,
+  shouldUpsertProfession,
+  syncCustomProfessionToCatalog,
+  type ProfessionCatalogRow,
+} from "@/lib/professionCatalog";
+import { useProfiles } from "@/hooks/useProfiles";
+import { finalizeProfessionLabel } from "@/lib/professionOtherResolve";
+import { useProfessionOtherResolver } from "@/lib/useProfessionOtherResolver";
+import { DropdownSelect } from "@/components/DropdownSelect";
+import { CityDropdown } from "@/components/CityDropdown";
+import { MultiChoiceRow } from "@/components/MultiChoiceRow";
+import { ProfessionDropdown } from "@/components/ProfessionDropdown";
+import { ProfessionDidYouMeanModal } from "@/components/ProfessionDidYouMeanModal";
+import { ProfessionOtherInput } from "@/components/ProfessionOtherInput";
+import { maskProfanity } from "@/lib/profanity";
+import {
+  getIndustryLabelsForSelect,
+  getSubindustryLabelsForSelect,
+  upsertIndustry,
+  upsertSubindustry,
+  type IndustryCatalogRow,
+  type SubindustryCatalogRow,
+} from "@/lib/industryCatalog";
+import { CITY_VIEWS } from "@/data/cityMapViews";
+import { SEEKING_OPTIONS, toggleArrayItem } from "@/lib/seekingOptions";
+import {
+  ABOUT_ME_PLACEHOLDER,
+  RESOURCES_PLACEHOLDER,
+} from "@/lib/profileFieldPlaceholders";
+import {
+  AGE_MAX,
+  AGE_MIN,
+  formatAgeInputValue,
+  parseAgeInput,
+} from "@/lib/ageInput";
+import {
+  getEffectiveSubscriptionPlan,
+  isActiveProProfile,
+} from "@my-startup/subscription";
+import { getPlanLabel, getPlanTextColor } from "@my-startup/subscription";
+import { isPaidGateMode } from "@my-startup/auth";
+import {
+  ProfileSaveFeedbackBar,
+  type ProfileSaveFeedback,
+} from "@/components/ProfileSaveFeedbackBar";
+
+const INDUSTRY_OPTIONS = [
+  "Природные ресурсы",
+  "Промышленность",
+  "Строительство и инфраструктура",
+  "Торговля",
+  "Транспорт и логистика",
+  "Финансы",
+  "Информационные технологии",
+  "Телекоммуникации и связь",
+  "Недвижимость",
+  "Государственный сектор",
+  "Event-индустрия",
+  "Искусство",
+  "Медиапроизводство и съёмка",
+  "Услуги",
+  "Другое",
+] as const;
+
+type Industry = (typeof INDUSTRY_OPTIONS)[number];
+
+const SORTED_INDUSTRY_OPTIONS: Industry[] = [...INDUSTRY_OPTIONS].sort((a, b) => {
+  if (a === "Другое") return 1;
+  if (b === "Другое") return -1;
+  return a.localeCompare(b, "ru");
+});
+
+const SUBINDUSTRY_OPTIONS: Partial<Record<Industry, string[]>> = {
+  "Природные ресурсы": [
+    "Сельское хозяйство",
+    "Лесное хозяйство",
+    "Рыболовство",
+    "Охота",
+    "Горнодобывающая промышленность",
+    "Нефть и газ",
+    "Энергетика",
+    "Водные ресурсы",
+  ],
+  Промышленность: [
+    "Производство",
+    "Машиностроение",
+    "Химическая промышленность",
+    "Металлургия",
+    "Электроника",
+    "Авиационная промышленность",
+    "Космическая промышленность",
+    "Оборонная промышленность",
+    "Биотехнологии",
+    "Фармацевтика",
+    "Робототехника",
+  ],
+  "Строительство и инфраструктура": [
+    "Строительство",
+    "Архитектура",
+    "Девелопмент",
+    "Инженерия",
+    "Урбанистика",
+    "Дорожное строительство",
+    "ЖКХ",
+  ],
+  Торговля: [
+    "Оптовая торговля",
+    "Розничная торговля",
+    "Ecommerce",
+    "Маркетплейсы",
+    "Dropshipping",
+    "Импорт / экспорт",
+  ],
+  "Транспорт и логистика": [
+    "Авиация",
+    "Морские перевозки",
+    "Железные дороги",
+    "Автотранспорт",
+    "Логистика",
+    "Supply chain",
+    "Складирование",
+    "Delivery-сервисы",
+  ],
+  Финансы: [
+    "Банки",
+    "Инвестиции",
+    "Страхование",
+    "FinTech",
+    "Криптоиндустрия",
+    "Venture capital",
+    "Private equity",
+    "Hedge funds",
+    "Трейдинг",
+  ],
+  "Информационные технологии": [
+    "Разработка программного обеспечения",
+    "Данные и Искусственный Интеллект (Data & AI)",
+    "Инфраструктура и Администрирование",
+    "Информационная безопасность (InfoSec)",
+    "Бизнес-аналитика и Управление проектами",
+    "Веб-технологии и Дизайн",
+  ],
+  "Телекоммуникации и связь": [
+    "Мобильная связь",
+    "Интернет-провайдеры",
+    "Сетевое оборудование",
+    "Спутниковая связь",
+    "5G и новые стандарты",
+    "VoIP и унифицированные коммуникации",
+    "Радиосвязь",
+    "Дата-центры и инфраструктура связи",
+  ],
+  Недвижимость: [
+    "Real estate",
+    "PropTech",
+    "Управление недвижимостью",
+    "Аренда",
+    "Коммерческая недвижимость",
+    "Жилая недвижимость",
+  ],
+  "Государственный сектор": [
+    "Государственное управление",
+    "Муниципальное управление",
+    "Вооружённые силы",
+    "Госуслуги",
+    "Регулирование",
+    "Налоговые службы",
+  ],
+  "Event-индустрия": [
+    "Организация и управление мероприятиями",
+    "Event-маркетинг и коммуникации",
+    "Режиссура и креативное проектирование",
+    "Технический продакшн",
+    "Ивент-дизайн и оформление",
+  ],
+  Искусство: [
+    "Изобразительное искусство",
+    "Цифровое искусство и новые медиа",
+    "Сценография и театр",
+    "Реставрация и консервация",
+    "Арт-менеджмент и кураторство",
+    "Прикладное творчество и ремесла",
+  ],
+  "Медиапроизводство и съёмка": [
+    "Видеосъёмка",
+    "Фотосъёмка",
+    "Монтаж и постпродакшн",
+    "Звук и саунд-дизайн",
+    "Операторское мастерство",
+    "Продюсирование и организация съёмок",
+  ],
+  Услуги: [
+    "Строительство и ремонт",
+    "Туризм и путешествия",
+    "Транспортные услуги",
+    "Образование",
+    "Медицина и здоровье",
+    "Спорт и фитнес",
+    "Beauty-индустрия",
+  ],
+};
+
+const CURRENT_STATUS_OPTIONS = [
+  "Учащийся",
+  "Сотрудник в компании",
+  "Предприниматель",
+  "Фрилансер",
+] as const;
+
+type CurrentStatusOption = (typeof CURRENT_STATUS_OPTIONS)[number];
+
+const SORTED_CURRENT_STATUS_OPTIONS: CurrentStatusOption[] = [
+  ...CURRENT_STATUS_OPTIONS,
+].sort((a, b) => a.localeCompare(b, "ru"));
+
+const MAX_INTERESTED_PROFESSIONS = 5;
+
+function normalizeInterestedProfessions(values: string[]) {
+  const unique = new Set<string>();
+  const normalized: string[] = [];
+  for (const raw of values) {
+    const value = (raw ?? "").trim();
+    if (!value) continue;
+    if (unique.has(value)) continue;
+    unique.add(value);
+    normalized.push(value);
+    if (normalized.length >= MAX_INTERESTED_PROFESSIONS) break;
+  }
+  return normalized;
+}
+
+function parseInterestedProfessions(raw: string | null | undefined) {
+  if (!raw) return [];
+  return normalizeInterestedProfessions(raw.split(/\r?\n/));
+}
+
+function serializeInterestedProfessions(values: string[]) {
+  const normalized = normalizeInterestedProfessions(values);
+  return normalized.length > 0 ? normalized.join("\n") : null;
+}
+
+const DEFAULT_COUNTRY = "Россия";
+
+function formatProExpiresAt(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+type Profile = {
+  id: string;
+  full_name: string | null;
+  age: number | null;
+  country: string | null;
+  city: string | null;
+  industry: string | null;
+  industry_other: string | null;
+  subindustry: string | null;
+  role_title: string | null;
+  experience_years: number | null;
+  current_status: string | null;
+  skills: string | null;
+  looking_for: string | null;
+  resources: string | null;
+  can_help_with: string | null; // legacy in DB (not shown in UI)
+  interested_in: string | null;
+  seeking: string[];
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
+  subscription_plan?: "free" | "pro" | "pro_plus" | null;
+};
+
+type WorkBlock = {
+  id?: string;
+  role_title: string | null;
+  industry: string | null;
+  industry_other: string | null;
+  subindustry: string | null;
+  experience_years: number | null;
+};
+
+type LocationRow = {
+  id: string;
+  user_id: string;
+  lat: number;
+  lng: number;
+  city: string | null;
+};
+
+function buildProfileSnapshot(
+  profile: Profile,
+  workBlocks: WorkBlock[],
+  lastName: string,
+  coords: { lat: number; lng: number } | null,
+) {
+  return JSON.stringify({ profile, workBlocks, lastName, coords });
+}
+
+function coordsFromCity(
+  city: string | null | undefined,
+): { lat: number; lng: number } | null {
+  const cityView = CITY_VIEWS[(city ?? "").trim()];
+  if (!cityView) return null;
+  const center = cityView.center;
+  if (!Array.isArray(center) || center.length < 2) return null;
+  const lng = Number(center[0]);
+  const lat = Number(center[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+const LocationPicker = dynamic(
+  () =>
+    import("@/components/ProfileLocationPicker").then(
+      (m) => m.ProfileLocationPicker,
+    ),
+  { ssr: false },
+);
+
+export default function ProfilePage() {
+  const MAX_GROUP2_BLOCKS = 5; // primary (profiles.*) + up to 4 additional blocks
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [lastName, setLastName] = useState("");
+  const [location, setLocation] = useState<LocationRow | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
+  const [professionIsOther, setProfessionIsOther] = useState(false);
+  const [subindustryIsOther, setSubindustryIsOther] = useState(false);
+  const [workBlocks, setWorkBlocks] = useState<WorkBlock[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
+  const savedSnapshotRef = useRef<string>("");
+  const [deleteBlockConfirmOpen, setDeleteBlockConfirmOpen] = useState(false);
+  const [deleteBlockConfirmIndex, setDeleteBlockConfirmIndex] = useState<
+    number | null
+  >(null);
+  const {
+    professionCatalog,
+    industryCatalog,
+    subindustryCatalog,
+    catalogsLoading,
+    setProfessionCatalog,
+  } = useProfiles();
+  const [profileLoading, setProfileLoading] = useState(true);
+  const catalogLoading = catalogsLoading;
+  const profileLoadInFlightRef = useRef(false);
+  const professionOtherInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+  const professionResolver = useProfessionOtherResolver(professionCatalog);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<ProfileSaveFeedback | null>(
+    null,
+  );
+  const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [interestedProfessionDraft, setInterestedProfessionDraft] = useState<
+    string | null
+  >(null);
+  const baselineSnapshotRef = useRef<string>("");
+  const coordsMovedByUserRef = useRef(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    const current = buildProfileSnapshot(profile, workBlocks, lastName, coords);
+
+    // "Профиль сохранен" сбрасываем при любом изменении после успешного сохранения.
+    if (isSaved && savedSnapshotRef.current && current !== savedSnapshotRef.current) {
+      setIsSaved(false);
+      setSaveFeedback(null);
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+        saveFeedbackTimerRef.current = null;
+      }
+    }
+
+    // Показ "Отмена" только если есть несохранённые изменения относительно базовой версии.
+    if (baselineSnapshotRef.current) {
+      setHasChanges(current !== baselineSnapshotRef.current);
+    } else {
+      setHasChanges(false);
+    }
+  }, [isSaved, profile, workBlocks, lastName, coords]);
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showSaveFeedback = useCallback((feedback: ProfileSaveFeedback) => {
+    if (saveFeedbackTimerRef.current) {
+      clearTimeout(saveFeedbackTimerRef.current);
+    }
+    setSaveFeedback(feedback);
+    saveFeedbackTimerRef.current = setTimeout(() => {
+      setSaveFeedback(null);
+      saveFeedbackTimerRef.current = null;
+    }, 7000);
+  }, []);
+
+  const dismissSaveFeedback = useCallback(() => {
+    if (saveFeedbackTimerRef.current) {
+      clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+    setSaveFeedback(null);
+  }, []);
+
+  const isExtraBlockStock = (wb: WorkBlock) => {
+    const roleTitle = (wb.role_title ?? "").trim();
+    const industry = (wb.industry ?? "").trim();
+    const industryOther = (wb.industry_other ?? "").trim();
+    const subindustry = (wb.subindustry ?? "").trim();
+
+    const roleEmpty =
+      !roleTitle || roleTitle === OTHER_PROFESSION_LABEL;
+
+    const industryEmpty =
+      !industry || (industry === "Другое" && !industryOther);
+
+    // For extra blocks we store "Другое" subindustry sentinel as "".
+    const subindustryEmpty = !subindustry;
+
+    const experienceEmpty = wb.experience_years == null;
+
+    return roleEmpty && industryEmpty && subindustryEmpty && experienceEmpty;
+  };
+
+  const requestDeleteExtraBlock = (extraIndex: number) => {
+    const wb = workBlocks[extraIndex];
+    if (!wb) return;
+
+    // "Stock" (empty) blocks delete immediately without confirmation.
+    if (isExtraBlockStock(wb)) {
+      setWorkBlocks((prev) => prev.filter((_, i) => i !== extraIndex));
+      return;
+    }
+
+    setDeleteBlockConfirmIndex(extraIndex);
+    setDeleteBlockConfirmOpen(true);
+  };
+
+  const confirmDeleteExtraBlock = () => {
+    if (deleteBlockConfirmIndex == null) return;
+    setWorkBlocks((prev) =>
+      prev.filter((_, i) => i !== deleteBlockConfirmIndex),
+    );
+    setDeleteBlockConfirmOpen(false);
+    setDeleteBlockConfirmIndex(null);
+  };
+
+  const cancelDeleteExtraBlock = () => {
+    setDeleteBlockConfirmOpen(false);
+    setDeleteBlockConfirmIndex(null);
+  };
+
+  const handleCoordsChange = (next: { lat: number; lng: number }) => {
+    coordsMovedByUserRef.current = true;
+    setCoords(next);
+  };
+
+  const handleCityChange = (city: string) => {
+    if (!profile) return;
+    setProfile({ ...profile, city });
+    if (!coordsMovedByUserRef.current) {
+      const nextCoords = coordsFromCity(city);
+      if (nextCoords) setCoords(nextCoords);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const mapWorkBlocks = (wbRows: unknown[]) =>
+      wbRows.map((r) => {
+        const row = r as {
+          id?: string;
+          role_title?: string | null;
+          industry?: string | null;
+          industry_other?: string | null;
+          subindustry?: string | null;
+          experience_years?: number | null;
+        };
+        return {
+          id: row.id,
+          role_title: row.role_title ?? null,
+          industry: row.industry ?? null,
+          industry_other: row.industry_other ?? null,
+          subindustry: row.subindustry ?? null,
+          experience_years:
+            typeof row.experience_years === "number" ? row.experience_years : null,
+        };
+      });
+
+    const load = async () => {
+      if (profileLoadInFlightRef.current) return;
+      profileLoadInFlightRef.current = true;
+
+      try {
+        setError(null);
+
+        const {
+          data: { user },
+          error: userError,
+        } = await authGetUser();
+
+        if (cancelled) return;
+
+        if (userError || !user) {
+          setError("Нужно войти в аккаунт");
+          return;
+        }
+
+        const { data: profData, error: pErr } = await fetchOrCreateEditorProfile(
+          user.id,
+        );
+
+        if (cancelled) return;
+
+        if (pErr) {
+          setError(pErr.message);
+          return;
+        }
+
+        if (!profData) {
+          setError("Не удалось загрузить профиль");
+          return;
+        }
+
+        const prof = {
+          ...(profData as Profile),
+          country: (profData as Profile).country?.trim() || DEFAULT_COUNTRY,
+          seeking: (profData as Profile).seeking ?? [],
+        };
+        setProfile(prof);
+
+        let loadedLastName = "";
+        try {
+          loadedLastName = (await fetchProfileLastName(prof.id)) ?? "";
+        } catch {
+          loadedLastName = "";
+        }
+        setLastName(loadedLastName);
+
+        const [workResult, locationResult] = await Promise.all([
+          fetchProfileWorkBlocks(prof.id),
+          fetchLocationForProfile(prof.id),
+        ]);
+
+        if (cancelled) return;
+
+        const loadedWorkBlocks = workResult.error
+          ? []
+          : mapWorkBlocks(workResult.data);
+        setWorkBlocks(loadedWorkBlocks);
+
+        let loadedCoords: { lat: number; lng: number } | null = null;
+        if (locationResult) {
+          const loc = locationResult;
+          setLocation(loc);
+          loadedCoords = { lat: loc.lat, lng: loc.lng };
+          setCoords(loadedCoords);
+          coordsMovedByUserRef.current = true;
+        } else {
+          coordsMovedByUserRef.current = false;
+          loadedCoords = coordsFromCity(prof.city);
+          if (loadedCoords) {
+            setCoords(loadedCoords);
+          }
+        }
+
+        try {
+          const baseline = buildProfileSnapshot(
+            prof,
+            loadedWorkBlocks,
+            loadedLastName,
+            loadedCoords,
+          );
+          if (!baselineSnapshotRef.current) {
+            baselineSnapshotRef.current = baseline;
+          }
+        } catch {
+          // ignore
+        }
+
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg =
+            err instanceof Error ? err.message : "Не удалось загрузить профиль";
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+        profileLoadInFlightRef.current = false;
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      profileLoadInFlightRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.role_title) return;
+    const labels = professionCatalog.map((r) => r.label);
+    setProfessionIsOther(!labels.includes(profile.role_title));
+  }, [profile?.role_title, professionCatalog]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+
+    if (!coords) {
+      setError("Укажите местоположение на карте — кликните по нужному месту.");
+      dismissSaveFeedback();
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    dismissSaveFeedback();
+    setIsSaved(false);
+
+    try {
+      let nextProfessionCatalog = professionCatalog;
+      let resolvedRoleTitle = profile.role_title;
+
+      if (professionIsOther && (profile.role_title ?? "").trim()) {
+        const finalized = await finalizeProfessionLabel(
+          nextProfessionCatalog,
+          profile.role_title ?? "",
+          professionResolver.resolveForSave,
+        );
+        if (finalized.cancelled) return;
+        nextProfessionCatalog = finalized.catalog;
+        resolvedRoleTitle = finalized.label;
+        if (finalized.usedCanonical) {
+          setProfessionIsOther(false);
+        }
+      }
+
+      // If user entered a custom industry ("Другое"), persist it in catalog.
+      if ((profile.industry ?? null) === "Другое") {
+        const v = (profile.industry_other ?? "").trim();
+        if (v) {
+          try {
+            await upsertIndustry(v);
+          } catch {}
+        }
+      }
+
+      // If user entered a custom subindustry ("Другое"), persist it in catalog.
+      if (subindustryIsOther) {
+        const ind =
+          (profile.industry ?? null) === "Другое"
+            ? (profile.industry_other ?? "").trim()
+            : (profile.industry ?? "").trim();
+        const v = (profile.subindustry ?? "").trim();
+        if (ind && v) {
+          try {
+            await upsertSubindustry(ind, v);
+          } catch {}
+        }
+      }
+
+      const resolvedWorkBlocks = [...workBlocks];
+      for (let i = 0; i < resolvedWorkBlocks.length; i += 1) {
+        const wb = resolvedWorkBlocks[i];
+        const roleRaw = (wb.role_title ?? "").trim();
+        if (roleRaw && roleRaw !== OTHER_PROFESSION_LABEL) {
+          const finalized = await finalizeProfessionLabel(
+            nextProfessionCatalog,
+            roleRaw,
+            professionResolver.resolveForSave,
+          );
+          if (finalized.cancelled) return;
+          nextProfessionCatalog = finalized.catalog;
+          resolvedWorkBlocks[i] = { ...wb, role_title: finalized.label };
+        }
+      }
+
+      // Sync custom industry/subindustry values from additional Group 2 blocks.
+      for (const wb of resolvedWorkBlocks) {
+        if ((wb.industry ?? null) === "Другое") {
+          const indOtherRaw = (wb.industry_other ?? "").trim();
+          const indOther = maskProfanity(indOtherRaw);
+          if (indOther) {
+            try {
+              await upsertIndustry(indOther);
+            } catch {}
+          }
+        }
+
+        const subRaw = (wb.subindustry ?? "").trim();
+        const sub = maskProfanity(subRaw);
+        if (sub) {
+          const indLabel =
+            (wb.industry ?? null) === "Другое"
+              ? (wb.industry_other ?? "").trim()
+              : (wb.industry ?? "").trim();
+          const indLabelMasked = maskProfanity(indLabel);
+          if (indLabel) {
+            const exists =
+              subindustryCatalog.length > 0
+                ? subindustryCatalog.some(
+                    (r) =>
+                      r.industry_label === indLabelMasked && r.label === sub,
+                  )
+                : false;
+            if (!exists) {
+              try {
+                await upsertSubindustry(indLabelMasked ?? indLabel, sub);
+              } catch {}
+            }
+          }
+        }
+      }
+
+      const interestedProfessionValues = normalizeInterestedProfessions(
+        parseInterestedProfessions(profile.interested_in).map(
+          (item) => maskProfanity(item) ?? "",
+        ),
+      );
+      for (const profession of interestedProfessionValues) {
+        if (shouldUpsertProfession(nextProfessionCatalog, profession)) {
+          nextProfessionCatalog = await syncCustomProfessionToCatalog(
+            nextProfessionCatalog,
+            profession,
+          );
+        }
+      }
+
+      setProfessionCatalog(nextProfessionCatalog);
+
+      // обновляем профиль
+      const { error: updateError } = await updateProfileById(profile.id, {
+        full_name: maskProfanity(profile.full_name),
+        age: profile.age,
+        country: DEFAULT_COUNTRY,
+        city: profile.city,
+        industry: profile.industry,
+        industry_other:
+          profile.industry === "Другое"
+            ? maskProfanity(profile.industry_other)
+            : null,
+        subindustry: profile.subindustry,
+        role_title: maskProfanity(resolvedRoleTitle),
+        experience_years: profile.experience_years,
+        current_status: profile.current_status
+          ? maskProfanity(profile.current_status)
+          : null,
+        skills: maskProfanity(profile.skills),
+        looking_for: maskProfanity(profile.looking_for),
+        resources: maskProfanity(profile.resources),
+        interested_in: serializeInterestedProfessions(interestedProfessionValues),
+        seeking: profile.seeking ?? [],
+      });
+
+      if (updateError) throw updateError;
+
+      const trimmedLastName = (lastName ?? "").trim().slice(0, 25);
+      const maskedLastName = maskProfanity(trimmedLastName) ?? null;
+      const { error: privateError } = await upsertProfilePrivate({
+        profile_id: profile.id,
+        last_name: maskedLastName || null,
+        updated_at: new Date().toISOString(),
+      });
+      if (privateError) throw privateError;
+
+      // Sync repeating work blocks to DB (replace-all strategy)
+      try {
+        await deleteProfileWork(profile.id);
+        const payload = resolvedWorkBlocks
+          .filter((b) => {
+            const hasRole = (b.role_title ?? "").trim().length > 0;
+            const hasIndustry = (b.industry ?? "").trim().length > 0;
+            const hasSub = (b.subindustry ?? "").trim().length > 0;
+            const hasExp = b.experience_years != null;
+            return hasRole || hasIndustry || hasSub || hasExp;
+          })
+          .map((b, index) => ({
+            profile_id: profile.id,
+            role_title: maskProfanity(b.role_title),
+            industry: b.industry,
+            industry_other:
+              b.industry === "Другое" ? maskProfanity(b.industry_other) : null,
+            subindustry: maskProfanity(b.subindustry),
+            experience_years: b.experience_years,
+            sort_order: index,
+          }));
+        if (payload.length > 0) {
+          await insertProfileWork(payload);
+        }
+      } catch {
+        // best-effort: do not block profile save
+      }
+
+      // обновляем / создаём локацию (is_active следует за map_visible)
+      if (coords) {
+        const mapVisible = await fetchMapVisible(profile.id);
+
+        const { error: locErr } = await upsertActiveLocation({
+          profileId: profile.id,
+          lat: coords.lat,
+          lng: coords.lng,
+          city: profile.city,
+          isActive: mapVisible,
+          existingLocationId: location?.id ?? null,
+        });
+
+        if (locErr) throw locErr;
+      }
+
+      const subscriptionActive = isActiveProProfile(profile);
+      const needsSubscriptionForDm =
+        isPaidGateMode() && !subscriptionActive && Boolean(coords);
+      const skillsEmpty =
+        !profile.skills?.trim() && !profile.resources?.trim();
+
+      const savedProfile = {
+        ...profile,
+        role_title: resolvedRoleTitle,
+      };
+      setProfile(savedProfile);
+      setWorkBlocks(resolvedWorkBlocks);
+
+      showSaveFeedback({
+        successMessage: "Профиль успешно сохранён",
+        subscriptionHint: needsSubscriptionForDm
+          ? "Ваш пин уже на карте. Чтобы писать другим участникам, оформите подписку."
+          : null,
+        nextStepHint:
+          !needsSubscriptionForDm && skillsEmpty
+            ? "Расскажите о своих навыках — так вас заметят другие участники."
+            : null,
+      });
+      setIsSaved(true);
+      savedSnapshotRef.current = buildProfileSnapshot(
+        savedProfile,
+        resolvedWorkBlocks,
+        lastName,
+        coords,
+      );
+      baselineSnapshotRef.current = savedSnapshotRef.current;
+      setHasChanges(false);
+    } catch (err: any) {
+      setError(err.message ?? "Не удалось сохранить профиль");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (profileLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500">Загрузка профиля...</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500">
+          Профиль не найден. Попробуй выйти и войти снова.
+        </p>
+      </div>
+    );
+  }
+
+  const professionLabels = professionCatalog.map((p) => p.label);
+  const professionRow = professionCatalog.find((p) => p.label === profile.role_title);
+  void professionRow;
+  const interestedProfessionValues = parseInterestedProfessions(
+    profile.interested_in,
+  );
+  const canAddInterestedProfession =
+    interestedProfessionValues.length < MAX_INTERESTED_PROFESSIONS;
+
+  const subindustryOptions = (
+    industryCatalog.length > 0
+      ? getSubindustryLabelsForSelect(subindustryCatalog, profile.industry)
+      : (
+          (SUBINDUSTRY_OPTIONS[(profile.industry ?? null) as Industry] ?? []) as string[]
+        )
+          .slice()
+          .sort((a, b) => a.localeCompare(b, "ru"))
+          .concat("Другое")
+  );
+
+  const saveButtonLabel = saving
+    ? "Сохраняем..."
+    : isSaved
+      ? "Профиль сохранен"
+      : "Сохранить профиль";
+
+  const effectivePlan = getEffectiveSubscriptionPlan(profile);
+
+  const saveButtonClassName = `inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-sm font-semibold text-white shadow-sm transition disabled:opacity-60 ${
+    saving
+      ? "bg-[#009966]/80 hover:bg-[#009966]/80"
+      : isSaved
+        ? "bg-emerald-600 hover:bg-emerald-700"
+        : "bg-gradient-to-r from-[#009966] to-emerald-600 hover:from-[#009966] hover:to-emerald-700"
+  }`;
+
+  return (
+    <div className="flex min-h-screen justify-center bg-gradient-to-br from-gray-50 via-emerald-50/30 to-emerald-50/30 px-3 py-6">
+      <form
+        id="profile-edit-form"
+        onSubmit={handleSubmit}
+        className={`w-full max-w-4xl space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg ${
+          hasChanges ? "pb-4" : ""
+        }`}
+      >
+        <div className="mb-2">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              Мой профиль
+            </h1>
+            <span
+              className="text-2xl font-bold sm:text-3xl"
+              style={{ color: getPlanTextColor(effectivePlan) }}
+            >
+              {getPlanLabel(effectivePlan)}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">
+            Заполните информацию о себе, чтобы другие пользователи могли вас
+            найти
+          </p>
+          {profile && isActiveProProfile(profile) ? (
+            <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium text-emerald-900">
+                {isPaidGateMode()
+                  ? "Подписка активна"
+                  : "Подписка Pro активна"}
+                {profile.pro_expires_at
+                  ? ` до ${formatProExpiresAt(profile.pro_expires_at)}`
+                  : " (без даты окончания)"}
+              </p>
+            </div>
+          ) : isPaidGateMode() ? (
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+              <p className="text-sm text-amber-900">
+                Ваш пин на карте уже виден другим участникам. Личные сообщения —
+                после оплаты.{" "}
+                <Link href="/subscription" className="font-medium underline">
+                  Оформить подписку
+                </Link>
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        {error ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </div>
+        ) : null}
+
+        {catalogLoading ? (
+          <p className="text-xs text-slate-500">Загрузка справочников...</p>
+        ) : null}
+
+        {/* Группа 1: Имя / Фамилия / Город / Возраст */}
+        <div
+          id="section-city"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Личная информация
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Имя
+                </label>
+                <input
+                  type="text"
+                  value={profile.full_name ?? ""}
+                  onChange={(e) =>
+                    setProfile({
+                      ...profile,
+                      full_name: e.target.value.slice(0, 25),
+                    })
+                  }
+                  maxLength={25}
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Фамилия
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value.slice(0, 25))}
+                  maxLength={25}
+                  autoComplete="family-name"
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Видна только вам, другие пользователи её не увидят
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Город
+                </label>
+                <CityDropdown
+                  value={profile.city}
+                  onChange={handleCityChange}
+                  includeRussia={false}
+                  placeholder="Выберите город"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-800">
+                  Возраст
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[1-9][0-9]?"
+                  min={AGE_MIN}
+                  max={AGE_MAX}
+                  maxLength={2}
+                  value={formatAgeInputValue(profile.age)}
+                  onChange={(e) => {
+                    setProfile({
+                      ...profile,
+                      age: parseAgeInput(e.target.value),
+                    });
+                  }}
+                  className="h-12 w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Группа 2: Профессия / Отрасль / Подотрасль / Стаж (повторяемая) */}
+        <div
+          id="section-experience"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <path d="M2 13h20" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Профессиональная информация
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+          {[
+            // Первая группа 2 — источником истины остаётся profiles.*
+            {
+              key: "primary",
+              get: () => ({
+                role_title: profile.role_title,
+                industry: profile.industry,
+                industry_other: profile.industry_other,
+                subindustry: profile.subindustry,
+                experience_years: profile.experience_years,
+              }),
+              set: (next: WorkBlock) => {
+                setProfile({
+                  ...profile,
+                  role_title: next.role_title,
+                  industry: next.industry,
+                  industry_other: next.industry_other,
+                  subindustry: next.subindustry,
+                  experience_years: next.experience_years,
+                });
+              },
+              isOtherProfession: professionIsOther,
+              setOtherProfession: setProfessionIsOther,
+              isOtherSubindustry: subindustryIsOther,
+              setOtherSubindustry: setSubindustryIsOther,
+            },
+            // Дополнительные блоки
+            ...workBlocks.map((b, idx) => ({
+              key: `extra-${b.id ?? idx}`,
+              get: () => b,
+              set: (next: WorkBlock) =>
+                setWorkBlocks((prev) =>
+                  prev.map((x, i) => (i === idx ? { ...x, ...next } : x)),
+                ),
+              isOtherProfession: false,
+              setOtherProfession: (_: boolean) => {},
+              isOtherSubindustry: false,
+              setOtherSubindustry: (_: boolean) => {},
+            })),
+          ].map((ctx, blockIndex) => {
+            const b = ctx.get();
+
+            const professionLabelsLocal = professionLabels;
+            const isPrimaryBlock = blockIndex === 0;
+            const isProfessionOther = isPrimaryBlock
+              ? professionIsOther ||
+                (!!b.role_title &&
+                  !professionLabelsLocal.includes(b.role_title) &&
+                  b.role_title !== OTHER_PROFESSION_LABEL)
+              : b.role_title === OTHER_PROFESSION_LABEL ||
+                (!!b.role_title &&
+                  !professionLabelsLocal.includes(b.role_title) &&
+                  b.role_title !== OTHER_PROFESSION_LABEL);
+
+            const industryValue =
+              (b.industry ?? null) === "Другое"
+                ? ((b.industry_other ?? "").trim() ? "Другое" : "Другое")
+                : b.industry;
+
+            const subOptions =
+              industryCatalog.length > 0
+                ? getSubindustryLabelsForSelect(subindustryCatalog, b.industry)
+                : (
+                    (SUBINDUSTRY_OPTIONS[(b.industry ?? null) as Industry] ?? []) as string[]
+                  )
+                    .slice()
+                    .sort((a, c) => a.localeCompare(c, "ru"))
+                    .concat("Другое");
+
+            const isSubOther =
+              ctx.isOtherSubindustry || ((b.subindustry ?? null) === "");
+
+            return (
+              <div
+                key={ctx.key}
+                className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4"
+              >
+                {!isPrimaryBlock && (
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => requestDeleteExtraBlock(blockIndex - 1)}
+                      className="rounded-full p-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <img
+                        src="/Icons/Trash 2.svg"
+                        alt="Удалить блок"
+                        className="h-4 w-4"
+                      />
+                    </button>
+                  </div>
+                )}
+                {isPrimaryBlock && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Текущий статус
+                    </label>
+                    <DropdownSelect
+                      variant="profile"
+                      value={profile.current_status ?? null}
+                      title="Текущий статус"
+                      placeholder="Выберите статус"
+                      options={SORTED_CURRENT_STATUS_OPTIONS.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
+                      onChange={(v) => {
+                        setProfile({
+                          ...profile,
+                          current_status: v || null,
+                        });
+                      }}
+                      menuClassName="text-[11px]"
+                    />
+                  </div>
+                )}
+                {/* Профессия */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Профессия
+                  </label>
+                  <ProfessionDropdown
+                    value={
+                      isPrimaryBlock
+                        ? professionIsOther
+                          ? OTHER_PROFESSION_LABEL
+                          : b.role_title
+                        : b.role_title === OTHER_PROFESSION_LABEL
+                          ? OTHER_PROFESSION_LABEL
+                          : b.role_title
+                    }
+                    placeholder="Выберите профессию"
+                    catalog={professionCatalog}
+                    disabled={catalogLoading}
+                    onChange={(v) => {
+                      const isOther = v === OTHER_PROFESSION_LABEL;
+                      if (isPrimaryBlock) {
+                        ctx.setOtherProfession(isOther);
+                        ctx.set({
+                          ...b,
+                          role_title: isOther ? "" : v,
+                        });
+                      } else {
+                        // Для доп. блоков: "Другое" хранится как sentinel, а ввод — в role_title
+                        ctx.set({
+                          ...b,
+                          role_title: isOther ? OTHER_PROFESSION_LABEL : v,
+                        });
+                      }
+                      if (isOther) {
+                        requestAnimationFrame(() => {
+                          professionOtherInputRefs.current.get(blockIndex)?.focus();
+                        });
+                      }
+                    }}
+                  />
+                  {isProfessionOther && (
+                    <div className="mt-2">
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Укажите профессию (если выбрано «Другое»)
+                      </label>
+                      <ProfessionOtherInput
+                        inputRef={(el) => {
+                          if (el) professionOtherInputRefs.current.set(blockIndex, el);
+                          else professionOtherInputRefs.current.delete(blockIndex);
+                        }}
+                        autoFocus
+                        value={
+                          b.role_title === OTHER_PROFESSION_LABEL
+                            ? ""
+                            : b.role_title ?? ""
+                        }
+                        catalog={professionCatalog}
+                        dismissedKeys={professionResolver.dismissedKeys}
+                        onDismissSuggestion={professionResolver.dismissSuggestion}
+                        onChange={(v) => ctx.set({ ...b, role_title: v })}
+                        onResolved={(canonicalLabel) => {
+                          if (isPrimaryBlock) {
+                            ctx.setOtherProfession(false);
+                          }
+                          ctx.set({ ...b, role_title: canonicalLabel });
+                        }}
+                        placeholder="Введите название"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Отрасль */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Отрасль
+                  </label>
+                  <DropdownSelect
+                    variant="profile"
+                    value={industryValue}
+                    title="Отрасль"
+                    placeholder="Выберите отрасль"
+                    disabled={catalogLoading}
+                    options={(industryCatalog.length > 0
+                      ? getIndustryLabelsForSelect(industryCatalog)
+                      : SORTED_INDUSTRY_OPTIONS
+                    ).map((ind) => ({
+                      value: ind,
+                      label: ind,
+                    }))}
+                    onChange={(v) => {
+                      // reset dependent when industry changes
+                      ctx.setOtherSubindustry(false);
+                      ctx.set({
+                        ...b,
+                        industry: v || null,
+                        subindustry: null,
+                        industry_other: v === "Другое" ? (b.industry_other ?? "") : null,
+                      });
+                    }}
+                  />
+                </div>
+
+                {(b.industry ?? null) === "Другое" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Другая отрасль (введите вручную)
+                    </label>
+                    <input
+                      type="text"
+                      value={b.industry_other ?? ""}
+                      onChange={(e) =>
+                        ctx.set({
+                          ...b,
+                          industry_other: e.target.value.slice(0, 40),
+                        })
+                      }
+                      maxLength={40}
+                      placeholder="Введите название"
+                      className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                    />
+                  </div>
+                )}
+
+                {/* Подотрасль */}
+                {subOptions.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Подотрасль
+                    </label>
+                    <DropdownSelect
+                      variant="profile"
+                      value={isSubOther ? "Другое" : b.subindustry}
+                      title="Подотрасль"
+                      placeholder="Выберите подотрасль"
+                      disabled={catalogLoading}
+                      options={subOptions.map((s) => ({ value: s, label: s }))}
+                      onChange={(v) => {
+                        const isOther = v === "Другое";
+                        ctx.setOtherSubindustry(isOther);
+                        ctx.set({
+                          ...b,
+                          subindustry: isOther ? "" : v || null,
+                        });
+                      }}
+                    />
+                    {isSubOther && (
+                      <div className="mt-2">
+                        <label className="mb-1 block text-xs text-slate-500">
+                          Укажите подотрасль (если выбрано «Другое»)
+                        </label>
+                        <input
+                          type="text"
+                          value={b.subindustry ?? ""}
+                          onChange={(e) =>
+                            ctx.set({ ...b, subindustry: e.target.value.slice(0, 40) })
+                          }
+                          maxLength={40}
+                          placeholder="Введите название"
+                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Стаж */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Стаж (в годах)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={b.experience_years ?? ""}
+                    onChange={(e) =>
+                      ctx.set({
+                        ...b,
+                        experience_years: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    className="w-full max-w-[160px] rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+                  />
+                </div>
+
+              </div>
+            );
+          })}
+          <div className="pt-1 text-right">
+            {workBlocks.length < MAX_GROUP2_BLOCKS - 1 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setWorkBlocks((prev) => [
+                    ...prev,
+                    {
+                      role_title: null,
+                      industry: null,
+                      industry_other: null,
+                      subindustry: null,
+                      experience_years: null,
+                    },
+                  ])
+                }
+                className="text-sm font-semibold text-[#009966] hover:text-[#009966]/90"
+              >
+                Добавить
+              </button>
+            ) : (
+              <p className="text-xs text-slate-500">Лимит: 5 блоков</p>
+            )}
+          </div>
+          </div>
+        </div>
+
+        {/* Группа 3: Описания */}
+        <div
+          id="section-skills"
+          className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+        >
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <img
+                src="/Icons/Edit.svg"
+                alt=""
+                className="h-5 w-5"
+                aria-hidden
+              />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              О себе и ресурсы
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-800">
+                Ищу
+              </label>
+              <div className="grid gap-2">
+                {SEEKING_OPTIONS.map(({ value, label }) => (
+                  <MultiChoiceRow
+                    key={value}
+                    selected={(profile.seeking ?? []).includes(value)}
+                    onClick={() =>
+                      setProfile({
+                        ...profile,
+                        seeking: toggleArrayItem(profile.seeking ?? [], value),
+                      })
+                    }
+                  >
+                    {label}
+                  </MultiChoiceRow>
+                ))}
+              </div>
+            </div>
+
+            {/* О себе */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                О себе
+              </label>
+              <textarea
+                value={profile.skills ?? ""}
+                onChange={(e) =>
+                  setProfile({ ...profile, skills: e.target.value.slice(0, 600) })
+                }
+                placeholder={ABOUT_ME_PLACEHOLDER}
+                maxLength={600}
+                rows={3}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+              />
+              <div className="mt-1 text-right text-[11px] text-slate-400">
+                {(profile.skills ?? "").length}/600
+              </div>
+            </div>
+
+            {/* Ресурсы */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Ресурсы
+              </label>
+              <textarea
+                value={profile.resources ?? ""}
+                onChange={(e) =>
+                  setProfile({ ...profile, resources: e.target.value.slice(0, 600) })
+                }
+                placeholder={RESOURCES_PLACEHOLDER}
+                maxLength={600}
+                rows={3}
+                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-base text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#009966] focus:ring-1 focus:ring-[#009966]"
+              />
+              <div className="mt-1 text-right text-[11px] text-slate-400">
+                {(profile.resources ?? "").length}/600
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Интересующие профессии */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <img
+                src="/Icons/Compass.svg"
+                alt=""
+                className="h-5 w-5"
+                aria-hidden
+              />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Интересующие профессии
+            </h2>
+          </div>
+          <p className="mb-4 text-xs text-slate-500">
+            Добавьте до 5 профессий, специалисты которых вам интересны.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <DropdownSelect
+              variant="profile"
+              value={interestedProfessionDraft}
+              title="Интересующие профессии"
+              placeholder="Выберите профессию"
+              searchable
+              searchPlaceholder="Найти профессию"
+              options={professionLabels.map((label) => ({
+                value: label,
+                label,
+              }))}
+              onChange={(v) => setInterestedProfessionDraft(v || null)}
+              disabled={catalogLoading || !canAddInterestedProfession}
+            />
+            <button
+              type="button"
+              disabled={!interestedProfessionDraft || !canAddInterestedProfession}
+              onClick={() => {
+                if (!interestedProfessionDraft) return;
+                const nextInterestedIn = serializeInterestedProfessions([
+                  ...interestedProfessionValues,
+                  interestedProfessionDraft,
+                ]);
+                setProfile({ ...profile, interested_in: nextInterestedIn });
+                setInterestedProfessionDraft(null);
+              }}
+              className="h-12 rounded-xl bg-gradient-to-r from-[#009966] to-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:from-[#009966] hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Добавить
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {interestedProfessionValues.length > 0 ? (
+              interestedProfessionValues.map((profession) => (
+                <span
+                  key={profession}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800"
+                >
+                  {profession}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextInterestedIn = serializeInterestedProfessions(
+                        interestedProfessionValues.filter(
+                          (item) => item !== profession,
+                        ),
+                      );
+                      setProfile({ ...profile, interested_in: nextInterestedIn });
+                    }}
+                    className="text-emerald-700 hover:text-emerald-900"
+                    aria-label={`Удалить профессию ${profession}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500">Пока ничего не выбрано.</p>
+            )}
+          </div>
+
+          <p className="mt-3 text-xs text-slate-500">
+            Выбрано {interestedProfessionValues.length}/{MAX_INTERESTED_PROFESSIONS}
+          </p>
+        </div>
+
+        {/* Локация на карте */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-[#009966] to-emerald-600 p-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-white"
+                aria-hidden
+              >
+                <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Локация на карте
+            </h2>
+          </div>
+
+          <p className="mb-4 text-xs text-slate-500">
+            Кликни по карте, чтобы указать район, где ты находишься. Точная точка
+            будет скрыта для других пользователей.
+          </p>
+
+          <LocationPicker
+            value={coords}
+            onChange={handleCoordsChange}
+            markerLabel={
+              profile.full_name?.trim()?.[0]?.toUpperCase() ?? "Я"
+            }
+            className={`min-h-[20rem] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 ${
+              hasChanges
+                ? "h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-5rem-env(safe-area-inset-bottom,0px)-8rem)]"
+                : "h-[calc(100dvh-var(--zeip-topbar-height,3.5rem)-env(safe-area-inset-bottom,0px)-10rem)]"
+            } max-h-[42rem]`}
+          />
+        </div>
+
+        <ProfessionDidYouMeanModal
+          open={professionResolver.modalOpen}
+          input={professionResolver.modalInput}
+          suggestion={professionResolver.modalSuggestion}
+          onConfirm={professionResolver.confirmCanonical}
+          onReject={professionResolver.confirmCustom}
+          onDismiss={professionResolver.dismissModal}
+        />
+
+        {deleteBlockConfirmOpen && (
+          <div className="fixed inset-0 z-[2500] flex items-center justify-center bg-black/50 px-3">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-4 text-sm shadow-xl">
+              <p className="text-slate-900">{`Вы действительно хотите удалить данные?`}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={cancelDeleteExtraBlock}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-900 hover:bg-slate-50"
+                >
+                  Нет
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteExtraBlock}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700"
+                >
+                  Да
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div
+          className={`fixed inset-x-0 bottom-0 z-[1450] border-t border-gray-200 bg-white/95 shadow-lg backdrop-blur transition-transform duration-300 ease-out ${
+            hasChanges && !saveFeedback
+              ? "translate-y-0"
+              : "pointer-events-none translate-y-full"
+          }`}
+          aria-hidden={!hasChanges || !!saveFeedback}
+        >
+          <div className="mx-auto flex w-full max-w-4xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+            <button
+              type="submit"
+              disabled={saving}
+              className={saveButtonClassName}
+            >
+              {saveButtonLabel}
+            </button>
+          </div>
+        </div>
+
+        {saveFeedback ? (
+          <ProfileSaveFeedbackBar
+            feedback={saveFeedback}
+            onClose={dismissSaveFeedback}
+          />
+        ) : null}
+      </form>
+    </div>
+  );
+}
+

@@ -1,0 +1,52 @@
+# NEXT_PUBLIC_* подставляются при docker build.
+# Prod:  bash deploy/timeweb/deploy-app.sh
+#        или: docker compose --env-file .env.app -f docker-compose.app.yml up -d --build app-web
+# Test:  docker compose --env-file .env.app.test --profile test -f docker-compose.app.yml up -d --build app-web-test
+
+services:
+  app-web:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+        NEXT_PUBLIC_SUPPORT_PROFILE_ID: ${NEXT_PUBLIC_SUPPORT_PROFILE_ID}
+        NEXT_PUBLIC_VK_MAPS_API_KEY: ${NEXT_PUBLIC_VK_MAPS_API_KEY}
+        NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN: ${NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN}
+        NEXT_PUBLIC_ACCESS_MODE: ${NEXT_PUBLIC_ACCESS_MODE:-freemium}
+    container_name: app-web
+    hostname: mail.zeip.ru
+    restart: unless-stopped
+    env_file:
+      - ./.env.app
+    # Middleware ходит в GoTrue по NEXT_PUBLIC_SUPABASE_URL; без host-gateway
+    # запрос из контейнера на публичный supabase.zeip.ru может упираться в hairpin NAT.
+    extra_hosts:
+      - "supabase.zeip.ru:host-gateway"
+    # 0.0.0.0:3001 — pg_net из supabase-db ходит на http://172.17.0.1:3001/api/push/dispatch
+    ports:
+      - "3001:3000"
+
+  app-web-test:
+    profiles: ["test"]
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+        NEXT_PUBLIC_SUPPORT_PROFILE_ID: ${NEXT_PUBLIC_SUPPORT_PROFILE_ID}
+        NEXT_PUBLIC_VK_MAPS_API_KEY: ${NEXT_PUBLIC_VK_MAPS_API_KEY}
+        NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN: ${NEXT_PUBLIC_ROBOKASSA_MERCHANT_LOGIN}
+        NEXT_PUBLIC_ACCESS_MODE: ${NEXT_PUBLIC_ACCESS_MODE:-paid_gate}
+    container_name: app-web-test
+    restart: unless-stopped
+    env_file:
+      - ./.env.app.test
+    extra_hosts:
+      - "supabase.zeip.ru:host-gateway"
+    ports:
+      - "127.0.0.1:3002:3000"

@@ -1,0 +1,33 @@
+# Фрагмент для docker-compose стека Supabase на VPS (Zeip).
+# Скопируйте блоки сервисов в ваш compose и подправьте пути volumes при необходимости.
+
+services:
+  auth:
+    # Добавьте зависимость (если ещё не указана):
+    # depends_on:
+    #   templates-server:
+    #     condition: service_started
+    environment:
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Подтвердите email — Zeip"
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: "http://templates-server/confirm.html"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Сброс пароля — Zeip"
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: "http://templates-server/recovery.html"
+
+  templates-server:
+    image: caddy:2-alpine
+    command: ["caddy", "file-server", "-r", "/templates", "--listen", ":80"]
+    volumes:
+      - ./volumes/templates:/templates
+
+# На диске рядом с compose должно быть:
+#   volumes/templates/confirm.html
+#   volumes/templates/recovery.html
+#
+# После изменений:
+#   cd ~/zeip/supabase-stack
+#   docker compose up -d --force-recreate --no-deps templates-server auth
+#   docker compose restart kong
+#
+# Или с Mac:
+#   cd /Users/vladimirchudinov/Desktop/my-startup/my-app
+#   bash scripts/vps/deploy-email-templates.sh

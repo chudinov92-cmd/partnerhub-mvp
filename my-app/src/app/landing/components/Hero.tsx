@@ -1,0 +1,105 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ButtonLink } from "@/app/landing/components/Button";
+import {
+  LANDING_GUEST_CTA,
+  resolveLandingHeroCta,
+  type LandingHeroCta,
+} from "@my-startup/auth";
+import {
+  AUTH_OPERATION_TIMEOUT_MS,
+  authGetUser,
+  authLocalSignOut,
+  withAuthTimeout,
+} from "@my-startup/auth";
+
+type HeroProps = {
+  assets: {
+    logo: string;
+    glow: string;
+    btnNoise: string;
+  };
+};
+
+export function Hero({ assets }: HeroProps) {
+  const [cta, setCta] = useState<LandingHeroCta>(LANDING_GUEST_CTA);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveCta = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await withAuthTimeout(
+          authGetUser(),
+          "getUser(hero)",
+          AUTH_OPERATION_TIMEOUT_MS,
+        );
+        if (cancelled) return;
+
+        if (error || !user) {
+          if (error) {
+            await authLocalSignOut().catch(() => undefined);
+          }
+          setCta(LANDING_GUEST_CTA);
+          return;
+        }
+
+        const { fetchCurrentUserProfileRow } = await import("@/services/profile/session");
+        const next = await resolveLandingHeroCta(user.id, fetchCurrentUserProfileRow);
+        if (cancelled) return;
+
+        if (next.signOutLocal) {
+          await authLocalSignOut().catch(() => undefined);
+        }
+        setCta({
+          href: next.href,
+          label: next.label,
+          ariaLabel: next.ariaLabel,
+        });
+      } catch {
+        if (!cancelled) setCta(LANDING_GUEST_CTA);
+      }
+    };
+
+    void resolveCta();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <header className="hero">
+      <div className="container hero__grid">
+        <div className="hero__copy">
+          <h1 className="hero__title">
+            <span className="hero__brand">ЗЕИП</span> — карта людей для бизнес-проектов
+          </h1>
+          <p className="hero__subtitle">
+            Сделай первый шаг и появись на карте
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <ButtonLink
+              href={cta.href}
+              aria-label={cta.ariaLabel}
+              noiseImageUrl={assets.btnNoise}
+            >
+              {cta.label}
+            </ButtonLink>
+          </div>
+        </div>
+
+        <div className="hero__art" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="hero__logo" src={assets.logo} alt="Зеип" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="hero__glow" src={assets.glow} alt="" />
+        </div>
+      </div>
+    </header>
+  );
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@my-startup/notifications",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./server": {
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "react": "^19.0.0",
+    "next": "^16.1.6",
+    "nodemailer": "^9.0.5",
+    "web-push": "^3.6.7",
+    "@my-startup/auth": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.1",
+    "@types/web-push": "^3.6.4"
+  }
+}

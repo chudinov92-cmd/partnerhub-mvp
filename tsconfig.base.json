@@ -1,0 +1,57 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": [
+      "es2020",
+      "dom"
+    ],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "strict": false,
+    "paths": {
+      "@my-startup/ui": [
+        "./libs/ui/src/index.ts"
+      ],
+      "@my-startup/hooks": [
+        "./libs/hooks/src/index.ts"
+      ],
+      "@my-startup/analytics": [
+        "./libs/analytics/src/index.ts"
+      ],
+      "@my-startup/auth": [
+        "./libs/auth/src/index.ts"
+      ],
+      "@my-startup/subscription": [
+        "./libs/subscription/src/index.ts"
+      ],
+      "@my-startup/chat": [
+        "./libs/chat/src/index.ts"
+      ],
+      "@my-startup/notifications": [
+        "./libs/notifications/src/index.ts"
+      ],
+      "@my-startup/profile": [
+        "./libs/profile/src/index.ts"
+      ],
+      "@my-startup/map-ui": [
+        "./libs/map-ui/src/index.ts"
+      ],
+      "@my-startup/admin": [
+        "./libs/admin/src/index.ts"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "tmp"
+  ]
+}

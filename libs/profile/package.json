@@ -1,0 +1,24 @@
+{
+  "name": "@my-startup/profile",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "react": "^19.0.0",
+    "next": "^16.1.6",
+    "@supabase/supabase-js": "^2.99.1",
+    "fuse.js": "^7.5.0",
+    "@my-startup/auth": "^0.0.1",
+    "@my-startup/subscription": "^0.0.1",
+    "@my-startup/chat": "^0.0.1"
+  }
+}

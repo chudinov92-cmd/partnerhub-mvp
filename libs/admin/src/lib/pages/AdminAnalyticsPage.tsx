@@ -1,0 +1,247 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { adminFetchDashboardCounts } from "../services/adminService";
+import { AdminShell } from "../components/AdminShell";
+import { ProfessionDemandAnalytics } from "../components/ProfessionDemandAnalytics";
+import { PaywallFunnelAnalytics } from "../components/PaywallFunnelAnalytics";
+import { RevenueAnalytics } from "../components/RevenueAnalytics";
+import { getErrorMessage } from "../errors";
+
+type MetricCardProps = {
+  title: string;
+  value: string;
+  hint?: string;
+};
+
+function MetricCard({ title, value, hint }: MetricCardProps) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-xs font-semibold text-slate-600">{title}</div>
+      <div className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
+        {value}
+      </div>
+      {hint ? <div className="mt-1 text-xs text-slate-500">{hint}</div> : null}
+    </div>
+  );
+}
+
+function toDateInputValue(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function AdminAnalyticsPage() {
+  const today = useMemo(() => new Date(), []);
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return toDateInputValue(d);
+  });
+  const [to, setTo] = useState(() => toDateInputValue(today));
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [metrics, setMetrics] = useState<{
+    profilesTotal: number;
+    profilesActive2m: number;
+    postsInRange: number;
+    messagesInRange: number;
+    reportsNew: number;
+    reportsResolved: number;
+    dauYesterday: number;
+    wau7d: number;
+    mau30d: number;
+  } | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fromIso = new Date(`${from}T00:00:00.000Z`).toISOString();
+      const toIso = new Date(`${to}T23:59:59.999Z`).toISOString();
+      const activeCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+      const [
+        profilesTotalRes,
+        profilesActiveRes,
+        postsRes,
+        messagesRes,
+        reportsNewRes,
+        reportsResolvedRes,
+      ] = await adminFetchDashboardCounts({
+        fromIso,
+        toIso,
+        activeCutoff,
+      });
+
+      const activityKpisRes = await fetch("/api/admin/analytics/activity-kpis");
+
+      const anyErr =
+        profilesTotalRes.error ||
+        profilesActiveRes.error ||
+        postsRes.error ||
+        messagesRes.error ||
+        reportsNewRes.error ||
+        reportsResolvedRes.error;
+      if (anyErr) throw anyErr;
+
+      let dauYesterday = 0;
+      let wau7d = 0;
+      let mau30d = 0;
+      if (activityKpisRes.ok) {
+        const kpis = (await activityKpisRes.json()) as {
+          dauYesterday?: number;
+          wau7d?: number;
+          mau30d?: number;
+        };
+        dauYesterday = kpis.dauYesterday ?? 0;
+        wau7d = kpis.wau7d ?? 0;
+        mau30d = kpis.mau30d ?? 0;
+      }
+
+      setMetrics({
+        profilesTotal: profilesTotalRes.count ?? 0,
+        profilesActive2m: profilesActiveRes.count ?? 0,
+        postsInRange: postsRes.count ?? 0,
+        messagesInRange: messagesRes.count ?? 0,
+        reportsNew: reportsNewRes.count ?? 0,
+        reportsResolved: reportsResolvedRes.count ?? 0,
+        dauYesterday,
+        wau7d,
+        mau30d,
+      });
+    } catch (e: unknown) {
+      console.error("[admin/analytics] load", e);
+      setError(getErrorMessage(e, "Не удалось загрузить аналитику."));
+      setMetrics(null);
+    } finally {
+      setLoading(false);
+      setRefreshKey((k) => k + 1);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  return (
+    <AdminShell>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Аналитика</h1>
+            <p className="text-sm text-slate-600">
+              MVP метрики активности и модерации.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => load()}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-60"
+            disabled={loading}
+          >
+            Обновить
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                Период: от
+              </label>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-700">
+                До
+              </label>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={() => load()}
+                disabled={loading}
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Применить
+              </button>
+            </div>
+          </div>
+          {error ? (
+            <p className="mt-3 text-sm font-medium text-rose-700">{error}</p>
+          ) : null}
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-slate-500">Загрузка…</p>
+        ) : metrics ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <MetricCard title="Профили всего" value={String(metrics.profilesTotal)} />
+            <MetricCard
+              title="Онлайн (≤2 мин)"
+              value={String(metrics.profilesActive2m)}
+              hint="По profiles.last_seen_at"
+            />
+            <MetricCard
+              title="Посты в общем чате"
+              value={String(metrics.postsInRange)}
+              hint={`${from} → ${to}`}
+            />
+            <MetricCard
+              title="Сообщения в личных чатах"
+              value={String(metrics.messagesInRange)}
+              hint={`${from} → ${to}`}
+            />
+            <MetricCard title="Репорты: новые" value={String(metrics.reportsNew)} />
+            <MetricCard
+              title="Репорты: решённые"
+              value={String(metrics.reportsResolved)}
+            />
+            <MetricCard
+              title="DAU вчера"
+              value={String(metrics.dauYesterday)}
+              hint="user_daily_activity, UTC"
+            />
+            <MetricCard
+              title="WAU 7д"
+              value={String(metrics.wau7d)}
+              hint="Уникальные за 7 UTC-дней"
+            />
+            <MetricCard
+              title="MAU 30д"
+              value={String(metrics.mau30d)}
+              hint="Уникальные за 30 UTC-дней"
+            />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            Нет данных.
+          </div>
+        )}
+
+        <PaywallFunnelAnalytics from={from} to={to} refreshKey={refreshKey} />
+
+        <RevenueAnalytics refreshKey={refreshKey} />
+
+        <ProfessionDemandAnalytics />
+      </div>
+    </AdminShell>
+  );
+}
+

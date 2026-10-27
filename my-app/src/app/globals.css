@@ -1,0 +1,342 @@
+@import "tailwindcss";
+@source "../../../libs/**/*.{ts,tsx}";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* Системный стек вместо next/font/google — сборка без скачивания fonts.gstatic (Turbopack/офлайн). */
+  --font-geist-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  --zeip-mobile-nav-height: 3.5rem;
+  --zeip-paywall-banner-height: 0px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  /* Кастомные цвета Zeip — реплика slate/amber/sky/emerald Tailwind v3 */
+  --color-slate-50: #f1f5f9;
+  --color-slate-100: #e2e8f0;
+  --color-slate-200: #cbd5e1;
+  --color-slate-300: #94a3b8;
+  --color-slate-400: #64748b;
+  --color-slate-500: #475569;
+  --color-slate-600: #334155;
+  --color-slate-700: #1e293b;
+  --color-slate-800: #0f172a;
+  --color-slate-900: #020617;
+  --color-emerald-50: #e6f7ec;
+  --color-emerald-100: #c6f0d8;
+  --color-emerald-200: #a6e8c4;
+  --color-emerald-300: #86e0b0;
+  --color-emerald-400: #66d89c;
+  --color-emerald-500: #009966;
+  --color-emerald-600: #008055;
+  --color-emerald-700: #006a44;
+  --color-emerald-800: #005033;
+  --color-emerald-900: #003822;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fff3d6;
+  --color-amber-200: #ffe4a8;
+  --color-amber-400: #ffb347;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-sky-200: #b8dcf5;
+  --color-sky-300: #8cd4f8;
+  --color-sky-400: #5bcef5;
+  --color-sky-500: #3ac4f2;
+  --color-sky-600: #26b8e8;
+  --color-sky-700: #1da0d0;
+  --color-red-500: #ef4444;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans);
+}
+
+/**
+ * Высота TopBar (одна строка: логотип, min-h-14).
+ * Синхронизировать с fallback `--zeip-topbar-height` (3.5rem) в calc по карте и профилю.
+ */
+.zeip-topbar {
+  --zeip-topbar-height: 3.5rem;
+}
+
+/**
+ * Плавающий попап профиля на карте: между TopBar и нижней навигацией на мобилке.
+ * z-index выше MainMobileNav (1400), ниже TopBar (1500).
+ * Панель «Поиск специалистов» на карте — z-[1300], баннер подписки — z-[1250].
+ */
+.zeip-profile-preview-floating {
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--zeip-topbar-height, 3.5rem) + env(safe-area-inset-top, 0px) + 8px);
+  max-height: calc(
+    100vh
+    - var(--zeip-topbar-height, 3.5rem)
+    - env(safe-area-inset-top, 0px)
+    - var(--zeip-mobile-nav-height, 3.5rem)
+    - env(safe-area-inset-bottom, 0px)
+    - 16px
+  );
+}
+
+@supports (height: 100dvh) {
+  .zeip-profile-preview-floating {
+    max-height: calc(
+      100dvh
+      - var(--zeip-topbar-height, 3.5rem)
+      - env(safe-area-inset-top, 0px)
+      - var(--zeip-mobile-nav-height, 3.5rem)
+      - env(safe-area-inset-bottom, 0px)
+      - 16px
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .zeip-profile-preview-floating {
+    max-height: calc(
+      100dvh
+      - var(--zeip-topbar-height, 3.5rem)
+      - env(safe-area-inset-top, 0px)
+      - 16px
+    );
+  }
+}
+
+/**
+ * Высота основного стека карты: минус TopBar + safe-top.
+ * 100dvh — видимая область в iOS Safari; fallback на 100vh.
+ */
+.zeip-main-stack {
+  height: calc(
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
+  );
+  max-height: calc(
+    100vh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
+  );
+}
+@supports (height: 100dvh) {
+  .zeip-main-stack {
+    height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
+    );
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - var(--zeip-topbar-height, 3.5rem)
+    );
+  }
+}
+
+.profile-location-marker {
+  z-index: 2;
+}
+
+.mmrgl-map .mmrgl-marker {
+  z-index: 2;
+}
+
+/**
+ * Chromium (Chrome / встроенный браузер Cursor): <canvas> — отдельный
+ * compositor-слой и не наследует `cursor: grab` с `.mmrgl-canvas-container`.
+ * Без явного cursor на самом canvas курсор мигает default ↔ grab
+ * (стрелка ↔ рука) при любом движении по карте.
+ */
+.mmrgl-canvas-container.mmrgl-interactive,
+.mmrgl-canvas-container.mmrgl-interactive .mmrgl-canvas {
+  cursor: grab;
+}
+
+.mmrgl-canvas-container.mmrgl-interactive:active,
+.mmrgl-canvas-container.mmrgl-interactive:active .mmrgl-canvas {
+  cursor: grabbing;
+}
+
+.mmrgl-canvas-container.mmrgl-interactive.mmrgl-track-pointer,
+.mmrgl-canvas-container.mmrgl-interactive.mmrgl-track-pointer .mmrgl-canvas {
+  cursor: pointer;
+}
+
+/* VK Maps (mmr-gl): кастомные пины партнёров */
+.partner-map-marker-root {
+  position: relative;
+  /* Хит-тест только у пина: пустая область маркера (тултип) не перехватывает курсор. */
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.partner-map-pin-wrap {
+  display: flex;
+  width: 48px;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.partner-map-pin-head {
+  display: flex;
+  height: 48px;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 4px solid white;
+  box-shadow:
+    0 10px 15px -3px rgb(15 23 42 / 0.12),
+    0 4px 6px -4px rgb(15 23 42 / 0.08);
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.partner-map-pin-letter {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.partner-map-pin-stem {
+  height: 12px;
+  width: 4px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.partner-map-pin-wrap:hover .partner-map-pin-head {
+  transform: scale(1.25);
+  box-shadow:
+    0 20px 25px -5px rgb(15 23 42 / 0.15),
+    0 8px 10px -6px rgb(15 23 42 / 0.1);
+}
+
+@keyframes partner-map-pin-hello {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 15px -3px rgb(15 23 42 / 0.12),
+      0 4px 6px -4px rgb(15 23 42 / 0.08);
+  }
+
+  20%,
+  80% {
+    transform: scale(1.25);
+    box-shadow:
+      0 20px 25px -5px rgb(15 23 42 / 0.15),
+      0 8px 10px -6px rgb(15 23 42 / 0.1);
+  }
+
+  40%,
+  60% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 15px -3px rgb(15 23 42 / 0.12),
+      0 4px 6px -4px rgb(15 23 42 / 0.08);
+  }
+}
+
+.partner-map-pin-wrap--hello .partner-map-pin-head {
+  animation: partner-map-pin-hello 1.5s ease forwards;
+  transition: none;
+}
+
+.partner-map-hover-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: auto;
+  z-index: 3;
+  min-width: 140px;
+  max-width: 220px;
+  /* -100% в transform — высота самого тултипа, не родителя (у mmrgl-marker высота auto). */
+  transform: translate(-50%, calc(-100% - 8px));
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.98);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: rgb(51 65 85);
+  box-shadow:
+    0 10px 15px -3px rgb(15 23 42 / 0.12),
+    0 4px 6px -4px rgb(15 23 42 / 0.08);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.partner-map-marker-root:hover {
+  z-index: 20000000 !important;
+}
+
+.partner-map-marker-root:hover .partner-map-hover-tooltip {
+  display: block;
+}
+
+.partner-map-tooltip-role {
+  margin-top: 0.125rem;
+  color: rgb(100 116 139);
+}
+
+.partner-map-online-dot {
+  display: inline-block;
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+}
+
+.partner-map-online-dot.is-online {
+  background: rgb(16 185 129);
+}
+
+.partner-map-online-dot.is-offline {
+  background: rgb(148 163 184);
+}
+
+/* Отступ контролов VK Maps от края */
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-top-left {
+  top: 0.5rem;
+  left: 0.5rem;
+}
+
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 0.08),
+    0 1px 2px -1px rgb(15 23 42 / 0.06);
+}
+
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button {
+  color: rgb(71 85 105);
+}
+
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:hover,
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:focus {
+  color: rgb(51 65 85);
+}
+
+.mmrgl-map.zeip-partner-map .mmrgl-ctrl-group button:disabled {
+  color: rgb(148 163 184);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-map-pin-wrap--hello .partner-map-pin-head {
+    animation: none;
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@my-startup/admin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "react": "^19.0.0",
+    "next": "^16.1.6",
+    "@my-startup/auth": "^0.0.1",
+    "@my-startup/chat": "^0.0.1",
+    "@my-startup/profile": "^0.0.1"
+  }
+}

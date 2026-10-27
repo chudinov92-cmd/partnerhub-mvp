@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Деплой Next.js на Timeweb. Запускать на VPS после ssh:
+#   bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh
+set -euo pipefail
+
+ROOT="/root/zeip/my-app"
+ENV_FILE="${ROOT}/deploy/timeweb/.env.app"
+COMPOSE_FILE="${ROOT}/deploy/timeweb/docker-compose.app.yml"
+
+cd "${ROOT}"
+echo "=== git pull ==="
+OLD_HEAD="$(git rev-parse HEAD)"
+git pull --ff-only
+NEW_HEAD="$(git rev-parse HEAD)"
+
+# Bash уже прочитал этот файл до pull — после обновления перезапускаем скрипт.
+if [[ "${OLD_HEAD}" != "${NEW_HEAD}" ]] && [[ -z "${ZEIP_DEPLOY_REEXEC:-}" ]]; then
+  echo "=== deploy script updated (${OLD_HEAD:0:7} -> ${NEW_HEAD:0:7}), re-run ==="
+  export ZEIP_DEPLOY_REEXEC=1
+  exec bash "${ROOT}/deploy/timeweb/deploy-app.sh"
+fi
+
+run_sql_migration() {
+  local file="$1"
+  local label="$2"
+  if [[ ! -f "${file}" ]]; then
+    return 0
+  fi
+  echo "=== migration ${label} ==="
+  docker exec -i supabase-db psql -U supabase_admin -d postgres < "${file}" || \
+  docker exec -i supabase-db psql -U postgres -d postgres < "${file}" || true
+}
+
+run_sql_migration "${ROOT}/supabase/sql/2026-05-20-subscription.sql" "subscription"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-21-support.sql" "support"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-21-chats-insert-rls.sql" "chats-insert-rls"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-22-ensure-private-chat-rpc.sql" "ensure-private-chat-rpc"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-25-useful-contacts.sql" "useful-contacts"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-25-profession-demand-analytics.sql" "profession-demand-analytics"
+run_sql_migration "${ROOT}/supabase/sql/2026-05-26-chat-members-last-read.sql" "chat-members-last-read"
+run_sql_migration "${ROOT}/supabase/sql/2026-06-02-add-engineering-professions.sql" "engineering-professions"
+run_sql_migration "${ROOT}/supabase/sql/2026-06-03-add-engineering-professions-batch2.sql" "engineering-professions-batch2"
+run_sql_migration "${ROOT}/supabase/sql/2026-07-15-subscription-payments.sql" "subscription-payments"
+run_sql_migration "${ROOT}/supabase/sql/2026-07-17-cookie-consent-logs.sql" "cookie-consent-logs"
+run_sql_migration "${ROOT}/docs/archive/profile_views_content_version.sql" "profile-views-content-version"
+run_sql_migration "${ROOT}/docs/archive/profile_work_public_read.sql" "profile-work-public-read"
+run_sql_migration "${ROOT}/docs/archive/profile_last_name_private.sql" "profile-last-name-private"
+run_sql_migration "${ROOT}/supabase/sql/2026-07-21-account-settings.sql" "account-settings"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-11-subscription-trial.sql" "subscription-trial"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-11-push-dispatch-internal-url.sql" "push-dispatch-internal-url"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-13-seeking-has.sql" "seeking-has"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-17-disable-pioneer-promo.sql" "disable-pioneer-promo"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-pioneer-promo-admin.sql" "pioneer-promo-admin"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-17-subscription-tiers.sql" "subscription-tiers"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-email-notifications.sql" "email-notifications"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-user-daily-activity.sql" "user-daily-activity"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-paywall-events.sql" "paywall-events"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-subscription-payments-period.sql" "subscription-payments-period"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-mrr-snapshots.sql" "mrr-snapshots"
+run_sql_migration "${ROOT}/supabase/sql/2026-08-19-profile-share-codes.sql" "profile-share-codes"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-04-delete-own-messages.sql" "delete-own-messages"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-07-exclude-support-from-email.sql" "exclude-support-from-email"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-07-email-internal-urls.sql" "email-internal-urls"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-11-profiles-age-1-99.sql" "profiles-age-1-99"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-13-auth-otp-sends.sql" "auth-otp-sends"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-15-admin-moderation-purge.sql" "admin-moderation-purge"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-profession-catalog-label-key.sql" "profession-catalog-label-key"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-auth-login-attempts.sql" "auth-login-attempts"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-perf-hot-paths.sql" "perf-hot-paths"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-dedupe-private-chats.sql" "dedupe-private-chats"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-ensure-private-chat-latest.sql" "ensure-private-chat-latest"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-16-apply-robokassa-payment.sql" "apply-robokassa-payment"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-17-fetch-map-viewport-pins-own-outside-bbox.sql" "viewport-pins-own-outside-bbox"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-17-email-dm-deeplink.sql" "email-dm-deeplink"
+run_sql_migration "${ROOT}/supabase/sql/2026-09-17-contact-profiles-rpc.sql" "contact-profiles-rpc"
+run_sql_migration "${ROOT}/supabase/sql/2026-10-27-email-dm-message-preview.sql" "email-dm-message-preview"
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "ОШИБКА: нет файла ${ENV_FILE}"
+  exit 1
+fi
+
+echo "=== sync SMTP from supabase-stack/.env → .env.app ==="
+if [[ -f "${ROOT}/scripts/vps/sync-smtp-to-env-app.sh" ]]; then
+  bash "${ROOT}/scripts/vps/sync-smtp-to-env-app.sh"
+else
+  echo "WARN: sync-smtp-to-env-app.sh не найден — проверьте SMTP_* в ${ENV_FILE} вручную"
+fi
+
+# shellcheck disable=SC1090
+set -a
+source "${ENV_FILE}"
+set +a
+
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPPORT_PROFILE_ID NEXT_PUBLIC_VK_MAPS_API_KEY SUPABASE_SERVICE_ROLE_KEY NEXT_PUBLIC_VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT INTERNAL_PUSH_SECRET SMTP_HOST SMTP_USER SMTP_PASS SMTP_ADMIN_EMAIL; do
+  if [[ -z "${!var:-}" ]] || [[ "${!var}" == REPLACE_* ]]; then
+    echo "ОШИБКА: в ${ENV_FILE} не задано или плейсхолдер: ${var}"
+    exit 1
+  fi
+done
+
+echo "=== docker build (with .env.app) ==="
+cd "${ROOT}/deploy/timeweb"
+
+# --no-cache каждый раз тянет node:20-alpine с Docker Hub → 429 на VPS без login.
+# Кэш слоёв сохраняем; базовый образ не перекачиваем, если уже есть локально.
+# На VPS docker compose принимает только true/false (не missing/never).
+COMPOSE_BUILD=(--env-file .env.app -f docker-compose.app.yml build)
+if docker image inspect public.ecr.aws/docker/library/node:20-alpine >/dev/null 2>&1 || \
+   docker image inspect node:20-alpine >/dev/null 2>&1; then
+  COMPOSE_BUILD+=(--pull=false)
+  echo "Базовый образ node:20-alpine уже локально — pull отключён"
+else
+  COMPOSE_BUILD+=(--pull=true)
+  echo "Базовый образ node:20-alpine не найден — pull включён"
+fi
+
+docker compose "${COMPOSE_BUILD[@]}" app-web
+docker compose --env-file .env.app -f docker-compose.app.yml up -d app-web
+
+echo "=== fix supabase caddy proxy (8443 -> 8000) ==="
+if [[ -f "${ROOT}/scripts/vps/fix-supabase-caddy-proxy.sh" ]]; then
+  bash "${ROOT}/scripts/vps/fix-supabase-caddy-proxy.sh"
+else
+  echo "WARN: fix-supabase-caddy-proxy.sh не найден — проверьте /etc/caddy/Caddyfile вручную"
+fi
+
+echo "=== caddy security headers (HSTS, X-Frame-Options) ==="
+if [[ -f "${ROOT}/scripts/vps/apply-caddy-security-headers.sh" ]]; then
+  bash "${ROOT}/scripts/vps/apply-caddy-security-headers.sh"
+else
+  echo "WARN: apply-caddy-security-headers.sh не найден"
+fi
+
+echo "=== check cookie-consent API ==="
+sleep 2
+curl -sS -o /dev/null -w "cookie-consent: HTTP %{http_code}\n" \
+  -X POST http://127.0.0.1:3001/api/v1/privacy/cookie-consent \
+  -H "Content-Type: application/json" \
+  -d '{"anonymous_uid":"550e8400-e29b-41d4-a716-446655440000","policy_version":"v2026.2","consent_type":"all"}' || true
+
+echo "=== check /subscription ==="
+sleep 3
+curl -sI http://127.0.0.1:3001/subscription | head -5
+docker logs app-web --tail 15

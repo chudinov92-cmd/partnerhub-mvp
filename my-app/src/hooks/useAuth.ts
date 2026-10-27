@@ -1,0 +1,158 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { authGetUser, authOnAuthStateChange } from "@my-startup/auth";
+import { fetchCurrentUserProfileRow } from "@/services/profileService";
+import { loadPrivateChatSidebar } from "@my-startup/chat";
+import { isActiveProProfile, getEffectiveSubscriptionPlan } from "@my-startup/subscription";
+import type { ChatListItem } from "@my-startup/chat";
+import type { CurrentUser, Profile } from "@/types";
+
+/**
+ * Стартовая загрузка: карта профилей, текущий пользователь, сайдбар личных чатов.
+ * blockedProfileIds — на первом маунте обычно [].
+ */
+export function useAuth(blockedProfileIds: readonly string[]) {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [chatList, setChatList] = useState<ChatListItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUserReady, setCurrentUserReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const chatMembershipRef = useRef<Set<string>>(new Set());
+  const blockedRef = useRef(blockedProfileIds);
+  const loadPromiseRef = useRef<Promise<void> | null>(null);
+  blockedRef.current = blockedProfileIds;
+
+  useEffect(() => {
+    const loadPrivateChatSidebarInBackground = (profileId: string) => {
+      loadPrivateChatSidebar(profileId, blockedRef.current as string[])
+        .then((sidebar) => {
+          chatMembershipRef.current = sidebar.chatMembership;
+          setChatList(sidebar.items);
+        })
+        .catch((err) => {
+          console.error("Failed to load chat sidebar", err);
+        });
+    };
+
+    const loadUserContext = async (userId: string) => {
+      const profileRow = await fetchCurrentUserProfileRow(userId);
+      if (profileRow) {
+        setCurrentUser({
+          profileId: profileRow.id,
+          fullName: profileRow.full_name,
+          city: profileRow.city,
+          roleTitle: profileRow.role_title ?? null,
+          isBlocked: !!profileRow.is_blocked,
+          isPro: isActiveProProfile(profileRow),
+          subscriptionPlan: getEffectiveSubscriptionPlan(profileRow),
+          trialUsed: Boolean(profileRow.trial_used),
+          onboardingCompleted: Boolean(profileRow.onboarding_completed),
+          onboardingStep: profileRow.onboarding_step ?? 0,
+        });
+        loadPrivateChatSidebarInBackground(profileRow.id);
+      } else {
+        chatMembershipRef.current = new Set();
+        setCurrentUser(null);
+        setChatList([]);
+      }
+    };
+
+    const clearUserContext = () => {
+      chatMembershipRef.current = new Set();
+      setCurrentUser(null);
+      setChatList([]);
+    };
+
+    const load = (): Promise<void> => {
+      if (loadPromiseRef.current) {
+        return loadPromiseRef.current;
+      }
+
+      const promise = (async () => {
+        try {
+          setError(null);
+          setLoading(true);
+          setCurrentUserReady(false);
+
+          setProfiles([]);
+          setLoading(false);
+
+          const {
+            data: { user },
+            sessionExpired: expired,
+          } = await authGetUser();
+
+          if (expired) {
+            setSessionExpired(true);
+          } else {
+            setSessionExpired(false);
+          }
+
+          if (user) {
+            await loadUserContext(user.id);
+          } else {
+            clearUserContext();
+          }
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error ? err.message : "Не удалось загрузить данные";
+          setError(msg);
+          setLoading(false);
+        } finally {
+          setCurrentUserReady(true);
+          loadPromiseRef.current = null;
+        }
+      })();
+
+      loadPromiseRef.current = promise;
+      return promise;
+    };
+
+    void load();
+
+    const {
+      data: { subscription },
+    } = authOnAuthStateChange(async (event) => {
+      if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setCurrentUserReady(true);
+        setChatList([]);
+        chatMembershipRef.current = new Set();
+        setSessionExpired(false);
+        setLoading(false);
+        loadPromiseRef.current = null;
+        return;
+      }
+      if (event === "TOKEN_REFRESHED") {
+        setSessionExpired(false);
+        return;
+      }
+      if (event === "SIGNED_IN") {
+        setSessionExpired(false);
+        void load();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      loadPromiseRef.current = null;
+    };
+  }, []);
+
+  return {
+    profiles,
+    setProfiles,
+    chatList,
+    setChatList,
+    currentUser,
+    setCurrentUser,
+    currentUserReady,
+    loading,
+    error,
+    sessionExpired,
+    chatMembershipRef,
+  };
+}

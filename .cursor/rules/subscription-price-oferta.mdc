@@ -1,0 +1,22 @@
+---
+description: При смене цены подписок — синхронизировать публичную оферту и docx
+globs: my-app/src/app/subscription/**,my-app/src/app/api/subscription/**,my-app/src/lib/subscriptionPlans.ts,my-app/src/data/legal/oferta.json
+alwaysApply: false
+---
+
+# Цены подписок и публичная оферта
+
+При изменении цены или периода тарифов **обязательно напомни пользователю** и синхронизируй все источники:
+
+| Что | Файл |
+|-----|------|
+| UI цены и копирайт | `my-app/src/lib/subscriptionPlans.ts`, `my-app/src/app/subscription/SubscriptionPlansView.tsx` |
+| Сумма в Robokassa | `my-app/src/lib/subscriptionPlans.ts` (`parsePaymentPlanId`) |
+| Публичная оферта на сайте | `my-app/src/data/legal/oferta.json` (п. 5.1–5.7) |
+| Docx для РКН | `Документы 2/Публичная оферта.docx` (перегенерировать из `oferta.json`) |
+
+Тарифы: **Pro** 249 ₽/мес, 2390 ₽/год; **Pro+** 449 ₽/мес, 4310 ₽/год.
+
+Период подписки задаётся в webhook: `my-app/src/app/api/subscription/webhook/route.ts` через `parsePaymentPlanId`.
+
+После правок: деплой приложения; docx обновляется локально в `Документы 2/`.

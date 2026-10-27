@@ -1,0 +1,23 @@
+{
+  "name": "@my-startup/chat",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@supabase/supabase-js": "^2.99.1",
+    "react": "^19.0.0",
+    "@my-startup/subscription": "^0.0.1",
+    "next": "^16.1.6",
+    "@my-startup/auth": "^0.0.1",
+    "@my-startup/hooks": "^0.0.1"
+  }
+}

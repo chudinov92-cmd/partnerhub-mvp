@@ -1,0 +1,85 @@
+import type { SubscriptionPlan } from "@my-startup/subscription";
+
+/** Общие доменные типы (вынесены из приложения для переиспользования движком профилей). */
+
+export type Post = {
+  id: string;
+  body: string | null;
+  city: string | null;
+  created_at: string;
+  edited_at?: string | null;
+  author_id: string;
+  author: unknown;
+};
+
+export type ProfileWorkBlock = {
+  id?: string;
+  role_title: string | null;
+  industry: string | null;
+  subindustry: string | null;
+  experience_years: number | null;
+  sort_order?: number;
+};
+
+export type Profile = {
+  id: string;
+  full_name: string | null;
+  age?: number | null;
+  city: string | null;
+  rating_avg: number | null;
+  rating_count: number | null;
+  last_seen_at?: string | null;
+  /** Версия контента формы /profile + profile_work; для сброса «просмотренного» пина. */
+  content_updated_at?: string | null;
+  skills?: string | null;
+  resources?: string | null;
+  industry?: string | null;
+  subindustry?: string | null;
+  role_title?: string | null;
+  experience_years?: number | null;
+  current_status?: string | null;
+  interested_in?: string | null;
+  seeking?: string[] | null;
+  is_pro?: boolean | null;
+  pro_expires_at?: string | null;
+  trial_used?: boolean | null;
+  subscription_plan?: SubscriptionPlan | null;
+  work_blocks?: ProfileWorkBlock[];
+};
+
+export type FeedFilters = {
+  profession: string | null;
+  industry: string | null;
+  subindustry: string | null;
+  current_status: string | null;
+  online_status: "online" | "offline" | null;
+  age_from: number | null;
+  age_to: number | null;
+  recommendedContacts: boolean;
+  seeking: string[];
+};
+
+export const DEFAULT_FEED_FILTERS: FeedFilters = {
+  profession: null,
+  industry: null,
+  subindustry: null,
+  current_status: null,
+  online_status: null,
+  age_from: null,
+  age_to: null,
+  recommendedContacts: false,
+  seeking: [],
+};
+
+export type CurrentUser = {
+  profileId: string;
+  fullName: string | null;
+  city: string | null;
+  roleTitle: string | null;
+  isBlocked: boolean;
+  isPro: boolean;
+  subscriptionPlan: SubscriptionPlan;
+  trialUsed: boolean;
+  onboardingCompleted: boolean;
+  onboardingStep: number;
+};

@@ -1,0 +1,24 @@
+{
+  "name": "Zeip",
+  "short_name": "Zeip",
+  "description": "Платформа для поиска партнёров и команд по городам",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#009966",
+  "icons": [
+    {
+      "src": "/Icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/Icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
