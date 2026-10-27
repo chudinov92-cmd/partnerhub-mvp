@@ -9,7 +9,7 @@ import { PinLimitModal } from "@/components/PinLimitModal";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
 import { PaymentSuccessToast } from "@/components/PaymentSuccessToast";
 import { ModerationPurgeDialog } from "@/components/admin/ModerationPurgeDialog";
-import { PushOptInBanner } from "@/components/PushOptInBanner";
+import { PushOptInBanner } from "@my-startup/notifications";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import { useMapPageController } from "./hooks/useMapPageController";
 import { FeedColumn } from "./components/FeedColumn";

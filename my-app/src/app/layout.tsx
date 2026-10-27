@@ -7,7 +7,7 @@ import { AuthRecoveryUrlHandler } from "@/components/AuthRecoveryUrlHandler";
 import { AuthSessionKeeper } from "@/components/AuthSessionKeeper";
 import { RecoveryRedirectScript } from "@/components/RecoveryRedirectScript";
 import { ConditionalTopBar } from "@/components/ConditionalTopBar";
-import { PushBootstrap } from "@/components/PushBootstrap";
+import { PushBootstrap } from "@my-startup/notifications";
 import { SessionExpiredToast } from "@/components/SessionExpiredToast";
 import { CookieBanner } from "@/components/CookieBanner";
 import { YandexMetrika } from "@/components/YandexMetrika";

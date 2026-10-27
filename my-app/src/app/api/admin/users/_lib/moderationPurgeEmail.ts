@@ -1,4 +1,4 @@
-import { getSiteUrl, wrapTransactionalEmail } from "@/lib/emailContent";
+import { getSiteUrl, wrapTransactionalEmail } from "@my-startup/notifications";
 
 const USER_AGREEMENT_URL = `${getSiteUrl().replace(/\/$/, "")}/terms/user-agreement`;
 const SUPPORT_EMAIL = "support@zeip.ru";

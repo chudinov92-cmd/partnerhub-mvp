@@ -134,7 +134,11 @@ export async function enablePush(): Promise<{ ok: boolean; error?: string }> {
 
   const registration = await navigator.serviceWorker.ready;
   const existingSub = await registration.pushManager.getSubscription();
-  await existingSub?.unsubscribe?.().catch(() => {});
+  try {
+    await existingSub?.unsubscribe?.();
+  } catch {
+    /* ignore */
+  }
 
   let subscription: PushSubscription;
   try {
@@ -189,7 +193,11 @@ export async function disablePush(): Promise<{ ok: boolean; error?: string }> {
     credentials: "same-origin",
   });
 
-  await subscription.unsubscribe().catch(() => {});
+  try {
+    await subscription.unsubscribe();
+  } catch {
+    /* ignore */
+  }
 
   if (!del.ok) {
     const errText = await del.text();

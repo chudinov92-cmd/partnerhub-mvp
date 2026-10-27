@@ -4,7 +4,7 @@ import {
   isSmtpConfigured,
   sendTransactionalEmail,
   verifyInternalEmailSecret,
-} from "@/lib/emailServer";
+} from "@my-startup/notifications/server";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 export async function POST(req: Request) {

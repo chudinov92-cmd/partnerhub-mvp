@@ -9,6 +9,7 @@
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — anon key из self-hosted Supabase.
   - `SUPABASE_SERVICE_ROLE_KEY` — только сервер (`/api/**`), не в клиент.
 - **Client data access**: `src/lib/supabaseClient.ts` (browser-safe anon client).
+- **Nx-библиотеки** (`libs/`): `@my-startup/auth` (авторизация), `@my-startup/chat` (чаты), `@my-startup/subscription` (платежи/Pro), `@my-startup/analytics`, `@my-startup/notifications` (веб-пуши + транзакционные email; серверные модули — через subpath `@my-startup/notifications/server`).
 
 ### Деплой на Timeweb (чеклист)
 

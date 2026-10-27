@@ -79,7 +79,6 @@ import { useSelectedCity } from "@/contexts/SelectedCityContext";
 import { getMapConfigForCity } from "@/data/cityMapViews";
 import { logDailyActivity, logMapSearchEvent } from "@/services/analyticsService";
 import { RUSSIA_LABEL } from "@/data/cities";
-import { PushOptInBanner } from "@/components/PushOptInBanner";
 import { useAuth } from "@/hooks/useAuth";
 import { useContacts } from "@/hooks/useContacts";
 import { useMobileNav } from "@/hooks/useMobileNav";

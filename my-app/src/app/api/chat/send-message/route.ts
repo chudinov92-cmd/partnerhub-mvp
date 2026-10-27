@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getProfileIdFromAccessToken } from "@my-startup/auth";
-import { dispatchPushForMessage } from "@/lib/pushDispatchServer";
+import { dispatchPushForMessage } from "@my-startup/notifications/server";
 import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 
 type SendMessageBody = {

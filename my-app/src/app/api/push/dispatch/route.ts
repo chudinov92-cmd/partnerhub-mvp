@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { dispatchPushForMessage } from "@/lib/pushDispatchServer";
+import { dispatchPushForMessage } from "@my-startup/notifications/server";
 
 type DispatchBody = {
   message_id?: string;

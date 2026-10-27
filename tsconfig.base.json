@@ -35,6 +35,9 @@
       ],
       "@my-startup/chat": [
         "./libs/chat/src/index.ts"
+      ],
+      "@my-startup/notifications": [
+        "./libs/notifications/src/index.ts"
       ]
     }
   },

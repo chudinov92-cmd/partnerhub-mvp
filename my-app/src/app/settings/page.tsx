@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/PasswordInput";
-import { PushNotificationsSettings } from "@/components/PushNotificationsSettings";
+import { PushNotificationsSettings } from "@my-startup/notifications";
 import { isRobokassaReturnUrl } from "@my-startup/subscription";
 import { requestAuthLogin } from "@my-startup/auth";
 import {

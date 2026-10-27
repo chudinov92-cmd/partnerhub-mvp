@@ -6,7 +6,7 @@ import {
   enablePush,
   getPushBrowserState,
   isPushSupported,
-} from "@/lib/push";
+} from "../push/client";
 
 /** Блок на /settings: отключение push на этом устройстве. */
 export function PushNotificationsSettings() {

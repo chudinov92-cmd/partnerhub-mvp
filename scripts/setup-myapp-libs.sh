@@ -11,7 +11,7 @@ APPS="$ROOT/my-app/node_modules/@my-startup"
 
 mkdir -p "$APPS"
 
-for lib in analytics auth chat hooks subscription ui; do
+for lib in analytics auth chat hooks subscription ui notifications; do
   SRC="$ROOT/libs/$lib"
   DST="$APPS/$lib"
 

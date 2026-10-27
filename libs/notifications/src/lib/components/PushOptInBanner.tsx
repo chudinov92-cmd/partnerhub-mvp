@@ -9,7 +9,7 @@ import {
   enablePush,
   isPushPromptDismissed,
   isPushSupported,
-} from "@/lib/push";
+} from "../push/client";
 
 type Props = {
   /** Показывать только для залогиненного пользователя. */

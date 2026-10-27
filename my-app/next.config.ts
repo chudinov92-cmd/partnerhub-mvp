@@ -4,7 +4,9 @@ import path from "path";
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: __dirname,
-  transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription"],
+  transpilePackages: ["@my-startup/ui", "@my-startup/hooks", "@my-startup/analytics", "@my-startup/auth", "@my-startup/chat", "@my-startup/subscription", "@my-startup/notifications"],
+  // web-push и nodemailer — серверные пакеты (fs/net только в Node): не бандлим в клиент.
+  serverExternalPackages: ["web-push", "nodemailer"],
   webpack: (config) => {
     config.resolve.modules = [
       ...(config.resolve.modules || []),

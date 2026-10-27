@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "@my-startup/auth";
 import {
   isSmtpConfigured,
   sendTransactionalEmail,
-} from "@/lib/emailServer";
+} from "@my-startup/notifications/server";
 import {
   buildModerationPurgeEmail,
   MODERATION_PURGE_REASONS,

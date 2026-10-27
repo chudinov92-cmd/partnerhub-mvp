@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProfileIdFromAccessToken } from "@my-startup/auth";
-import { dispatchPushForMessage } from "@/lib/pushDispatchServer";
+import { dispatchPushForMessage } from "@my-startup/notifications/server";
 import { createSupabaseAdmin } from "@my-startup/auth";
 
 type NotifyBody = {

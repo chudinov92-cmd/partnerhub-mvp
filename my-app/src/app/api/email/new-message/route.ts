@@ -4,12 +4,12 @@ import { jsonRouteError } from "@/app/api/_lib/jsonRouteError";
 import {
   emailMapChatLink,
   wrapTransactionalEmail,
-} from "@/lib/emailContent";
+} from "@my-startup/notifications";
 import {
   isSmtpConfigured,
   sendTransactionalEmail,
   verifyInternalEmailSecret,
-} from "@/lib/emailServer";
+} from "@my-startup/notifications/server";
 
 type MessageEmailCandidate = {
   profile_id: string;

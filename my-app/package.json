@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:lan": "next dev --hostname 0.0.0.0 --port 3000",
+    "dev": "next dev --webpack",
+    "dev:lan": "next dev --webpack --hostname 0.0.0.0 --port 3000",
     "build": "next build --webpack",
     "start": "next start",
     "start:lan": "next start --hostname 0.0.0.0 --port 3000",
@@ -24,6 +24,7 @@
     "@my-startup/hooks": "file:../libs/hooks",
     "@my-startup/subscription": "file:../libs/subscription",
     "@my-startup/ui": "file:../libs/ui",
+    "@my-startup/notifications": "file:../libs/notifications",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.99.1",
     "focus-trap-react": "^12.0.3",
