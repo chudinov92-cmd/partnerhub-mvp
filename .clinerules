@@ -18,3 +18,33 @@
 ## ПРАВИЛО ФИНАЛЬНОГО ОТЧЕТА
 
 7. Как только сборка успешно завершится, добавь в самый конец своего финального сообщения понятное уведомление для пользователя (например: "Проект готов к просмотру! Пожалуйста, откройте http://localhost:3000 в браузере. Если локальный сервер отключен, напишите мне, и я запущу его").
+
+## ПРАВИЛА ДЕПЛОЯ В ПРОД (раздел для повторного использования)
+
+Перед любой задачей, предполагающей деплой, прочти:
+`ai_docs/devel/runbooks/deploy-production.md` и `ai_docs/devel/reports/2026-10-28-deploy-email-dm-refactor.md`.
+
+### Обязательные действия (чтобы не сломать деплой)
+
+1. **Сначала закоммить и запушь в GitHub origin**, только потом деплой:
+   - `git add -A && git commit -m "..." && git push -u origin main`.
+   - НЕ деплой, пока локальный коммит не в origin (сервер тянет через `git pull`).
+2. **НЕ пушить/мержить при «unrelated histories» вслепую.** Если git ругается — остановись,
+   изучи ранбук (п.7) и аккуратно объедини истории, сохранив и удалённую, и локальную работу.
+3. **Деплой выполняется из папки приложения** на сервере:
+   `ssh root@186.246.2.104 "cd /root/zeip/my-app/my-app && git pull --ff-only && bash deploy/timeweb/deploy-app.sh"`.
+   НЕ запускай деплой из корня `/root/zeip/my-app` — там устаревшая копия.
+4. **SQL-миграции** находятся в `my-app/supabase/sql/` (на сервере: `/root/zeip/my-app/my-app/supabase/sql/`).
+   Новый SQL-файл добавь в список в `my-app/deploy/timeweb/deploy-app.sh`.
+5. **Новый код/библиотеки** клади в `libs/` (Nx). У библиотеки `package.json`:
+   - `"name": "@my-startup/<имя>"` (со скоупом);
+   - `"main"` и `"types"` = `"./src/index.ts"` (указывать на TS-исходник, не на несуществующий index.js).
+6. **Не коммить артефакты**: `.nx/`, `dist/`, `node_modules/`, `.next/`.
+7. **`.env.app`/секреты не в git** — при пересоздании папки скопируй:
+   `cp /root/zeip/my-app/deploy/timeweb/.env.app /root/zeip/my-app/my-app/deploy/timeweb/.env.app`.
+8. После деплоя проверь в логе `✓ Compiled successfully`, `Image ... Built`, `Container ... Started`.
+
+### Спорные SQL-миграции
+`email-notifications` и `exclude-support-from-email` при каждом прогоне `deploy-app.sh` дают
+`cannot change return type` для `get_profiles_for_message_email()`. Это безвредно (скрипт игнорирует,
+финальная миграция корректно пересоздаёт функцию). Не «чини» без необходимости.
