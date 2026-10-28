@@ -48,6 +48,9 @@ COPY scripts/setup-myapp-libs.sh ./scripts/setup-myapp-libs.sh
 WORKDIR /app/my-app
 RUN sh ../scripts/setup-myapp-libs.sh
 RUN npm run build
+# Валидация собранного CSS: если библиотечные классы (lg:rounded-2xl, z-[1600], z-[1450],
+# text-amber-500) пропали — сборка образа падает, и устаревший CSS не уезжает на прод.
+RUN node scripts/check-build-css.mjs
 
 FROM public.ecr.aws/docker/library/node:20-alpine AS runner
 WORKDIR /app

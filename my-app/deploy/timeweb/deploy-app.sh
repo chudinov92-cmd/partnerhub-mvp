@@ -127,11 +127,6 @@ fi
 
 docker compose "${COMPOSE_BUILD[@]}" app-web
 
-echo "=== check:css (ключевые классы библиотек в собранном CSS) ==="
-cd "${ROOT}"
-npm run check:css
-cd "${ROOT}/deploy/timeweb"
-
 docker compose --env-file .env.app -f docker-compose.app.yml up -d app-web
 
 echo "=== fix supabase caddy proxy (8443 -> 8000) ==="
