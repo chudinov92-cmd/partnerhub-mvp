@@ -106,6 +106,16 @@ cd "${ROOT}/deploy/timeweb"
 # Кэш слоёв сохраняем; базовый образ не перекачиваем, если уже есть локально.
 # На VPS docker compose принимает только true/false (не missing/never).
 COMPOSE_BUILD=(--env-file .env.app -f docker-compose.app.yml build)
+# Инвалидация кэша слоя с библиотеками: образ берёт копии libs/ в node_modules/@my-startup
+# из кэша Docker (npm ci не перезапускается), из-за чего globals.css бывает собран по старым
+# компонентам (в проде пропадали lg:rounded-2xl, z-[1600], z-[1450], text-amber-500 и т.п.).
+# Передача git SHA в ARG LIBS_CACHEBUST ротирует этот слой при каждом новом коммите.
+if [[ -d "${ROOT}/.git" ]]; then
+  LIBS_CACHEBUST="$(git -C "${ROOT}" rev-parse --short HEAD 2>/dev/null || echo stable)"
+else
+  LIBS_CACHEBUST="stable"
+fi
+COMPOSE_BUILD+=(--build-arg "LIBS_CACHEBUST=${LIBS_CACHEBUST}")
 if docker image inspect public.ecr.aws/docker/library/node:20-alpine >/dev/null 2>&1 || \
    docker image inspect node:20-alpine >/dev/null 2>&1; then
   COMPOSE_BUILD+=(--pull=false)
@@ -116,6 +126,12 @@ else
 fi
 
 docker compose "${COMPOSE_BUILD[@]}" app-web
+
+echo "=== check:css (ключевые классы библиотек в собранном CSS) ==="
+cd "${ROOT}"
+npm run check:css
+cd "${ROOT}/deploy/timeweb"
+
 docker compose --env-file .env.app -f docker-compose.app.yml up -d app-web
 
 echo "=== fix supabase caddy proxy (8443 -> 8000) ==="

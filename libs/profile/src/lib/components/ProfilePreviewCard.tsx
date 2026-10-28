@@ -650,7 +650,7 @@ export function ProfilePreviewCard({
                   Рейтинг
                 </span>
                 <div className="flex items-center gap-1">
-                  <span className={`font-bold text-yellow-600 ${isEmbedded ? "text-sm" : "text-lg"}`}>
+                  <span className={`font-bold text-amber-500 ${isEmbedded ? "text-sm" : "text-lg"}`}>
                     ★
                   </span>
                   <span className={`font-semibold text-slate-900 ${isEmbedded ? "text-xs" : ""}`}>

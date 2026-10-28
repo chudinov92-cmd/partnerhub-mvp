@@ -5,6 +5,12 @@
 
 FROM public.ecr.aws/docker/library/node:20-alpine AS deps
 WORKDIR /workspace
+# Инвалидация кэша слоя с libs/: Docker переиспользует слой COPY libs, если файлы
+# не изменились, но при ретраях/переключении веток копии в node_modules (@my-startup/*)
+# могут остаться от прошлой сборки → новый globals.css собирается по старым компонентам
+# и в проде пропадают lg:rounded-2xl, z-[1600], z-[1450], text-amber-500 и др.
+# Передаём git SHA из deploy-app.sh через --build-arg.
+ARG LIBS_CACHEBUST=stable
 # Библиотеки и их справка по сборке (только src+package.json+tsconfig достаточно, но копируем libs целиком).
 COPY libs ./libs
 COPY my-app/package.json my-app/package-lock.json ./my-app/
@@ -33,7 +39,14 @@ ENV NEXT_PUBLIC_ACCESS_MODE=$NEXT_PUBLIC_ACCESS_MODE
 # Собираем в my-app: исходники приложения, затем node_modules из deps (чтобы COPY не затёр их).
 COPY my-app ./my-app
 COPY --from=deps /workspace/my-app/node_modules ./my-app/node_modules
+# Пересинхронизируем копии библиотек в node_modules/@my-startup с исходниками libs/ ПРЯМО перед
+# сборкой: npm ci в стадии deps мог отработать на устаревшем слое (кэш Docker), а Tailwind
+# @source читает именно копии. Без этого шага CSS собирается из старых компонентов — в проде
+# пропадали lg:rounded-2xl, z-[1600], z-[1450], bg-slate-50/70, text-amber-500 и т.п.
+COPY libs ./libs
+COPY scripts/setup-myapp-libs.sh ./scripts/setup-myapp-libs.sh
 WORKDIR /app/my-app
+RUN sh ../scripts/setup-myapp-libs.sh
 RUN npm run build
 
 FROM public.ecr.aws/docker/library/node:20-alpine AS runner
