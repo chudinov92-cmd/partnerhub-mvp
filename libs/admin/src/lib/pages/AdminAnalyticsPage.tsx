@@ -81,12 +81,12 @@ export function AdminAnalyticsPage() {
       const activityKpisRes = await fetch("/api/admin/analytics/activity-kpis");
 
       const anyErr =
-        profilesTotalRes.error ||
-        profilesActiveRes.error ||
-        postsRes.error ||
-        messagesRes.error ||
-        reportsNewRes.error ||
-        reportsResolvedRes.error;
+        (profilesTotalRes instanceof Error ? profilesTotalRes : profilesTotalRes.error) ||
+        (profilesActiveRes instanceof Error ? profilesActiveRes : profilesActiveRes.error) ||
+        (postsRes instanceof Error ? postsRes : postsRes.error) ||
+        (messagesRes instanceof Error ? messagesRes : messagesRes.error) ||
+        (reportsNewRes instanceof Error ? reportsNewRes : reportsNewRes.error) ||
+        (reportsResolvedRes instanceof Error ? reportsResolvedRes : reportsResolvedRes.error);
       if (anyErr) throw anyErr;
 
       let dauYesterday = 0;
