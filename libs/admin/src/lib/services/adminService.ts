@@ -192,7 +192,7 @@ let dashboardCountsCache:
 
 const DASHBOARD_COUNTS_CACHE_MS = 45_000;
 
-async function adminFetchDashboardCountsUncached(params: DashboardCountsParams) {
+async function adminFetchDashboardCountsUncached(params: DashboardCountsParams): Promise<DashboardCountsResult> {
   const qs = `from=${encodeURIComponent(params.fromIso.slice(0, 10))}&to=${encodeURIComponent(params.toIso.slice(0, 10))}`;
   const res = await fetch(`/api/admin/analytics/dashboard-counts?${qs}`, {
     credentials: "include",
