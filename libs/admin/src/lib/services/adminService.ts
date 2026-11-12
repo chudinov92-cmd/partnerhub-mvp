@@ -188,32 +188,34 @@ let dashboardCountsCache:
 const DASHBOARD_COUNTS_CACHE_MS = 45_000;
 
 async function adminFetchDashboardCountsUncached(params: DashboardCountsParams) {
-  const { fromIso, toIso, activeCutoff } = params;
-  return Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .gte("last_seen_at", activeCutoff),
-    supabase
-      .from("posts")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", fromIso)
-      .lte("created_at", toIso),
-    supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", fromIso)
-      .lte("created_at", toIso),
-    supabase
-      .from("abuse_reports")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "new"),
-    supabase
-      .from("abuse_reports")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "resolved"),
-  ]);
+  const qs = `from=${encodeURIComponent(params.fromIso.slice(0, 10))}&to=${encodeURIComponent(params.toIso.slice(0, 10))}`;
+  const res = await fetch(`/api/admin/analytics/dashboard-counts?${qs}`, {
+    credentials: "include",
+  } as RequestInit);
+
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: string };
+    const err = new Error(body.error ?? "Dashboard counts request failed");
+    return [err, err, err, err, err, err] as unknown as Awaited<ReturnType<typeof adminFetchDashboardCounts>>;
+  }
+
+  const json = (await res.json()) as {
+    profilesTotal: number;
+    profilesActive2m: number;
+    posts: number;
+    messages: number;
+    reportsNew: number;
+    reportsResolved: number;
+  };
+
+  return [
+    { count: json.profilesTotal, error: null },
+    { count: json.profilesActive2m, error: null },
+    { count: json.posts, error: null },
+    { count: json.messages, error: null },
+    { count: json.reportsNew, error: null },
+    { count: json.reportsResolved, error: null },
+  ] as unknown as Awaited<ReturnType<typeof adminFetchDashboardCounts>>;
 }
 
 export async function adminFetchDashboardCounts(params: DashboardCountsParams) {
