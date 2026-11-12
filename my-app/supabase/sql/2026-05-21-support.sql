@@ -3,11 +3,11 @@
 -- После INSERT скопируйте id из результата в NEXT_PUBLIC_SUPPORT_PROFILE_ID (.env.local и deploy/timeweb/.env.app).
 
 -- 1. Профиль поддержки (auth.users уже создан: support@zeip.ru)
+-- ВНИМАНИЕ (2026-11-12): DO NOTHING вместо DO UPDATE, чтобы при повторном запуске
+-- не было ложного «INSERT 0 1» (UPSERT всегда засчитывает строку).
 INSERT INTO profiles (auth_user_id, full_name)
 VALUES ('d469c17a-4756-45a3-a1a6-0487b7a8a7e0', 'Поддержка')
-ON CONFLICT (auth_user_id) DO UPDATE
-  SET full_name = EXCLUDED.full_name
-RETURNING id;
+ON CONFLICT (auth_user_id) DO NOTHING;
 
 -- Если RETURNING пустой (конфликт без UPDATE в старых PG), получить id вручную:
 -- SELECT id FROM profiles WHERE auth_user_id = 'd469c17a-4756-45a3-a1a6-0487b7a8a7e0';

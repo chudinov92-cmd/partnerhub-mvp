@@ -52,7 +52,9 @@ comment on function public.get_dm_unread_counts(uuid) is
   'Количество непрочитанных входящих ЛС по peer profile id для p_profile_id';
 
 -- 4) RLS: участник может обновить только свою строку (last_read_at при открытии чата)
-grant update on table public.chat_members to authenticated;
+-- ВНИМАНИЕ (2026-11-12): колоночный grant update (last_read_at), чтобы нельзя было
+-- изменить chat_id или другие поля. Табличный grant update давал такую возможность.
+grant update (last_read_at) on table public.chat_members to authenticated;
 
 drop policy if exists chat_members_update_own on public.chat_members;
 

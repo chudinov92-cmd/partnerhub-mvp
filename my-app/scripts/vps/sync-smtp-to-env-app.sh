@@ -6,7 +6,7 @@
 set -euo pipefail
 
 STACK_ENV="${STACK_ENV:-/root/zeip/supabase-stack/.env}"
-APP_ENV="${APP_ENV:-/root/zeip/my-app/deploy/timeweb/.env.app}"
+APP_ENV="${APP_ENV:-/root/zeip/my-app/my-app/deploy/timeweb/.env.app}"
 RECREATE=0
 
 for arg in "$@"; do
@@ -119,7 +119,7 @@ grep -E '^SMTP_' "$APP_ENV" | sed 's/^\(SMTP_PASS=\).*/\1***/'
 
 if [[ "$RECREATE" -eq 1 ]]; then
   echo "=== force-recreate app-web (no rebuild) ==="
-  cd /root/zeip/my-app/deploy/timeweb
+  cd /root/zeip/my-app/my-app/deploy/timeweb
   docker compose --env-file .env.app -f docker-compose.app.yml up -d --force-recreate --no-deps app-web
   echo "=== app-web SMTP env ==="
   docker exec app-web printenv | grep -E '^SMTP_' | sed 's/^\(SMTP_PASS=\).*/\1***/'

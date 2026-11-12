@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Деплой Next.js на Timeweb. Запускать на VPS после ssh:
 #   bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh
+#   RUN_MIGRATIONS=1 bash /root/zeip/my-app/deploy/timeweb/deploy-app.sh   # + SQL-миграции
 set -euo pipefail
 
 ROOT="/root/zeip/my-app/my-app"
 ENV_FILE="${ROOT}/deploy/timeweb/.env.app"
 COMPOSE_FILE="${ROOT}/deploy/timeweb/docker-compose.app.yml"
+
+RUN_MIGRATIONS="${RUN_MIGRATIONS:-0}"
 
 cd "${ROOT}"
 echo "=== git pull ==="
@@ -19,6 +22,23 @@ if [[ "${OLD_HEAD}" != "${NEW_HEAD}" ]] && [[ -z "${ZEIP_DEPLOY_REEXEC:-}" ]]; t
   export ZEIP_DEPLOY_REEXEC=1
   exec bash "${ROOT}/deploy/timeweb/deploy-app.sh"
 fi
+
+# ── SQL-миграции ────────────────────────────────────────────────────
+# ВНИМАНИЕ: миграции ВЫКЛЮЧЕНЫ по умолчанию, чтобы не откатывать
+# исправления безопасности, применённые вручную через Studio.
+# Запуск: RUN_MIGRATIONS=1 bash deploy-app.sh
+# Каждая миграция должна быть идемпотентной.
+if [[ "${RUN_MIGRATIONS}" != "1" ]]; then
+  echo "╔══════════════════════════════════════════════════════════════════╗"
+  echo "║  SQL-миграции ПРОПУЩЕНЫ (RUN_MIGRATIONS != 1).                ║"
+  echo "║  База не изменилась.                                           ║"
+  echo "║  Чтобы запустить миграции:                                     ║"
+  echo "║    RUN_MIGRATIONS=1 bash deploy-app.sh                         ║"
+  echo "╚══════════════════════════════════════════════════════════════════╝"
+else
+  echo "╔══════════════════════════════════════════════════════════════════╗"
+  echo "║  RUN_MIGRATIONS=1: запуск SQL-миграций из репо.                ║"
+  echo "╚══════════════════════════════════════════════════════════════════╝"
 
 run_sql_migration() {
   local file="$1"
@@ -74,6 +94,11 @@ run_sql_migration "${ROOT}/supabase/sql/2026-09-17-fetch-map-viewport-pins-own-o
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-email-dm-deeplink.sql" "email-dm-deeplink"
 run_sql_migration "${ROOT}/supabase/sql/2026-09-17-contact-profiles-rpc.sql" "contact-profiles-rpc"
 run_sql_migration "${ROOT}/supabase/sql/2026-10-27-email-dm-message-preview.sql" "email-dm-message-preview"
+
+  # ── Безопасность: привести базу к целевому защищённому состоянию ──
+  run_sql_migration "${ROOT}/supabase/sql/2026-11-12-security-baseline.sql" "security-baseline"
+
+fi # RUN_MIGRATIONS=1
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ОШИБКА: нет файла ${ENV_FILE}"

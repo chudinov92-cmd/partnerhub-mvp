@@ -33,7 +33,7 @@ as $$
     );
 $$;
 
-revoke all on function public.get_profiles_for_message_email() from public;
+revoke all on function public.get_profiles_for_message_email() from public, anon, authenticated;
 grant execute on function public.get_profiles_for_message_email() to service_role;
 
 comment on function public.get_profiles_for_message_email() is
