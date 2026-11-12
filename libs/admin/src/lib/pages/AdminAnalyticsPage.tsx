@@ -88,8 +88,9 @@ export function AdminAnalyticsPage() {
         reportsNewRes,
         reportsResolvedRes,
       ] as const;
-      const firstErr = results.find((r) => r instanceof Error) ??
-        results.find((r) => r.error);
+      const firstErr: Error | { error: unknown } | undefined =
+        results.find((r): r is Error => r instanceof Error) ??
+        results.find((r): r is { error: unknown } => !(r instanceof Error) && r.error !== null && r.error !== undefined);
       if (firstErr) throw firstErr instanceof Error ? firstErr : new Error(String(firstErr.error));
 
       const extractCount = (r: (typeof results)[number]): number =>
