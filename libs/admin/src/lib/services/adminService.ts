@@ -177,9 +177,14 @@ type DashboardCountsParams = {
   activeCutoff: string;
 };
 
-type DashboardCountsResult = Awaited<
-  ReturnType<typeof adminFetchDashboardCountsUncached>
->;
+type DashboardCountsResult = [
+  { count: number; error: null } | Error,
+  { count: number; error: null } | Error,
+  { count: number; error: null } | Error,
+  { count: number; error: null } | Error,
+  { count: number; error: null } | Error,
+  { count: number; error: null } | Error,
+];
 
 let dashboardCountsCache:
   | { key: string; at: number; value: DashboardCountsResult }
