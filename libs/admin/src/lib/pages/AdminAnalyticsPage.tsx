@@ -80,14 +80,20 @@ export function AdminAnalyticsPage() {
 
       const activityKpisRes = await fetch("/api/admin/analytics/activity-kpis");
 
-      const anyErr =
-        (profilesTotalRes instanceof Error ? profilesTotalRes : profilesTotalRes.error) ||
-        (profilesActiveRes instanceof Error ? profilesActiveRes : profilesActiveRes.error) ||
-        (postsRes instanceof Error ? postsRes : postsRes.error) ||
-        (messagesRes instanceof Error ? messagesRes : messagesRes.error) ||
-        (reportsNewRes instanceof Error ? reportsNewRes : reportsNewRes.error) ||
-        (reportsResolvedRes instanceof Error ? reportsResolvedRes : reportsResolvedRes.error);
-      if (anyErr) throw anyErr;
+      const results = [
+        profilesTotalRes,
+        profilesActiveRes,
+        postsRes,
+        messagesRes,
+        reportsNewRes,
+        reportsResolvedRes,
+      ] as const;
+      const firstErr = results.find((r) => r instanceof Error) ??
+        results.find((r) => r.error);
+      if (firstErr) throw firstErr instanceof Error ? firstErr : new Error(String(firstErr.error));
+
+      const extractCount = (r: (typeof results)[number]): number =>
+        r instanceof Error ? 0 : (r.count ?? 0);
 
       let dauYesterday = 0;
       let wau7d = 0;
@@ -104,12 +110,12 @@ export function AdminAnalyticsPage() {
       }
 
       setMetrics({
-        profilesTotal: profilesTotalRes.count ?? 0,
-        profilesActive2m: profilesActiveRes.count ?? 0,
-        postsInRange: postsRes.count ?? 0,
-        messagesInRange: messagesRes.count ?? 0,
-        reportsNew: reportsNewRes.count ?? 0,
-        reportsResolved: reportsResolvedRes.count ?? 0,
+        profilesTotal: extractCount(profilesTotalRes),
+        profilesActive2m: extractCount(profilesActiveRes),
+        postsInRange: extractCount(postsRes),
+        messagesInRange: extractCount(messagesRes),
+        reportsNew: extractCount(reportsNewRes),
+        reportsResolved: extractCount(reportsResolvedRes),
         dauYesterday,
         wau7d,
         mau30d,
